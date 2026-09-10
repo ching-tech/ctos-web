@@ -27,11 +27,14 @@ const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
 ]
 
 const SEARCH_DEBOUNCE_MS = 300
+const VALID_SCOPES: readonly Scope[] = ["global", "personal", "project"]
 
 function filtersFromParams(params: URLSearchParams): ListFilters {
+  const rawScope = params.get("scope")
+  const scope = VALID_SCOPES.includes(rawScope as Scope) ? (rawScope as Scope) : ""
   return {
     q: params.get("q") || undefined,
-    scope: (params.get("scope") as Scope | null) ?? "",
+    scope,
     type: params.get("type") || undefined,
     category: params.get("category") || undefined,
   }
@@ -43,6 +46,14 @@ export default function KbListPage() {
   const [draftQ, setDraftQ] = React.useState(filters.q ?? "")
   const [syncedQ, setSyncedQ] = React.useState(filters.q)
   const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 卸載時清掉尚未觸發的 debounce timer，避免離開頁面後才 fire，
+  // 把 q 寫進當下已經不是清單頁的網址（例如點進 /kb/kb-001）。
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   // 網址上的 q 被外部改變時（例如 reload、瀏覽器上一頁）同步回搜尋框草稿值。
   // 依 React 建議在渲染期間調整狀態，不用 effect，避免多一次渲染。

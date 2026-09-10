@@ -38,3 +38,11 @@ test("空結果與新增按鈕", async ({ page }) => {
   await page.getByRole("link", { name: "新增知識" }).click()
   await expect(page).toHaveURL(/\/kb\/new$/)
 })
+
+test("輸入未觸發 debounce 就離開頁面，不會把 q 寫進新網址", async ({ page }) => {
+  await page.goto("/kb")
+  await page.getByLabel("搜尋").fill("報")
+  await page.getByRole("link", { name: /泵浦保養 SOP/ }).click()
+  await page.waitForTimeout(500)
+  await expect(page).toHaveURL(/\/kb\/kb-001$/)
+})
