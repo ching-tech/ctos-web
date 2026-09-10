@@ -66,8 +66,8 @@ export default function LoginPage() {
               <TabsTrigger value="nas">NAS 帳號</TabsTrigger>
               <TabsTrigger value="local">平台帳號</TabsTrigger>
             </TabsList>
-            <TabsContent value="nas" aria-labelledby={undefined}><LoginForm method="nas" /></TabsContent>
-            <TabsContent value="local" aria-labelledby={undefined}><LoginForm method="local" /></TabsContent>
+            <TabsContent value="nas" aria-labelledby={undefined} aria-label="NAS 登入表單"><LoginForm method="nas" /></TabsContent>
+            <TabsContent value="local" aria-labelledby={undefined} aria-label="平台登入表單"><LoginForm method="local" /></TabsContent>
           </Tabs>
         </CardContent>
       </Card>
