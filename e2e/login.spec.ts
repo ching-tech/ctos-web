@@ -1,15 +1,18 @@
 import { expect, test } from "@playwright/test"
-import { API, mockApi, seedToken } from "./helpers"
+import { API, mockApi, mockKb, seedToken } from "./helpers"
+
+test.beforeEach(async ({ page }) => {
+  await mockApi(page)
+  await mockKb(page)
+})
 
 test("未登入進首頁會導到登入頁", async ({ page }) => {
-  await mockApi(page)
   await page.goto("/")
   await expect(page).toHaveURL(/\/login$/)
   await expect(page.getByRole("tab", { name: "NAS 帳號" })).toBeVisible()
 })
 
 test("NAS 分頁登入成功，送 method=nas，落在首頁", async ({ page }) => {
-  await mockApi(page)
   const req = page.waitForRequest((r) => r.url().endsWith("/api/auth/login"))
   await page.goto("/login")
   await page.getByLabel("NAS 帳號").fill("yazelin")
@@ -21,7 +24,6 @@ test("NAS 分頁登入成功，送 method=nas，落在首頁", async ({ page }) 
 })
 
 test("平台帳號分頁送 method=local", async ({ page }) => {
-  await mockApi(page)
   await page.goto("/login")
   await page.getByRole("tab", { name: "平台帳號" }).click()
   const req = page.waitForRequest((r) => r.url().endsWith("/api/auth/login"))
@@ -43,7 +45,6 @@ test("帳密錯誤顯示後端訊息", async ({ page }) => {
 })
 
 test("已有 token 進登入頁會導回首頁；token 失效導回登入頁", async ({ page }) => {
-  await mockApi(page)
   await seedToken(page)
   await page.goto("/login")
   await expect(page).toHaveURL(/\/$/)
@@ -54,7 +55,6 @@ test("已有 token 進登入頁會導回首頁；token 失效導回登入頁", a
 })
 
 test("token 存在但 /api/user/me 回非 401 錯誤（後端掛掉）不會造成重導迴圈", async ({ page }) => {
-  await mockApi(page)
   await seedToken(page)
   await page.route(`${API}/api/user/me`, (route) => route.fulfill({ status: 503, json: { detail: "down" } }))
   await page.goto("/")

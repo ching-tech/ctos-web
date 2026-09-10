@@ -131,3 +131,115 @@
     @apply font-sans;
     }
 }
+
+/* 知識庫 Markdown 內容排版。沒裝 @tailwindcss/typography，手刻幾條常用樣式。 */
+.md {
+  line-height: 1.7;
+}
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+.md h1 {
+  font-size: 1.5rem;
+}
+.md h2 {
+  font-size: 1.25rem;
+}
+.md h3 {
+  font-size: 1.125rem;
+}
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1rem;
+}
+.md p {
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+.md ul,
+.md ol {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 1.5em;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li + li {
+  margin-top: 0.25em;
+}
+.md a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.md code {
+  background: var(--muted);
+  border-radius: 0.25rem;
+  padding: 0.15em 0.4em;
+  font-size: 0.875em;
+}
+.md pre {
+  background: var(--muted);
+  border-radius: 0.5rem;
+  padding: 1em;
+  overflow-x: auto;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+.md pre code {
+  background: transparent;
+  padding: 0;
+}
+.md blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--muted-foreground);
+}
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  font-size: 0.9em;
+}
+.md th,
+.md td {
+  border: 1px solid var(--border);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.md th {
+  background: var(--muted);
+  font-weight: 600;
+}
+.md img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}

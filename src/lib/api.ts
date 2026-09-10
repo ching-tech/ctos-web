@@ -22,7 +22,7 @@ export class ApiError extends Error {
 export async function apiFetch<T>(path: string, init: RequestInit & { keepSessionOn401?: boolean } = {}): Promise<T> {
   const { keepSessionOn401, ...rest } = init
   const headers = new Headers(rest.headers)
-  if (!headers.has("Content-Type") && rest.body) headers.set("Content-Type", "application/json")
+  if (!headers.has("Content-Type") && typeof rest.body === "string") headers.set("Content-Type", "application/json")
   const token = getToken()
   if (token) headers.set("Authorization", `Bearer ${token}`)
 

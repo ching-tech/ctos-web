@@ -7,6 +7,8 @@ ChingTech OS 新前端（React），擎添工業內部系統的 Web 介面。後
 - **架構**：Vite 8、React 19、TypeScript 6
 - **樣式**：Tailwind CSS 4、shadcn/ui（Radix 版 preset nova）、Lucide React 圖示
 - **路由**：React Router 7
+- **資料**：@tanstack/react-query 5（伺服器狀態快取）
+- **Markdown**：react-markdown 10、remark-gfm 4（知識庫內容渲染）
 - **測試**：Vitest 5、Playwright（desktop 與 mobile）
 - **其他**：Geist Variable 字體、tailwind-animate
 
@@ -57,7 +59,7 @@ Vite 伺服器開在 `http://localhost:5173`。
 npm run test
 ```
 
-運行 Vitest，測試檔在 `src/lib/` 目錄。
+運行 Vitest，測試檔在 `src/lib/` 目錄（含 `kb.test.ts`）。
 
 ### 端對端測試
 
@@ -73,7 +75,7 @@ npx playwright install chromium
 npm run e2e
 ```
 
-測試檔在 `e2e/` 目錄。Playwright 設定包含兩個 project：
+測試檔在 `e2e/` 目錄，其中知識庫相關的四支：`kb-list.spec.ts`（清單搜尋與篩選）、`kb-detail.spec.ts`（閱讀、附件、刪除）、`kb-editor.spec.ts`（新增／編輯）、`kb-share-history.spec.ts`（分享連結與版本歷史）。Playwright 設定包含兩個 project：
 - **desktop**：Desktop Chrome
 - **mobile**：iPhone 13（Chromium）
 
@@ -116,15 +118,21 @@ npm run build
 - `types.ts` — TypeScript 型別定義
 - `nav.ts` — 側邊欄導航項目
 - `utils.ts` — 工具函式
+- `kb.ts` — 知識庫 API 客戶端（清單／詳情／建立／編輯／刪除／附件／分享／版本歷史）
+- `kb.test.ts` — 知識庫 API 單元測試
 
 ### `src/pages/`
 
 各頁面元件：
 
 - `login.tsx` — 登入頁（NAS 帳號 vs 平台帳號兩分頁）
-- `home.tsx` — 首頁（個人化問候）
+- `home.tsx` — 首頁（個人化問候，掛載知識庫「最近更新」卡片）
 - `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁）
 - `placeholder.tsx` — 未完成模組佔位元件（顯示空頁並連回舊桌面）
+- `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
+- `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
+- `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
+- `kb/home-recent.tsx` — 首頁「知識庫最近更新」卡片
 
 ### `src/components/`
 
@@ -136,6 +144,10 @@ UI 元件與版面：
 - `require-auth.tsx` — 驗證防護（檢查登入狀態）
 - `theme-provider.tsx` — 主題提供者（深色／淺色切換）
 - `ui/` — shadcn/ui 元件（按鈕、卡片、輸入框、模態框等）
+- `kb/attachments.tsx` — 附件清單（上傳、下載、刪除）
+- `kb/history-sheet.tsx` — 版本歷史側欄（歷史清單、舊版內容檢視）
+- `kb/markdown.tsx` — Markdown 渲染（含圖片路徑改寫）
+- `kb/share-dialog.tsx` — 分享連結對話框
 
 ### `e2e/`
 
@@ -143,7 +155,11 @@ Playwright 端對端測試：
 
 - `login.spec.ts` — 登入流程測試
 - `settings.spec.ts` — 設定頁測試
-- `shell.spec.ts` — 應用殼層測試
+- `shell.spec.ts` — 應用殼層測試（含首頁知識庫最近更新）
+- `kb-list.spec.ts` — 知識庫清單測試
+- `kb-detail.spec.ts` — 知識庫閱讀頁測試
+- `kb-editor.spec.ts` — 知識庫新增／編輯測試
+- `kb-share-history.spec.ts` — 分享連結與版本歷史測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -173,14 +189,14 @@ Playwright 端對端測試：
 
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
 - **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
-- **首頁** — 個人化問候訊息
+- **首頁** — 個人化問候訊息，另有知識庫「最近更新」卡片
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
+- **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 
 ### 尚未完成
 
 以下模組顯示空頁並提供連結回舊桌面（https://ching-tech.ddns.net/ctos/）：
 
-- **知識庫** — 路由 `/kb`
 - **專案** — 路由 `/projects`
 - **Bot 管理** — 路由 `/bot`
 - **AI Log** — 路由 `/ai-log`

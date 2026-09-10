@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockApi, seedToken } from "./helpers"
+import { adminFixture, mockApi, mockKb, seedToken } from "./helpers"
 
 const MODULES = ["首頁", "知識庫", "專案", "Bot 管理", "AI Log", "設定"]
 
@@ -11,6 +11,7 @@ async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
 
 test("側邊欄列出模組，一般使用者看不到使用者管理", async ({ page }, testInfo) => {
   await mockApi(page)
+  await mockKb(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
@@ -19,21 +20,32 @@ test("側邊欄列出模組，一般使用者看不到使用者管理", async ({
   await expect(nav.getByRole("link", { name: "使用者管理" })).toHaveCount(0)
 })
 
+test("首頁顯示知識庫最近更新", async ({ page }) => {
+  await mockApi(page)
+  await mockKb(page)
+  await seedToken(page)
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "知識庫最近更新" })).toBeVisible()
+  await expect(page.getByRole("link", { name: /泵浦保養 SOP/ })).toBeVisible()
+})
+
 test("admin 看得到使用者管理，點模組會切換右欄", async ({ page }, testInfo) => {
   await mockApi(page, { user: adminFixture })
+  await mockKb(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
   const nav = page.getByRole("navigation").first()
   await expect(nav.getByRole("link", { name: "使用者管理" })).toBeVisible()
-  await nav.getByRole("link", { name: "知識庫" }).click()
-  await expect(page).toHaveURL(/\/kb$/)
-  await expect(page.getByRole("heading", { name: "知識庫" })).toBeVisible()
+  await nav.getByRole("link", { name: "專案" }).click()
+  await expect(page).toHaveURL(/\/projects$/)
+  await expect(page.getByRole("heading", { name: "專案" })).toBeVisible()
   await expect(page.getByRole("link", { name: "開啟舊桌面" })).toHaveAttribute("href", "https://ching-tech.ddns.net/ctos/")
 })
 
 test("登出回到登入頁並清掉 token", async ({ page }, testInfo) => {
   await mockApi(page)
+  await mockKb(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)

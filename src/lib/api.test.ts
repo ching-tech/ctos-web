@@ -48,4 +48,12 @@ describe("apiFetch", () => {
     expect(await apiFetch("/x")).toBeUndefined()
     clearSession()
   })
+  it("does not set JSON content-type for FormData bodies", async () => {
+    const fn = mockFetch(200, { ok: 1 })
+    const fd = new FormData()
+    fd.append("file", new Blob(["x"]), "a.txt")
+    await apiFetch("/upload", { method: "POST", body: fd })
+    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(new Headers(init.headers).get("Content-Type")).toBeNull()
+  })
 })
