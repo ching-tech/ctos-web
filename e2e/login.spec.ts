@@ -17,7 +17,7 @@ test("NAS 分頁登入成功，送 method=nas，落在首頁", async ({ page }) 
   await page.getByRole("button", { name: "登入" }).first().click()
   expect((await req).postDataJSON().method).toBe("nas")
   await expect(page).toHaveURL(/\/$/)
-  await expect(page.getByText("亞澤")).toBeVisible()
+  await expect(page.getByText("亞澤").first()).toBeVisible()
 })
 
 test("平台帳號分頁送 method=local", async ({ page }) => {
