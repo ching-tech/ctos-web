@@ -135,7 +135,7 @@ npm run build
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
 - `kb/home-recent.tsx` — 首頁「知識庫最近更新」卡片
 - `ai-log/list.tsx` — AI Log 清單頁（統計卡、篩選、表格、分頁）
-- `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、工具列表）
+- `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、允許的工具）
 
 ### `src/components/`
 

@@ -64,7 +64,8 @@ export default function AiLogDetailPage() {
     return <p className="text-destructive">{err instanceof ApiError ? err.detail : "載入失敗，請稍後再試"}</p>
   }
 
-  const log = detailQuery.data!
+  if (!detailQuery.data) return null
+  const log = detailQuery.data
   const time = new Date(log.created_at).toLocaleString("zh-TW")
 
   return (
@@ -92,7 +93,6 @@ export default function AiLogDetailPage() {
             value={`${log.input_tokens?.toLocaleString("zh-TW") ?? "—"} 進／${log.output_tokens?.toLocaleString("zh-TW") ?? "—"} 出`}
           />
           <SummaryRow term="情境 ID" value={log.context_id ?? "—"} />
-          <SummaryRow term="腳本" value={log.script_label ?? "—"} />
           <SummaryRow term="Prompt ID" value={log.prompt_id ?? "—"} />
         </CardContent>
       </Card>
@@ -102,7 +102,7 @@ export default function AiLogDetailPage() {
           <CardTitle className="text-base">輸入</CardTitle>
         </CardHeader>
         <CardContent>
-          <pre className="whitespace-pre-wrap break-words text-sm">{log.input_prompt}</pre>
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-sm">{log.input_prompt}</pre>
         </CardContent>
       </Card>
 
@@ -120,7 +120,7 @@ export default function AiLogDetailPage() {
           </CardHeader>
           {systemPromptOpen && (
             <CardContent>
-              <pre className="whitespace-pre-wrap break-words text-sm">{log.system_prompt}</pre>
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-sm">{log.system_prompt}</pre>
             </CardContent>
           )}
         </Card>
@@ -131,7 +131,7 @@ export default function AiLogDetailPage() {
           <CardTitle className="text-base">原始回應</CardTitle>
         </CardHeader>
         <CardContent>
-          <pre className="whitespace-pre-wrap break-words text-sm">{log.raw_response ?? "—"}</pre>
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-sm">{log.raw_response ?? "—"}</pre>
         </CardContent>
       </Card>
 
@@ -141,7 +141,7 @@ export default function AiLogDetailPage() {
             <CardTitle className="text-base">解析結果</CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="whitespace-pre-wrap break-words text-sm">{JSON.stringify(log.parsed_response, null, 2)}</pre>
+            <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-sm">{JSON.stringify(log.parsed_response, null, 2)}</pre>
           </CardContent>
         </Card>
       )}
@@ -158,7 +158,6 @@ export default function AiLogDetailPage() {
       )}
 
       <ToolBadges title="允許的工具" tools={log.allowed_tools} />
-      <ToolBadges title="使用的工具" tools={log.used_tools} />
     </div>
   )
 }

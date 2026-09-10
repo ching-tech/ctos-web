@@ -463,14 +463,24 @@ function aiLogListItem(l: AiLogFixture) {
 
 function aiLogDetail(l: AiLogFixture) {
   return {
-    ...aiLogListItem(l),
+    id: l.id,
+    agent_id: l.agent_id,
+    agent_name: l.agent_name,
     prompt_id: l.prompt_id ?? null,
+    context_type: l.context_type,
     context_id: l.context_id ?? null,
     input_prompt: l.input_prompt ?? "",
     system_prompt: l.system_prompt ?? null,
+    allowed_tools: l.allowed_tools,
     raw_response: l.raw_response ?? null,
     parsed_response: l.parsed_response ?? null,
+    model: l.model,
+    success: l.success,
     error_message: l.error_message ?? null,
+    duration_ms: l.duration_ms,
+    input_tokens: l.input_tokens,
+    output_tokens: l.output_tokens,
+    created_at: l.created_at,
   }
 }
 
@@ -524,7 +534,7 @@ export async function mockAiLog(page: Page, opts: { logs?: AiLogFixture[]; agent
       await route.fulfill({
         json: {
           total_calls: total, success_count: successCount, failure_count: failureCount,
-          success_rate: total > 0 ? successCount / total : 0,
+          success_rate: total > 0 ? (successCount / total) * 100 : 0,
           avg_duration_ms: avgDuration, total_input_tokens: totalIn, total_output_tokens: totalOut,
         },
       })

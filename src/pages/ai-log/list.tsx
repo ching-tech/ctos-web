@@ -34,7 +34,7 @@ function filtersFromParams(params: URLSearchParams): LogFilters {
     success,
     from: params.get("from") || undefined,
     to: params.get("to") || undefined,
-    page: rawPage ? Number(rawPage) : undefined,
+    page: rawPage ? Math.max(1, Number(rawPage) || 1) : undefined,
   }
 }
 
@@ -77,6 +77,16 @@ export default function AiLogListPage() {
   const total = listQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const stats = statsQuery.data
+  const agentLabelById = new Map(
+    (agentsQuery.data?.items ?? []).map((a) => [a.id, a.display_name || a.name]),
+  )
+  function agentLabel(item: { agent_id: string | null; agent_name: string | null }): string {
+    if (item.agent_id) {
+      const byId = agentLabelById.get(item.agent_id)
+      if (byId) return byId
+    }
+    return item.agent_name || "—"
+  }
 
   return (
     <div className="space-y-4">
@@ -95,7 +105,7 @@ export default function AiLogListPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats ? `${Math.round(stats.success_rate * 100)}%` : "—"}
+              {stats ? `${Math.round(stats.success_rate)}%` : "—"}
             </div>
             {stats && (
               <p className="text-xs text-muted-foreground">
@@ -180,16 +190,15 @@ export default function AiLogListPage() {
           清除篩選
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground">統計只套用 Agent 與日期篩選</p>
 
-      {listQuery.isError && (
+      {listQuery.isError ? (
         <Alert variant="destructive">
           <AlertDescription>
             {listQuery.error instanceof ApiError ? listQuery.error.detail : "載入失敗，請稍後再試"}
           </AlertDescription>
         </Alert>
-      )}
-
-      {listQuery.isLoading ? (
+      ) : listQuery.isLoading ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-10 w-full" />
@@ -233,7 +242,7 @@ export default function AiLogListPage() {
                           {time}
                         </Link>
                       </TableCell>
-                      <TableCell>{item.agent_name || "—"}</TableCell>
+                      <TableCell>{agentLabel(item)}</TableCell>
                       <TableCell>{contextLabel(item.context_type)}</TableCell>
                       <TableCell>{item.model || "—"}</TableCell>
                       <TableCell>

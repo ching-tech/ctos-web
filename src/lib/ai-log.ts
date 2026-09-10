@@ -33,14 +33,25 @@ export interface AiLogStats {
   total_output_tokens: number
 }
 
-export interface AiLog extends AiLogListItem {
+export interface AiLog {
+  id: string
+  agent_id: string | null
+  agent_name: string | null
   prompt_id: string | null
+  context_type: string | null
   context_id: string | null
   input_prompt: string
   system_prompt: string | null
+  allowed_tools: string[] | null
   raw_response: string | null
   parsed_response: Record<string, unknown> | null
+  model: string | null
+  success: boolean
   error_message: string | null
+  duration_ms: number | null
+  input_tokens: number | null
+  output_tokens: number | null
+  created_at: string
 }
 
 export interface AiAgentListItem {
@@ -73,6 +84,8 @@ export const CONTEXT_LABEL: Record<string, string> = {
   compress: "壓縮",
   script: "腳本",
   test: "測試",
+  research: "研究",
+  "bot-restricted": "受限模式",
 }
 
 export function contextLabel(t: string | null): string {
@@ -81,11 +94,11 @@ export function contextLabel(t: string | null): string {
 }
 
 export function toDayStart(d: string): string {
-  return `${d}T00:00:00`
+  return new Date(`${d}T00:00:00`).toISOString()
 }
 
 export function toDayEnd(d: string): string {
-  return `${d}T23:59:59`
+  return new Date(`${d}T23:59:59.999`).toISOString()
 }
 
 export function buildLogQuery(f: LogFilters, pageSize = 50): string {

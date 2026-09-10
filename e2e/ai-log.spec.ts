@@ -33,7 +33,9 @@ test("日期與 agent 篩選會帶到統計", async ({ page }) => {
   const req = page.waitForRequest((r) => r.url().includes("/api/ai/logs/stats?") && r.url().includes("start_date="))
   await page.getByLabel("起日").fill("2026-09-05")
   const u = new URL((await req).url())
-  expect(u.searchParams.get("start_date")).toBe("2026-09-05T00:00:00")
+  const startDate = u.searchParams.get("start_date")
+  expect(startDate).not.toBeNull()
+  expect(new Date(startDate!).getTime()).toBe(new Date("2026-09-05T00:00:00").getTime())
 })
 
 test("頁面不橫向捲動", async ({ page }) => {
