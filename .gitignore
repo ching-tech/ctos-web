@@ -25,3 +25,9 @@ dist-ssr
 
 # SDD 工作區暫存
 .superpowers/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

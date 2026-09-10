@@ -12,5 +12,5 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  test: { environment: "node", globals: false },
+  test: { environment: "node", globals: false, exclude: ["node_modules/**", "e2e/**"] },
 })
