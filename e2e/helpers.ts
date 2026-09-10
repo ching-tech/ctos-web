@@ -260,5 +260,52 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
     },
   )
 
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/knowledge`,
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const body = route.request().postDataJSON() as Partial<KbFixture>
+      const created: KbFixture = {
+        id: `kb-${String(items.length + 1).padStart(3, "0")}`,
+        title: body.title ?? "",
+        type: body.type ?? "knowledge",
+        category: body.category ?? "technical",
+        scope: body.scope ?? "personal",
+        owner: null,
+        project_id: null,
+        is_public: body.is_public ?? false,
+        tags: { projects: [], roles: [], topics: [], level: null, ...body.tags },
+        author: body.author ?? "",
+        updated_at: "2026-09-11",
+        created_at: "2026-09-11",
+        source: { project: null, path: null, commit: null },
+        related: [],
+        content: body.content ?? "",
+        attachments: [],
+      }
+      items.push(created)
+      await route.fulfill({ status: 201, json: created })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/knowledge/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/") && rest !== "tags"
+    },
+    async (route) => {
+      if (route.request().method() !== "PUT") return route.fallback()
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = items.findIndex((i) => i.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      const body = route.request().postDataJSON() as Partial<KbFixture>
+      items[idx] = { ...items[idx], ...body }
+      await route.fulfill({ json: items[idx] })
+    },
+  )
+
   return { items }
 }

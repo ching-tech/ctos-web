@@ -3,6 +3,7 @@ import { AppShell } from "@/components/app-shell"
 import { RequireAuth } from "@/components/require-auth"
 import HomePage from "@/pages/home"
 import KbDetailPage from "@/pages/kb/detail"
+import KbEditorPage from "@/pages/kb/editor"
 import KbListPage from "@/pages/kb/list"
 import LoginPage from "@/pages/login"
 import PlaceholderPage from "@/pages/placeholder"
@@ -19,9 +20,9 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <HomePage /> },
           { path: "kb", element: <KbListPage /> },
-          { path: "kb/new", element: <PlaceholderPage title="新增知識" /> },
+          { path: "kb/new", element: <KbEditorPage /> },
           { path: "kb/:id", element: <KbDetailPage /> },
-          { path: "kb/:id/edit", element: <PlaceholderPage title="編輯知識" /> },
+          { path: "kb/:id/edit", element: <KbEditorPage /> },
           { path: "projects", element: <PlaceholderPage title="專案" /> },
           { path: "bot", element: <PlaceholderPage title="Bot 管理" /> },
           { path: "ai-log", element: <PlaceholderPage title="AI Log" /> },
