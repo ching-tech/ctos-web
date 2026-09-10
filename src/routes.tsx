@@ -4,6 +4,7 @@ import { RequireAuth } from "@/components/require-auth"
 import HomePage from "@/pages/home"
 import LoginPage from "@/pages/login"
 import PlaceholderPage from "@/pages/placeholder"
+import SettingsPage from "@/pages/settings"
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -20,7 +21,7 @@ export const router = createBrowserRouter([
           { path: "bot", element: <PlaceholderPage title="Bot 管理" /> },
           { path: "ai-log", element: <PlaceholderPage title="AI Log" /> },
           { path: "admin/users", element: <PlaceholderPage title="使用者管理" /> },
-          { path: "settings", element: <PlaceholderPage title="設定" /> },
+          { path: "settings", element: <SettingsPage /> },
         ],
       },
     ],

@@ -25,7 +25,7 @@ export function NavUser() {
             <SidebarMenuButton size="lg">
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{name}</span>
-                <span className="truncate text-xs text-muted-foreground">{user?.role === "admin" ? "管理員" : "使用者"}</span>
+                <span className="truncate text-xs text-muted-foreground">{user?.role === "admin" ? "系統管理員" : "一般使用者"}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
