@@ -164,11 +164,70 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
     },
     async (route) => {
       const id = new URL(route.request().url()).pathname.split("/").pop()!
-      const item = items.find((i) => i.id === id)
-      if (!item) return route.fulfill({ status: 404, json: { detail: "找不到" } })
-      return route.fulfill({ json: item })
+      const idx = items.findIndex((i) => i.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      if (route.request().method() === "DELETE") {
+        items.splice(idx, 1)
+        return route.fulfill({ json: { success: true } })
+      }
+      return route.fulfill({ json: items[idx] })
     },
   )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/knowledge/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const parts = url.pathname.slice(detailPrefix.length).split("/")
+      return parts.length === 2 && parts[1] === "attachments"
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").slice(-2)[0]
+      const item = items.find((i) => i.id === id)
+      if (!item) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      // 從 multipart body 抓 Content-Disposition 的 filename
+      const body = route.request().postData() ?? ""
+      const match = body.match(/filename="([^"]*)"/)
+      const filename = match?.[1] || "file"
+      const attachment = { type: "file", path: `nas://knowledge/attachments/${id}/${filename}`, size: "1 KB", description: null }
+      item.attachments.push(attachment)
+      return route.fulfill({ json: attachment })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/knowledge/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const parts = url.pathname.slice(detailPrefix.length).split("/")
+      return parts.length === 3 && parts[1] === "attachments"
+    },
+    async (route) => {
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const idx = Number(segs[segs.length - 1])
+      const id = segs[segs.length - 3]
+      const item = items.find((i) => i.id === id)
+      if (!item) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      item.attachments.splice(idx, 1)
+      return route.fulfill({ json: { success: true } })
+    },
+  )
+
+  await page.route(`${API}/api/knowledge/attachments/**`, async (route) => {
+    await route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"),
+    })
+  })
+
+  await page.route(`${API}/api/knowledge/assets/**`, async (route) => {
+    await route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"),
+    })
+  })
 
   await page.route(
     (url) => sameOrigin(url) && url.pathname === `${prefix}/api/knowledge`,
