@@ -37,6 +37,12 @@ describe("apiFetch", () => {
     await expect(apiFetch("/x")).rejects.toBeInstanceOf(ApiError)
     expect(getToken()).toBeNull()
   })
+  it("401 with keepSessionOn401 keeps the token", async () => {
+    setToken("t1")
+    mockFetch(401, { detail: "NAS 帳號或密碼錯誤" })
+    await expect(apiFetch("/x", { keepSessionOn401: true })).rejects.toMatchObject({ status: 401 })
+    expect(getToken()).toBe("t1")
+  })
   it("returns undefined on 204", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })))
     expect(await apiFetch("/x")).toBeUndefined()

@@ -26,6 +26,8 @@ export function bindNas(nas_username: string, password: string): Promise<NasBind
   return apiFetch<NasBindingResponse>("/api/user/me/nas-binding", {
     method: "POST",
     body: JSON.stringify({ nas_username, password }),
+    // NAS 帳密錯誤時這支端點回 401，那是 NAS 憑證錯誤，不是平台登入失效，不應清掉本機 session。
+    keepSessionOn401: true,
   })
 }
 

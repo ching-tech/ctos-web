@@ -47,3 +47,10 @@ it("bindNas posts credentials", async () => {
   expect(call[0]).toMatch(/\/api\/user\/me\/nas-binding$/)
   expect(call[1].method).toBe("POST")
 })
+
+it("bindNas 401（NAS 密碼錯誤）不清掉平台 token", async () => {
+  setToken("abc")
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: "NAS 帳號或密碼錯誤" }), { status: 401 })))
+  await expect(bindNas("n", "wrong")).rejects.toMatchObject({ status: 401 })
+  expect(getToken()).toBe("abc")
+})

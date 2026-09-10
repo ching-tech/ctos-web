@@ -19,13 +19,14 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-  if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json")
+export async function apiFetch<T>(path: string, init: RequestInit & { keepSessionOn401?: boolean } = {}): Promise<T> {
+  const { keepSessionOn401, ...rest } = init
+  const headers = new Headers(rest.headers)
+  if (!headers.has("Content-Type") && rest.body) headers.set("Content-Type", "application/json")
   const token = getToken()
   if (token) headers.set("Authorization", `Bearer ${token}`)
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers })
+  const res = await fetch(`${API_BASE}${path}`, { ...rest, headers })
   if (res.status === 204) return undefined as T
   if (!res.ok) {
     let detail = `HTTP ${res.status}`
@@ -34,7 +35,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       if (typeof data.detail === "string") detail = data.detail
       else if (typeof data.error === "string") detail = data.error
     } catch { /* 非 JSON 回應 */ }
-    if (res.status === 401) clearSession()
+    if (res.status === 401 && !keepSessionOn401) clearSession()
     throw new ApiError(res.status, detail)
   }
   return (await res.json()) as T

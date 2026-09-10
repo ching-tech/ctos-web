@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { ApiError } from "@/lib/api"
 import { bindNas, unbindNas } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
-import { getToken, setToken } from "@/lib/token"
 
 function NasBindingCard() {
   const { user, refresh } = useAuth()
@@ -18,15 +17,8 @@ function NasBindingCard() {
 
   async function run(fn: () => Promise<unknown>) {
     setBusy(true); setError(null)
-    // NAS 帳密錯誤時後端回 401，會被共用的 apiFetch 誤判為平台登入逾期而清掉本機 token。
-    // NAS 綁定/解綁失敗屬於「NAS 憑證錯誤」，不代表平台登入失效，失敗時把 token 補回來，
-    // 避免使用者只是打錯 NAS 密碼就被踢回登入頁。
-    const savedToken = getToken()
     try { await fn(); await refresh(); setPassword("") }
-    catch (e) {
-      if (savedToken && !getToken()) setToken(savedToken)
-      setError(e instanceof ApiError ? e.detail : "操作失敗，請稍後再試")
-    }
+    catch (e) { setError(e instanceof ApiError ? e.detail : "操作失敗，請稍後再試") }
     finally { setBusy(false) }
   }
 
