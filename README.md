@@ -43,7 +43,7 @@ VITE_API_BASE=https://ching-tech.ddns.net/ctos
 npm run dev
 ```
 
-Vite 伺服器開在 `http://127.0.0.1:5173`。
+Vite 伺服器開在 `http://localhost:5173`。
 
 ### 本機後端設定
 
@@ -85,7 +85,7 @@ npm run e2e
 npm run build
 ```
 
-輸出於 `dist/` 目錄，包含 TypeScript 編譯檢查（`tsc -b`）。建置過程會產生 `dist/404.html`（複製自 `dist/index.html`），供 GitHub Pages 的 SPA fallback。
+輸出於 `dist/` 目錄，包含 TypeScript 編譯檢查（`tsc -b`）。`dist/404.html` 由部署工作流程另外複製 `dist/index.html` 產生（見下方「部署」一節），供 GitHub Pages 的 SPA fallback，`npm run build` 本身不會產生它。
 
 ## 部署
 
@@ -107,7 +107,7 @@ npm run build
 
 共用工具與狀態管理：
 
-- `api.ts` — API 用戶端（請求封裝與錯誤處理）
+- `api.ts` — API 客戶端（請求封裝與錯誤處理）
 - `api.test.ts` — API 單元測試
 - `auth.ts` — 認證函式（登入、登出、NAS 綁定）
 - `auth.test.ts` — 認證單元測試
@@ -123,7 +123,7 @@ npm run build
 
 - `login.tsx` — 登入頁（NAS 帳號 vs 平台帳號兩分頁）
 - `home.tsx` — 首頁（個人化問候）
-- `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁、主題切換）
+- `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁）
 - `placeholder.tsx` — 未完成模組佔位元件（顯示空頁並連回舊桌面）
 
 ### `src/components/`
@@ -132,7 +132,7 @@ UI 元件與版面：
 
 - `app-shell.tsx` — 應用外殼（側邊欄 + 內容區）
 - `app-sidebar.tsx` — 側邊欄（導航列表）
-- `nav-user.tsx` — 使用者選單（使用者資訊與登出）
+- `nav-user.tsx` — 使用者選單（使用者資訊、主題切換與登出）
 - `require-auth.tsx` — 驗證防護（檢查登入狀態）
 - `theme-provider.tsx` — 主題提供者（深色／淺色切換）
 - `ui/` — shadcn/ui 元件（按鈕、卡片、輸入框、模態框等）
@@ -159,22 +159,22 @@ Playwright 端對端測試：
 
 登入成功後，前端儲存於 localStorage：
 
-- `ctos-web.token` — JWT token（用於後續 API 請求）
+- `ctos-web.token` — 後端 session token（UUID，用於後續 API 請求）
 - `ctos-web.user` — 使用者資訊 JSON（顯示名稱、管理員旗標等）
 - `ctos-web.theme` — 主題偏好（`"dark"`、`"light"` 或 `"system"`）
 
 ### Session 清除
 
-任何 API 回傳 401 Unauthorized 都會自動清除 session（除了 NAS 密碼錯誤的情況）並導回 `/login`。
+任何 API 回傳 401 Unauthorized 都會自動清除 session（除了 NAS 密碼錯誤的情況）；導回 `/login` 的動作不是立即觸發，而是等下一次路由渲染時由 `RequireAuth` 判斷沒有 token／使用者而導向。
 
 ## 模組現況
 
 ### 已完成
 
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
-- **側邊欄與版面** — 響應式設計，支援深色／淺色主題
+- **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
 - **首頁** — 個人化問候訊息
-- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁、主題切換
+- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
 
 ### 尚未完成
 

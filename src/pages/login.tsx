@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { login } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
-import { getToken } from "@/lib/token"
 import type { LoginMethod } from "@/lib/types"
 
 function LoginForm({ method }: { method: LoginMethod }) {
@@ -52,7 +51,9 @@ function LoginForm({ method }: { method: LoginMethod }) {
 }
 
 export default function LoginPage() {
-  if (getToken()) return <Navigate to="/" replace />
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (user) return <Navigate to="/" replace />
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">

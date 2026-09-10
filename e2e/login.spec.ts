@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { mockApi, seedToken } from "./helpers"
+import { API, mockApi, seedToken } from "./helpers"
 
 test("未登入進首頁會導到登入頁", async ({ page }) => {
   await mockApi(page)
@@ -50,5 +50,16 @@ test("已有 token 進登入頁會導回首頁；token 失效導回登入頁", a
 
   await mockApi(page, { user: null })
   await page.goto("/")
+  await expect(page).toHaveURL(/\/login$/)
+})
+
+test("token 存在但 /api/user/me 回非 401 錯誤（後端掛掉）不會造成重導迴圈", async ({ page }) => {
+  await mockApi(page)
+  await seedToken(page)
+  await page.route(`${API}/api/user/me`, (route) => route.fulfill({ status: 503, json: { detail: "down" } }))
+  await page.goto("/")
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole("tab", { name: "NAS 帳號" })).toBeVisible()
+  await page.waitForTimeout(1000)
   await expect(page).toHaveURL(/\/login$/)
 })
