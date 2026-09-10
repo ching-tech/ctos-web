@@ -26,9 +26,9 @@ test("admin 看得到使用者管理，點模組會切換右欄", async ({ page 
   await openSidebarIfMobile(page, testInfo)
   const nav = page.getByRole("navigation").first()
   await expect(nav.getByRole("link", { name: "使用者管理" })).toBeVisible()
-  await nav.getByRole("link", { name: "知識庫" }).click()
-  await expect(page).toHaveURL(/\/kb$/)
-  await expect(page.getByRole("heading", { name: "知識庫" })).toBeVisible()
+  await nav.getByRole("link", { name: "專案" }).click()
+  await expect(page).toHaveURL(/\/projects$/)
+  await expect(page.getByRole("heading", { name: "專案" })).toBeVisible()
   await expect(page.getByRole("link", { name: "開啟舊桌面" })).toHaveAttribute("href", "https://ching-tech.ddns.net/ctos/")
 })
 
