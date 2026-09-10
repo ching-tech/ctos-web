@@ -46,6 +46,7 @@ export default function KbDetailPage() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteKnowledge(id),
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: kbKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: kbKeys.all })
       navigate("/kb")
     },

@@ -158,10 +158,20 @@ function withToken(url: string): string {
   return t ? `${url}?token=${encodeURIComponent(t)}` : url
 }
 
+function encodeSegments(path: string): string {
+  return path
+    .split("/")
+    .filter((seg) => seg !== "..")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/")
+}
+
 export function attachmentUrl(path: string): string {
-  if (path.startsWith("nas://knowledge/")) return withToken(`${API_BASE}/api/knowledge/${path.slice("nas://knowledge/".length)}`)
+  if (path.startsWith("nas://knowledge/")) {
+    return withToken(`${API_BASE}/api/knowledge/${encodeSegments(path.slice("nas://knowledge/".length))}`)
+  }
   const file = path.split("/").pop() ?? path
-  return withToken(`${API_BASE}/api/knowledge/assets/images/${file}`)
+  return withToken(`${API_BASE}/api/knowledge/assets/images/${encodeSegments(file)}`)
 }
 
 export function rewriteImageSrc(src: string): string {
@@ -175,4 +185,5 @@ export const kbKeys = {
   detail: (id: string) => ["kb", "detail", id] as const,
   tags: ["kb", "tags"] as const,
   history: (id: string) => ["kb", "history", id] as const,
+  version: (id: string, commit: string) => ["kb", "version", id, commit] as const,
 }

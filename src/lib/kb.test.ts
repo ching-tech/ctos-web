@@ -23,6 +23,12 @@ describe("attachmentUrl", () => {
   it("omits token when not logged in", () => {
     expect(attachmentUrl("nas://knowledge/attachments/a/b")).toBe(`${API_BASE}/api/knowledge/attachments/a/b`)
   })
+  it("encodes each path segment, including spaces and #", () => {
+    setToken("T")
+    expect(attachmentUrl("nas://knowledge/attachments/kb-001/a b#1.pdf")).toBe(
+      `${API_BASE}/api/knowledge/attachments/kb-001/a%20b%231.pdf?token=T`,
+    )
+  })
 })
 
 describe("rewriteImageSrc", () => {

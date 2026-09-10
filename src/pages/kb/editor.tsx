@@ -17,6 +17,7 @@ import {
   createKnowledge,
   getKnowledge,
   kbKeys,
+  label,
   SCOPE_LABEL,
   TYPE_LABEL,
   updateKnowledge,
@@ -25,7 +26,6 @@ import {
   type Scope,
 } from "@/lib/kb"
 
-const SCOPE_OPTIONS = (Object.entries(SCOPE_LABEL) as [Scope, string][])
 const TYPE_OPTIONS = Object.entries(TYPE_LABEL)
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABEL)
 
@@ -80,6 +80,13 @@ export default function KbEditorPage() {
     }
   }, [isEdit, detailQuery.data, loaded])
 
+  // 範圍選項依權限收斂：一般使用者只能選「個人」，選「全域」會清空 owner
+  // 導致自己失去編輯權；「專案」需要 project_id，UI 尚無管道提供，先移除。
+  const scopeOptions: [Scope, string][] = user?.is_admin
+    ? [["personal", SCOPE_LABEL.personal], ["global", SCOPE_LABEL.global]]
+    : [["personal", SCOPE_LABEL.personal]]
+  const scopeEditable = scopeOptions.some(([value]) => value === form.scope)
+
   const createMutation = useMutation({
     mutationFn: (data: KnowledgeCreate) => createKnowledge(data),
     onSuccess: (created) => {
@@ -112,8 +119,12 @@ export default function KbEditorPage() {
       if (form.content !== original.content) diff.content = form.content
       if (form.type !== original.type) diff.type = form.type
       if (form.category !== original.category) diff.category = form.category
-      if (form.scope !== original.scope) diff.scope = form.scope
+      if (scopeEditable && form.scope !== original.scope) diff.scope = form.scope
       if (form.is_public !== original.is_public) diff.is_public = form.is_public
+      if (Object.keys(diff).length === 0) {
+        navigate(`/kb/${id}`)
+        return
+      }
       updateMutation.mutate(diff)
     } else {
       if (!user) return
@@ -172,16 +183,24 @@ export default function KbEditorPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <span className="text-sm font-medium">範圍</span>
-            <Select value={form.scope} onValueChange={(v) => setForm((f) => ({ ...f, scope: v as Scope }))}>
+            <Select
+              value={form.scope}
+              onValueChange={(v) => setForm((f) => ({ ...f, scope: v as Scope }))}
+              disabled={!scopeEditable}
+            >
               <SelectTrigger aria-label="範圍" className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SCOPE_OPTIONS.map(([value, text]) => (
-                  <SelectItem key={value} value={value}>
-                    {text}
-                  </SelectItem>
-                ))}
+                {scopeEditable ? (
+                  scopeOptions.map(([value, text]) => (
+                    <SelectItem key={value} value={value}>
+                      {text}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value={form.scope}>{label(SCOPE_LABEL, form.scope)}</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>

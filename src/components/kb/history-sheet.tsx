@@ -21,7 +21,7 @@ export function HistorySheet({
 
   const historyQuery = useQuery({ queryKey: kbKeys.history(id), queryFn: () => getHistory(id), enabled: open })
   const versionQuery = useQuery({
-    queryKey: ["kb", "version", id, commit],
+    queryKey: kbKeys.version(id, commit ?? ""),
     queryFn: () => getVersion(id, commit!),
     enabled: open && commit !== null,
   })
