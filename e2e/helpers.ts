@@ -307,5 +307,62 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
     },
   )
 
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/share`,
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const body = route.request().postDataJSON() as { resource_type: string; resource_id: string; expires_in: string | null; password?: string }
+      const item = items.find((i) => i.id === body.resource_id)
+      await route.fulfill({
+        json: {
+          token: "s1",
+          url: "/public/s1",
+          full_url: "https://ching-tech.ddns.net/ctos/public.html?token=s1",
+          resource_type: body.resource_type,
+          resource_id: body.resource_id,
+          resource_title: item?.title ?? "",
+        },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/knowledge/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const parts = url.pathname.slice(detailPrefix.length).split("/")
+      return parts.length === 2 && parts[1] === "history"
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").slice(-2)[0]
+      await route.fulfill({
+        json: {
+          id,
+          entries: [
+            { commit: "abc1234def", author: "yazelin", date: "2026-09-10", message: "修正步驟" },
+            { commit: "0123456789", author: "yazelin", date: "2026-09-01", message: "第一版" },
+          ],
+        },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/knowledge/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const parts = url.pathname.slice(detailPrefix.length).split("/")
+      return parts.length === 3 && parts[1] === "version"
+    },
+    async (route) => {
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const commit = segs[segs.length - 1]
+      const id = segs[segs.length - 3]
+      await route.fulfill({ json: { id, commit, content: "# 舊版 " + commit } })
+    },
+  )
+
   return { items }
 }

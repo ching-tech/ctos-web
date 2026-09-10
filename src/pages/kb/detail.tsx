@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import * as React from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -16,7 +17,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Attachments } from "@/components/kb/attachments"
+import { HistorySheet } from "@/components/kb/history-sheet"
 import { Markdown } from "@/components/kb/markdown"
+import { ShareDialog } from "@/components/kb/share-dialog"
 import { ApiError } from "@/lib/api"
 import { CATEGORY_LABEL, deleteKnowledge, getKnowledge, kbKeys, label, SCOPE_LABEL, TYPE_LABEL } from "@/lib/kb"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -35,6 +38,8 @@ export default function KbDetailPage() {
   const { id = "" } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [shareOpen, setShareOpen] = React.useState(false)
+  const [historyOpen, setHistoryOpen] = React.useState(false)
 
   const detailQuery = useQuery({ queryKey: kbKeys.detail(id), queryFn: () => getKnowledge(id), retry: false })
 
@@ -92,10 +97,10 @@ export default function KbDetailPage() {
           <Button asChild variant="outline">
             <Link to={`/kb/${id}/edit`}>編輯</Link>
           </Button>
-          <Button variant="outline" disabled>
+          <Button variant="outline" onClick={() => setShareOpen(true)}>
             分享
           </Button>
-          <Button variant="outline" disabled>
+          <Button variant="outline" onClick={() => setHistoryOpen(true)}>
             版本歷史
           </Button>
           <AlertDialog>
@@ -163,6 +168,9 @@ export default function KbDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ShareDialog id={id} open={shareOpen} onOpenChange={setShareOpen} />
+      <HistorySheet id={id} open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   )
 }
