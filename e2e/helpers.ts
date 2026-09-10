@@ -366,3 +366,209 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
 
   return { items }
 }
+
+export interface AiLogFixture {
+  id: string
+  agent_id: string | null
+  agent_name: string | null
+  context_type: string | null
+  model: string | null
+  script_label: string | null
+  allowed_tools: string[] | null
+  used_tools: string[] | null
+  success: boolean
+  duration_ms: number | null
+  input_tokens: number | null
+  output_tokens: number | null
+  created_at: string
+  prompt_id?: string | null
+  context_id?: string | null
+  input_prompt?: string
+  system_prompt?: string | null
+  raw_response?: string | null
+  parsed_response?: Record<string, unknown> | null
+  error_message?: string | null
+}
+
+export interface AiAgentFixture {
+  id: string
+  name: string
+  display_name: string | null
+  model: string
+  is_active: boolean
+  tools: string[] | null
+  updated_at: string
+}
+
+export const aiAgentFixtures: AiAgentFixture[] = [
+  { id: "ag-1", name: "group-assistant", display_name: "群組助理", model: "claude-sonnet-4-5", is_active: true, tools: ["search_knowledge"], updated_at: "2026-09-01" },
+  { id: "ag-2", name: "personal-assistant", display_name: "個人助理", model: "claude-sonnet-4-5", is_active: true, tools: ["search_knowledge"], updated_at: "2026-09-01" },
+]
+
+// 12 筆固定 fixture：id 遞增對應時間遞減（log-01 最新、log-12 最舊，跨 2026-09-01..2026-09-12），
+// 3 筆 success:false（log-03／log-06／log-09，成功率 9/12=75%），log-03 帶 error_message，
+// log-01 帶完整明細欄位供 Task 3 詳情頁 mock 使用。
+export const aiLogFixtures: AiLogFixture[] = [
+  {
+    id: "log-01", agent_id: "ag-1", agent_name: "群組助理", context_type: "web-chat", model: "claude-sonnet-4-5",
+    script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true,
+    duration_ms: 1200, input_tokens: 350, output_tokens: 120, created_at: "2026-09-12T09:00:00",
+    prompt_id: "p-01", context_id: "c-01",
+    input_prompt: "請幫我查泵浦保養週期", system_prompt: "你是擎添的助理", raw_response: "每三個月",
+    parsed_response: { answer: "每三個月" }, error_message: null,
+  },
+  { id: "log-02", agent_id: "ag-2", agent_name: "個人助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: [], success: true, duration_ms: 900, input_tokens: 210, output_tokens: 88, created_at: "2026-09-11T09:00:00" },
+  { id: "log-03", agent_id: "ag-1", agent_name: "群組助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "daily-report", allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: false, duration_ms: 30000, input_tokens: 400, output_tokens: 0, created_at: "2026-09-10T09:00:00", error_message: "模型逾時" },
+  { id: "log-04", agent_id: "ag-2", agent_name: "個人助理", context_type: "web-chat", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1100, input_tokens: 300, output_tokens: 140, created_at: "2026-09-09T09:00:00" },
+  { id: "log-05", agent_id: "ag-1", agent_name: "群組助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: [], success: true, duration_ms: 800, input_tokens: 180, output_tokens: 70, created_at: "2026-09-08T09:00:00" },
+  { id: "log-06", agent_id: "ag-2", agent_name: "個人助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "weekly-report", allowed_tools: ["search_knowledge"], used_tools: [], success: false, duration_ms: 500, input_tokens: 90, output_tokens: 0, created_at: "2026-09-07T09:00:00", error_message: "工具呼叫失敗" },
+  { id: "log-07", agent_id: "ag-1", agent_name: "群組助理", context_type: "web-chat", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1300, input_tokens: 320, output_tokens: 150, created_at: "2026-09-06T09:00:00" },
+  { id: "log-08", agent_id: "ag-2", agent_name: "個人助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1000, input_tokens: 260, output_tokens: 100, created_at: "2026-09-05T09:00:00" },
+  { id: "log-09", agent_id: "ag-1", agent_name: "群組助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "daily-report", allowed_tools: ["search_knowledge"], used_tools: [], success: false, duration_ms: 15000, input_tokens: 150, output_tokens: 0, created_at: "2026-09-04T09:00:00", error_message: "逾時" },
+  { id: "log-10", agent_id: "ag-2", agent_name: "個人助理", context_type: "web-chat", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 950, input_tokens: 240, output_tokens: 95, created_at: "2026-09-03T09:00:00" },
+  { id: "log-11", agent_id: "ag-1", agent_name: "群組助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1050, input_tokens: 280, output_tokens: 110, created_at: "2026-09-02T09:00:00" },
+  { id: "log-12", agent_id: "ag-2", agent_name: "個人助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "weekly-report", allowed_tools: ["search_knowledge"], used_tools: [], success: true, duration_ms: 700, input_tokens: 160, output_tokens: 60, created_at: "2026-09-01T09:00:00" },
+]
+
+/** 產生 n 筆連續遞減時間的 log fixture，供分頁情境測試用（例如 60 筆）。 */
+export function makeAiLogs(n: number): AiLogFixture[] {
+  const base = new Date("2026-09-12T09:00:00Z").getTime()
+  const items: AiLogFixture[] = []
+  for (let i = 0; i < n; i++) {
+    const agent = aiAgentFixtures[i % 2]
+    const context = ["linebot-group", "web-chat", "scheduler"][i % 3]
+    items.push({
+      id: `log-${String(i + 1).padStart(3, "0")}`,
+      agent_id: agent.id,
+      agent_name: agent.display_name,
+      context_type: context,
+      model: agent.model,
+      script_label: null,
+      allowed_tools: ["search_knowledge"],
+      used_tools: i % 5 === 0 ? [] : ["search_knowledge"],
+      success: i % 11 !== 0,
+      duration_ms: 800 + i * 10,
+      input_tokens: 200 + i,
+      output_tokens: 80 + i,
+      created_at: new Date(base - i * 3600_000).toISOString().replace(/\.\d{3}Z$/, ""),
+    })
+  }
+  return items
+}
+
+function aiLogListItem(l: AiLogFixture) {
+  const { id, agent_id, agent_name, context_type, model, script_label, allowed_tools, used_tools, success, duration_ms, input_tokens, output_tokens, created_at } = l
+  return { id, agent_id, agent_name, context_type, model, script_label, allowed_tools, used_tools, success, duration_ms, input_tokens, output_tokens, created_at }
+}
+
+function aiLogDetail(l: AiLogFixture) {
+  return {
+    id: l.id,
+    agent_id: l.agent_id,
+    agent_name: l.agent_name,
+    prompt_id: l.prompt_id ?? null,
+    context_type: l.context_type,
+    context_id: l.context_id ?? null,
+    input_prompt: l.input_prompt ?? "",
+    system_prompt: l.system_prompt ?? null,
+    allowed_tools: l.allowed_tools,
+    raw_response: l.raw_response ?? null,
+    parsed_response: l.parsed_response ?? null,
+    model: l.model,
+    success: l.success,
+    error_message: l.error_message ?? null,
+    duration_ms: l.duration_ms,
+    input_tokens: l.input_tokens,
+    output_tokens: l.output_tokens,
+    created_at: l.created_at,
+  }
+}
+
+function filterAiLogs(logs: AiLogFixture[], params: URLSearchParams, opts: { withListFilters: boolean }) {
+  let filtered = logs
+  const agentId = params.get("agent_id")
+  const startDate = params.get("start_date")
+  const endDate = params.get("end_date")
+  if (agentId) filtered = filtered.filter((l) => l.agent_id === agentId)
+  if (startDate) {
+    const start = new Date(startDate).getTime()
+    filtered = filtered.filter((l) => new Date(l.created_at).getTime() >= start)
+  }
+  if (endDate) {
+    const end = new Date(endDate).getTime()
+    filtered = filtered.filter((l) => new Date(l.created_at).getTime() <= end)
+  }
+  if (opts.withListFilters) {
+    const contextType = params.get("context_type")
+    const success = params.get("success")
+    if (contextType) filtered = filtered.filter((l) => l.context_type === contextType)
+    if (success) filtered = filtered.filter((l) => l.success === (success === "true"))
+  }
+  return filtered
+}
+
+export async function mockAiLog(page: Page, opts: { logs?: AiLogFixture[]; agents?: AiAgentFixture[] } = {}) {
+  const logs: AiLogFixture[] = (opts.logs ?? aiLogFixtures).map((l) => ({ ...l }))
+  const agents: AiAgentFixture[] = (opts.agents ?? aiAgentFixtures).map((a) => ({ ...a }))
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/agents`,
+    async (route) => route.fulfill({ json: { items: agents, total: agents.length } }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/logs/stats`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      const filtered = filterAiLogs(logs, params, { withListFilters: false })
+      const total = filtered.length
+      const successCount = filtered.filter((l) => l.success).length
+      const failureCount = total - successCount
+      const durations = filtered.map((l) => l.duration_ms).filter((d): d is number => d != null)
+      const avgDuration = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null
+      const totalIn = filtered.reduce((a, l) => a + (l.input_tokens ?? 0), 0)
+      const totalOut = filtered.reduce((a, l) => a + (l.output_tokens ?? 0), 0)
+      await route.fulfill({
+        json: {
+          total_calls: total, success_count: successCount, failure_count: failureCount,
+          success_rate: total > 0 ? (successCount / total) * 100 : 0,
+          avg_duration_ms: avgDuration, total_input_tokens: totalIn, total_output_tokens: totalOut,
+        },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/logs`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      const filtered = filterAiLogs(logs, params, { withListFilters: true })
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "50")
+      const start = (pageNum - 1) * pageSize
+      const items = filtered.slice(start, start + pageSize).map(aiLogListItem)
+      await route.fulfill({ json: { items, total: filtered.length, page: pageNum, page_size: pageSize } })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/ai/logs/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && rest !== "stats" && !rest.includes("/")
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const found = logs.find((l) => l.id === id)
+      if (!found) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      await route.fulfill({ json: aiLogDetail(found) })
+    },
+  )
+
+  return { logs, agents }
+}

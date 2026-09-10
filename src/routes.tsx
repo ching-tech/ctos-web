@@ -1,6 +1,8 @@
 import { createBrowserRouter } from "react-router"
 import { AppShell } from "@/components/app-shell"
 import { RequireAuth } from "@/components/require-auth"
+import AiLogDetailPage from "@/pages/ai-log/detail"
+import AiLogListPage from "@/pages/ai-log/list"
 import HomePage from "@/pages/home"
 import KbDetailPage from "@/pages/kb/detail"
 import KbEditorPage from "@/pages/kb/editor"
@@ -25,7 +27,8 @@ export const router = createBrowserRouter([
           { path: "kb/:id/edit", element: <KbEditorPage /> },
           { path: "projects", element: <PlaceholderPage title="專案" /> },
           { path: "bot", element: <PlaceholderPage title="Bot 管理" /> },
-          { path: "ai-log", element: <PlaceholderPage title="AI Log" /> },
+          { path: "ai-log", element: <AiLogListPage /> },
+          { path: "ai-log/:id", element: <AiLogDetailPage /> },
           { path: "admin/users", element: <PlaceholderPage title="使用者管理" /> },
           { path: "settings", element: <SettingsPage /> },
         ],
