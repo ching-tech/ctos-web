@@ -121,7 +121,7 @@ export function createKnowledge(data: KnowledgeCreate): Promise<Knowledge> {
 }
 
 export function updateKnowledge(id: string, data: KnowledgeUpdate): Promise<Knowledge> {
-  return apiFetch<Knowledge>(`/api/knowledge/${id}`, { method: "PATCH", body: JSON.stringify(data) })
+  return apiFetch<Knowledge>(`/api/knowledge/${id}`, { method: "PUT", body: JSON.stringify(data) })
 }
 
 export async function deleteKnowledge(id: string): Promise<void> {
@@ -133,7 +133,7 @@ export function getHistory(id: string): Promise<{ id: string; entries: HistoryEn
 }
 
 export function getVersion(id: string, commit: string): Promise<{ id: string; commit: string; content: string }> {
-  return apiFetch<{ id: string; commit: string; content: string }>(`/api/knowledge/${id}/versions/${commit}`)
+  return apiFetch<{ id: string; commit: string; content: string }>(`/api/knowledge/${id}/version/${commit}`)
 }
 
 export function uploadAttachment(id: string, file: File): Promise<unknown> {

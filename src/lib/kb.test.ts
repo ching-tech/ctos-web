@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { API_BASE } from "./api"
-import { attachmentUrl, label, listKnowledge, rewriteImageSrc, SCOPE_LABEL } from "./kb"
+import { attachmentUrl, getVersion, label, listKnowledge, rewriteImageSrc, SCOPE_LABEL, updateKnowledge } from "./kb"
 import { setToken } from "./token"
 
 beforeEach(() => {
@@ -46,4 +46,26 @@ describe("listKnowledge", () => {
 it("label falls back to key", () => {
   expect(label(SCOPE_LABEL, "global")).toBe("全域")
   expect(label(SCOPE_LABEL, "weird")).toBe("weird")
+})
+
+describe("updateKnowledge", () => {
+  it("PUTs changed fields to /api/knowledge/:id", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    await updateKnowledge("kb-001", { title: "x" })
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe(`${API_BASE}/api/knowledge/kb-001`)
+    expect(init.method).toBe("PUT")
+    expect(init.body).toBe(JSON.stringify({ title: "x" }))
+  })
+})
+
+describe("getVersion", () => {
+  it("hits /api/knowledge/:id/version/:commit (singular)", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ id: "kb-001", commit: "abc1234", content: "" }), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    await getVersion("kb-001", "abc1234")
+    const url = (fn.mock.calls[0] as unknown as [string])[0]
+    expect(url).toBe(`${API_BASE}/api/knowledge/kb-001/version/abc1234`)
+  })
 })
