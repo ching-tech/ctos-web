@@ -1,21 +1,20 @@
-# React + TypeScript + Vite + shadcn/ui
+# ctos-web
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
+ChingTech OS 新前端（React）— 擎添工業內部系統的 Web 介面。
 
-## Adding components
+目前為 Vite + React + TypeScript + Tailwind CSS + shadcn/ui 的骨架，部署於 https://os.ching-tech.com 。
 
-To add components to your app, run the following command:
+## 開發
 
 ```bash
-npx shadcn@latest add button
+npm install
+npm run dev
 ```
 
-This will place the ui components in the `src/components` directory.
+## 建置
 
-## Using components
-
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button"
+```bash
+npm run build
 ```
+
+輸出於 `dist/`，由 GitHub Actions（`.github/workflows/deploy.yml`）部署到 GitHub Pages。
