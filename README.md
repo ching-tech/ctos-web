@@ -165,7 +165,7 @@ Playwright 端對端測試：
 
 ### Session 清除
 
-任何 API 回傳 401 Unauthorized 都會自動清除 session（除了 NAS 密碼錯誤的情況）；導回 `/login` 的動作不是立即觸發，而是等下一次路由渲染時由 `RequireAuth` 判斷沒有 token／使用者而導向。
+任何 API 回傳 401 Unauthorized 都會清除 session（NAS 綁定密碼錯誤除外）；下一次路由渲染時 `RequireAuth` 判斷沒有 token 或使用者，才導向 `/login`。
 
 ## 模組現況
 
