@@ -63,3 +63,16 @@ test("60 筆時分頁按鈕可用，換頁後表格內容改變", async ({ page 
   await expect(nextBtn).toBeDisabled()
   await expect(page.getByRole("button", { name: "上一頁" })).toBeEnabled()
 })
+
+test("明細頁顯示輸入、回應與解析結果", async ({ page }) => {
+  await page.goto("/ai-log/log-01")
+  await expect(page.getByText("請幫我查泵浦保養週期")).toBeVisible()
+  await expect(page.getByText("每三個月").first()).toBeVisible()
+  await page.getByRole("button", { name: "系統提示" }).click()
+  await expect(page.getByText("你是擎添的助理")).toBeVisible()
+})
+
+test("失敗紀錄顯示錯誤訊息", async ({ page }) => {
+  await page.goto("/ai-log/log-03") // fixture 中 success=false 且 error_message 「模型逾時」
+  await expect(page.getByText("模型逾時")).toBeVisible()
+})

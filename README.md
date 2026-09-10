@@ -75,7 +75,7 @@ npx playwright install chromium
 npm run e2e
 ```
 
-測試檔在 `e2e/` 目錄，其中知識庫相關的四支：`kb-list.spec.ts`（清單搜尋與篩選）、`kb-detail.spec.ts`（閱讀、附件、刪除）、`kb-editor.spec.ts`（新增／編輯）、`kb-share-history.spec.ts`（分享連結與版本歷史）。Playwright 設定包含兩個 project：
+測試檔在 `e2e/` 目錄，其中知識庫相關的四支：`kb-list.spec.ts`（清單搜尋與篩選）、`kb-detail.spec.ts`（閱讀、附件、刪除）、`kb-editor.spec.ts`（新增／編輯）、`kb-share-history.spec.ts`（分享連結與版本歷史）；另有 `ai-log.spec.ts`（統計卡、篩選、分頁、明細頁）。Playwright 設定包含兩個 project：
 - **desktop**：Desktop Chrome
 - **mobile**：iPhone 13（Chromium）
 
@@ -120,6 +120,7 @@ npm run build
 - `utils.ts` — 工具函式
 - `kb.ts` — 知識庫 API 客戶端（清單／詳情／建立／編輯／刪除／附件／分享／版本歷史）
 - `kb.test.ts` — 知識庫 API 單元測試
+- `ai-log.ts` — AI Log API 客戶端（清單／統計／詳情／篩選轉換／query key）
 
 ### `src/pages/`
 
@@ -133,6 +134,8 @@ npm run build
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
 - `kb/home-recent.tsx` — 首頁「知識庫最近更新」卡片
+- `ai-log/list.tsx` — AI Log 清單頁（統計卡、篩選、表格、分頁）
+- `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、工具列表）
 
 ### `src/components/`
 
@@ -160,6 +163,7 @@ Playwright 端對端測試：
 - `kb-detail.spec.ts` — 知識庫閱讀頁測試
 - `kb-editor.spec.ts` — 知識庫新增／編輯測試
 - `kb-share-history.spec.ts` — 分享連結與版本歷史測試
+- `ai-log.spec.ts` — AI Log 清單與明細頁測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -192,6 +196,7 @@ Playwright 端對端測試：
 - **首頁** — 個人化問候訊息，另有知識庫「最近更新」卡片
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
+- **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細）
 
 ### 尚未完成
 
@@ -199,7 +204,6 @@ Playwright 端對端測試：
 
 - **專案** — 路由 `/projects`
 - **Bot 管理** — 路由 `/bot`
-- **AI Log** — 路由 `/ai-log`
 - **使用者管理** — 路由 `/admin/users`
 
 ## 相關文件
