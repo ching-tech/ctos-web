@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query"
 import * as React from "react"
-import { Link, useSearchParams } from "react-router"
+import { Link, useLocation, useSearchParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { KbCard } from "@/components/kb/kb-card"
+import { titleForPath } from "@/lib/nav"
 import { ApiError } from "@/lib/api"
 import {
   CATEGORY_LABEL,
@@ -14,7 +15,6 @@ import {
   kbKeys,
   label,
   listKnowledge,
-  SCOPE_LABEL,
   TYPE_LABEL,
   type ListFilters,
   type Scope,
@@ -41,6 +41,7 @@ function filtersFromParams(params: URLSearchParams): ListFilters {
 }
 
 export default function KbListPage() {
+  const { pathname } = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = filtersFromParams(searchParams)
   const [draftQ, setDraftQ] = React.useState(filters.q ?? "")
@@ -89,7 +90,8 @@ export default function KbListPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">知識庫</h1>
+        <h1 className="sr-only">{titleForPath(pathname)}</h1>
+        <p className="text-sm text-muted-foreground">{listQuery.isLoading ? "" : `共 ${total} 筆`}</p>
         <Button asChild>
           <Link to="/kb/new">新增知識</Link>
         </Button>
@@ -161,24 +163,12 @@ export default function KbListPage() {
         </div>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">共 {total} 筆</p>
           {items.length === 0 ? (
             <p className="text-muted-foreground">沒有符合的知識</p>
           ) : (
-            <div className="space-y-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((item) => (
-                <Link key={item.id} to={`/kb/${item.id}`} className="block rounded-lg border p-4 hover:bg-accent">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{item.title}</span>
-                    <Badge variant="secondary">{label(SCOPE_LABEL, item.scope)}</Badge>
-                    <Badge variant="outline">{label(TYPE_LABEL, item.type)}</Badge>
-                    <Badge variant="outline">{label(CATEGORY_LABEL, item.category)}</Badge>
-                  </div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {item.author}・{item.updated_at}
-                  </div>
-                  {item.snippet && <p className="mt-2 text-sm">{item.snippet}</p>}
-                </Link>
+                <KbCard key={item.id} item={item} />
               ))}
             </div>
           )}
