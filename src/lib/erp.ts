@@ -1,7 +1,7 @@
 import { apiFetch } from "./api"
 
 // 型別一律對齊後端 models/erp.py 的 Party* 模型，不自己猜欄位。
-// PR 5（物料庫存）、PR 6（採購單）會擴充同一個檔。
+// PR 5（物料庫存）、PR 6（採購單）擴充了同一個檔。
 //
 // 兩個後端契約細節值得記著：
 // 1. Decimal 欄位在 pydantic v2 的 JSON 模式序列化成字串（"128000.00"），不是數字。
@@ -348,6 +348,11 @@ export const erpKeys = {
   warehouses: ["erp", "warehouses"] as const,
   warehouseList: ["erp", "warehouses", "list"] as const,
   stock: ["erp", "stock"] as const,
+  purchaseOrders: ["erp", "purchase-orders"] as const,
+  poList: (f: PurchaseOrderFilters) => ["erp", "purchase-orders", "list", f] as const,
+  poDetail: (id: string) => ["erp", "purchase-orders", "detail", id] as const,
+  /** 首頁待收貨卡：ordered 與 partial 各一次請求（後端 status 是等值比對，不吃多值）。 */
+  poPending: (status: string) => ["erp", "purchase-orders", "pending", status] as const,
 }
 
 // ============================================================
@@ -647,4 +652,266 @@ export function adjustStock(body: StockAdjustRequest): Promise<StockAdjustResult
 
 export function transferStock(body: StockTransferRequest): Promise<StockTransferResult> {
   return apiFetch<StockTransferResult>("/api/stock/transfer", { method: "POST", body: JSON.stringify(body) })
+}
+
+// ============================================================
+// 採購單
+//
+// 型別對 models/erp.py 的 PurchaseOrder*／PurchaseOrderLine*／ReceiveLine。
+// migration 030 把 qty 與 received_qty 開成 Numeric(18,4)、unit_price 開成
+// Numeric(14,4)，pydantic v2 的 JSON 模式一律序列化成字串，所以數量與金額都當
+// 字串接、送出時也送字串，不先過 Number() 免得長小數失真。
+//
+// 兩個後端契約細節值得記著：
+// 1. 收貨行項的 key 是 `line_id`，不是 `item_id`：同一張單可以有兩行同一個物料，
+//    只給 `item_id` 而該物料有多行時，service 會拋 AmbiguousError（HTTP 409）。
+// 2. 收貨請求「全收」的欄位名是 `all`，不是 `receive_all`（`receive_all` 是
+//    service 函式的參數名，REST 的 PurchaseOrderReceiveRequest 上叫 `all`）。
+// ============================================================
+
+/** models/erp.py 的 EditablePurchaseOrderStatus：PUT 的 status 只收這兩個。 */
+export type EditablePurchaseOrderStatus = "draft" | "ordered"
+
+export interface PurchaseOrderLine {
+  id: string
+  po_id: string
+  item_id: string
+  item_code: string | null
+  item_name: string | null
+  description: string | null
+  /** Decimal：後端送字串 */
+  qty: string
+  unit_price: string | null
+  received_qty: string
+  sort_order: number
+}
+
+export interface PurchaseOrderListItem {
+  id: string
+  po_no: string
+  supplier_id: string
+  supplier_name: string | null
+  project_id: string | null
+  project_name: string | null
+  status: string
+  order_date: string | null
+  expected_date: string | null
+  line_count: number
+  /** Decimal：SUM(qty * COALESCE(unit_price, 0))，後端送字串 */
+  total_amount: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PurchaseOrderListResponse {
+  items: PurchaseOrderListItem[]
+  total: number
+}
+
+export interface PurchaseOrderDetail {
+  id: string
+  /** 只有建立／更新的回應才有值，GET 明細是 null */
+  audit_id: string | null
+  po_no: string
+  supplier_id: string
+  supplier_name: string | null
+  project_id: string | null
+  project_name: string | null
+  status: string
+  order_date: string | null
+  expected_date: string | null
+  notes: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+  lines: PurchaseOrderLine[]
+  total_amount: string | null
+}
+
+export interface PurchaseOrderLineCreate {
+  item_id: string
+  /** Decimal：送字串 */
+  qty: string
+  unit_price?: string | null
+  description?: string | null
+}
+
+/**
+ * PurchaseOrderCreate 是 `extra="forbid"`：`po_no` 由 service 在同一交易內產生，
+ * 行項的 `received_qty` 只給匯入腳本用，REST 送這兩個會 422。
+ */
+export interface PurchaseOrderCreate {
+  supplier_id: string
+  lines: PurchaseOrderLineCreate[]
+  project_id?: string | null
+  status?: EditablePurchaseOrderStatus
+  order_date?: string | null
+  expected_date?: string | null
+  notes?: string | null
+}
+
+/** 行項不在這裡改；`partial`／`received` 是收貨算出來的，`cancelled` 只能走 cancel。 */
+export interface PurchaseOrderUpdate {
+  supplier_id?: string
+  project_id?: string | null
+  status?: EditablePurchaseOrderStatus
+  order_date?: string | null
+  expected_date?: string | null
+  notes?: string | null
+}
+
+export interface ReceiveLine {
+  line_id: string
+  /** Decimal：送字串 */
+  qty: string
+}
+
+export interface PurchaseOrderReceiveRequest {
+  lines?: ReceiveLine[]
+  /** 後端欄位就叫 `all`（service 的參數才叫 receive_all）；true 時 lines 會被忽略。 */
+  all?: boolean
+  warehouse_id?: string | null
+  note?: string | null
+}
+
+/** receive 與 cancel 都不回明細，只回這三個鍵。 */
+export interface PurchaseOrderActionResult {
+  success: boolean
+  status: string
+  audit_id: string
+}
+
+// ── 中文對照與規則 ──
+
+export const PO_STATUS_OPTIONS: PurchaseOrderStatus[] = [
+  "draft",
+  "ordered",
+  "partial",
+  "received",
+  "cancelled",
+]
+
+/** PUT 的 status 只收草稿與已下單。 */
+export const PO_EDITABLE_STATUS_OPTIONS: EditablePurchaseOrderStatus[] = ["draft", "ordered"]
+
+/** services/erp_purchasing.py 的 _CLOSED_STATUSES：這兩個狀態不給改也不給收貨。 */
+const PO_CLOSED_STATUSES = ["received", "cancelled"]
+
+/**
+ * 還沒結案的單。編輯、收貨與取消三個動作共用同一條界線：後端對前兩個看
+ * `_CLOSED_STATUSES`，取消另外還會擋「已收過貨」（`partial` 按下去會拿到 400，
+ * 那個 400 照樣顯示出來，不在前端先猜）。
+ */
+export function isPurchaseOrderOpen(status: string): boolean {
+  return !PO_CLOSED_STATUSES.includes(status)
+}
+
+/** 某一行還沒收的數量；四位小數是 Numeric(18,4) 的上限，收掉浮點誤差。 */
+export function lineRemainingQty(line: Pick<PurchaseOrderLine, "qty" | "received_qty">): string {
+  const remain = Number(line.qty) - Number(line.received_qty)
+  if (!Number.isFinite(remain)) return "0"
+  return String(Number(Math.max(remain, 0).toFixed(4)))
+}
+
+/** 「問 AI」帶過去的前綴文字。 */
+export function poAskAiHref(poNo: string): string {
+  return `/assistant?q=${encodeURIComponent(`關於採購單「${poNo}」：`)}`
+}
+
+/**
+ * timestamptz 欄位（`created_at`／`updated_at`）一律讓 Date 轉成瀏覽器所在時區
+ * 再印。直接切 ISO 字串會把 UTC 當成本地時間顯示，台北會差八小時。
+ */
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString("zh-TW", { hour12: false })
+}
+
+/** 本地的今天（YYYY-MM-DD）；拿來跟後端的 date 欄位比大小。 */
+export function todayIsoDate(now: Date = new Date()): string {
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, "0")
+  const d = String(now.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+/** 預計到貨已經過了今天就算逾期；沒填日期不算。 */
+export function isExpectedOverdue(expectedDate: string | null, today: string = todayIsoDate()): boolean {
+  return expectedDate !== null && expectedDate !== "" && expectedDate < today
+}
+
+/**
+ * 首頁「採購待收貨」卡要的清單：把 `ordered` 與 `partial` 兩次請求的結果合起來，
+ * 依預計到貨升冪排序（沒填日期的排最後），取前 `limit` 張。
+ */
+export function pendingReceiptOrders(
+  groups: (PurchaseOrderListItem[] | undefined)[],
+  limit = 5,
+): PurchaseOrderListItem[] {
+  const merged = groups.flatMap((g) => g ?? [])
+  return [...merged]
+    .sort((a, b) => {
+      if (a.expected_date === b.expected_date) return a.po_no.localeCompare(b.po_no)
+      if (!a.expected_date) return 1
+      if (!b.expected_date) return -1
+      return a.expected_date.localeCompare(b.expected_date)
+    })
+    .slice(0, limit)
+}
+
+// ── API ──
+
+export interface PurchaseOrderFilters {
+  supplierId?: string
+  status?: PurchaseOrderStatus | ""
+  projectId?: string
+  /** 訂購日起始（YYYY-MM-DD）；後端比的是 COALESCE(order_date, created_at::date) */
+  since?: string
+  page: number
+  pageSize?: number
+}
+
+export const PO_PAGE_SIZE = 20
+/** 首頁待收貨卡與下拉選單吃的上限（後端 page_size 最大 100）。 */
+export const PO_PENDING_PAGE_SIZE = 100
+
+export function listPurchaseOrders(filters: PurchaseOrderFilters): Promise<PurchaseOrderListResponse> {
+  const params = new URLSearchParams()
+  if (filters.supplierId) params.set("supplier_id", filters.supplierId)
+  if (filters.status) params.set("status", filters.status)
+  if (filters.projectId) params.set("project_id", filters.projectId)
+  if (filters.since) params.set("since", filters.since)
+  params.set("page", String(filters.page))
+  params.set("page_size", String(filters.pageSize ?? PO_PAGE_SIZE))
+  return apiFetch<PurchaseOrderListResponse>(`/api/purchase-orders?${params.toString()}`)
+}
+
+export function getPurchaseOrder(id: string): Promise<PurchaseOrderDetail> {
+  return apiFetch<PurchaseOrderDetail>(`/api/purchase-orders/${id}`)
+}
+
+export function createPurchaseOrder(data: PurchaseOrderCreate): Promise<PurchaseOrderDetail> {
+  return apiFetch<PurchaseOrderDetail>("/api/purchase-orders", { method: "POST", body: JSON.stringify(data) })
+}
+
+export function updatePurchaseOrder(id: string, data: PurchaseOrderUpdate): Promise<PurchaseOrderDetail> {
+  return apiFetch<PurchaseOrderDetail>(`/api/purchase-orders/${id}`, { method: "PUT", body: JSON.stringify(data) })
+}
+
+export function receivePurchaseOrder(
+  id: string,
+  body: PurchaseOrderReceiveRequest,
+): Promise<PurchaseOrderActionResult> {
+  return apiFetch<PurchaseOrderActionResult>(`/api/purchase-orders/${id}/receive`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
+export function cancelPurchaseOrder(id: string, reason: string | null = null): Promise<PurchaseOrderActionResult> {
+  return apiFetch<PurchaseOrderActionResult>(`/api/purchase-orders/${id}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  })
 }

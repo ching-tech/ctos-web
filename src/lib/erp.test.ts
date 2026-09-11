@@ -8,16 +8,23 @@ import {
   formatLeadDays,
   formatQty,
   formatQtyDelta,
+  isExpectedOverdue,
+  isPurchaseOrderOpen,
   itemAskAiHref,
   itemGroupOptions,
+  lineRemainingQty,
   parseAliases,
   PARTY_ROLE_LABEL,
   PARTY_ROLE_TINT,
   partyKbHref,
   partyRoles,
+  pendingReceiptOrders,
   PO_STATUS_LABEL,
+  poAskAiHref,
   STOCK_REASON_LABEL,
   STOCK_REASON_TINT,
+  todayIsoDate,
+  type PurchaseOrderListItem,
 } from "./erp"
 
 describe("parseAliases", () => {
@@ -159,5 +166,80 @@ describe("物料連結與對照表", () => {
     expect(erpLabel(STOCK_REASON_LABEL, "receipt")).toBe("採購收貨")
     expect(erpLabel(STOCK_REASON_LABEL, "scrap")).toBe("scrap")
     expect(erpTint(STOCK_REASON_TINT, "scrap")).toBe("")
+  })
+})
+
+describe("採購單狀態規則", () => {
+  it("已收貨與已取消不能再改也不能再收", () => {
+    expect(isPurchaseOrderOpen("draft")).toBe(true)
+    expect(isPurchaseOrderOpen("ordered")).toBe(true)
+    expect(isPurchaseOrderOpen("partial")).toBe(true)
+    expect(isPurchaseOrderOpen("received")).toBe(false)
+    expect(isPurchaseOrderOpen("cancelled")).toBe(false)
+  })
+
+  it("狀態有中文，對不到的鍵原樣顯示", () => {
+    expect(erpLabel(PO_STATUS_LABEL, "partial")).toBe("部分到貨")
+    expect(erpLabel(PO_STATUS_LABEL, "closed")).toBe("closed")
+  })
+
+  it("問 AI 帶單號", () => {
+    expect(poAskAiHref("PO-202608-001")).toBe(
+      `/assistant?q=${encodeURIComponent("關於採購單「PO-202608-001」：")}`,
+    )
+  })
+})
+
+describe("lineRemainingQty", () => {
+  it("未收量收掉 Numeric(18,4) 的尾數與浮點誤差", () => {
+    expect(lineRemainingQty({ qty: "10.0000", received_qty: "0.0000" })).toBe("10")
+    expect(lineRemainingQty({ qty: "6.0000", received_qty: "2.0000" })).toBe("4")
+    expect(lineRemainingQty({ qty: "1.5000", received_qty: "0.3000" })).toBe("1.2")
+    expect(lineRemainingQty({ qty: "0.3000", received_qty: "0.1000" })).toBe("0.2")
+  })
+
+  it("全收是 0，資料異常也不給負數", () => {
+    expect(lineRemainingQty({ qty: "36.0000", received_qty: "36.0000" })).toBe("0")
+    expect(lineRemainingQty({ qty: "1.0000", received_qty: "2.0000" })).toBe("0")
+  })
+})
+
+describe("isExpectedOverdue", () => {
+  it("預計到貨早於今天才算逾期，沒填不算", () => {
+    expect(isExpectedOverdue("2026-09-11", "2026-09-12")).toBe(true)
+    expect(isExpectedOverdue("2026-09-12", "2026-09-12")).toBe(false)
+    expect(isExpectedOverdue("2026-09-13", "2026-09-12")).toBe(false)
+    expect(isExpectedOverdue(null, "2026-09-12")).toBe(false)
+  })
+})
+
+describe("todayIsoDate", () => {
+  it("用本地時間算，不是 toISOString 的 UTC", () => {
+    // 台北時間 2026-09-12 00:30 在 UTC 還是 09-11
+    expect(todayIsoDate(new Date(2026, 8, 12, 0, 30))).toBe("2026-09-12")
+  })
+})
+
+describe("pendingReceiptOrders", () => {
+  function po(id: string, expected: string | null): PurchaseOrderListItem {
+    return {
+      id, po_no: `PO-202609-${id}`, supplier_id: "s", supplier_name: null, project_id: null,
+      project_name: null, status: "ordered", order_date: null, expected_date: expected,
+      line_count: 1, total_amount: "0", created_at: "2026-09-01T00:00:00+00:00",
+      updated_at: "2026-09-01T00:00:00+00:00",
+    }
+  }
+
+  it("兩份結果合併、依預計到貨升冪、沒填日期排最後、只取前五", () => {
+    const ordered = [po("005", "2026-09-25"), po("001", "2026-09-01"), po("006", null)]
+    const partial = [po("003", "2026-09-10"), po("002", "2026-09-05"), po("004", "2026-09-20")]
+    expect(pendingReceiptOrders([ordered, partial]).map((p) => p.id)).toEqual([
+      "001", "002", "003", "004", "005",
+    ])
+  })
+
+  it("還沒回來的那一份當空陣列", () => {
+    expect(pendingReceiptOrders([undefined, [po("001", "2026-09-01")]]).map((p) => p.id)).toEqual(["001"])
+    expect(pendingReceiptOrders([undefined, undefined])).toEqual([])
   })
 })
