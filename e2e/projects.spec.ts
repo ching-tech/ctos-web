@@ -4,6 +4,7 @@ import {
   API,
   mockApi,
   mockBot,
+  mockErp,
   mockKb,
   mockProjects,
   projectFixtures,
@@ -123,6 +124,8 @@ test.describe("權限", () => {
     await mockKb(page)
     await mockBot(page) // 這個 fixture 有 linebot 權限，首頁會掛「Bot 概況」卡
     await mockProjects(page)
+    // 這個 fixture 有 inventory-management 權限，首頁會掛「採購待收貨」卡
+    await mockErp(page)
     await seedToken(page)
 
     await page.goto("/")

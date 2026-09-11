@@ -135,8 +135,8 @@ npm run build
 - `admin.test.ts` — 管理員 API 單元測試
 - `projects.ts` — 專案 API 客戶端（清單／明細／主檔／成員／里程碑／任務／dashboard 摘要；狀態中文與 tint 對照、`canEditProject`、query key）
 - `projects.test.ts` — 專案權限與對照表單元測試
-- `erp.ts` — 往來與物料模組 API 客戶端（往來對象清單／明細／主檔／合併；聯絡人與地址的新增／更新／刪除；物料清單／明細／主檔、倉庫清單與主檔、庫存查詢與調整／調撥；角色、採購單狀態與庫存異動原因的中文與 tint 對照、別名解析、Decimal 金額與數量格式化、`erpKeys`）
-- `erp.test.ts` — 往來對象與物料對照表、別名解析、金額與數量格式化單元測試
+- `erp.ts` — 往來與物料模組 API 客戶端（往來對象清單／明細／主檔／合併；聯絡人與地址的新增／更新／刪除；物料清單／明細／主檔、倉庫清單與主檔、庫存查詢與調整／調撥；採購單清單／明細／建立／更新／收貨／取消；角色、採購單狀態與庫存異動原因的中文與 tint 對照、別名解析、Decimal 金額與數量格式化、timestamptz 轉本地時間、未收量計算、待收貨排序、`erpKeys`）
+- `erp.test.ts` — 往來對象與物料對照表、別名解析、金額與數量格式化、採購單狀態規則與未收量、逾期判斷與待收貨排序單元測試
 - `users.ts` — 使用者選單（`GET /api/user/list`，登入即可讀，供負責人與成員下拉用）
 
 ### `src/pages/`
@@ -144,9 +144,10 @@ npm run build
 各頁面元件：
 
 - `login.tsx` — 登入頁（NAS 帳號 vs 平台帳號兩分頁）
-- `home.tsx` — 首頁（個人化問候，掛載「今日 AI 用量」「Bot 概況」「知識庫最近更新」卡片，各依 app 權限顯示）
+- `home.tsx` — 首頁（個人化問候，掛載「今日 AI 用量」「Bot 概況」「進行中專案」「逾期里程碑」「採購待收貨」「知識庫最近更新」卡片，各依 app 權限顯示）
 - `home/ai-usage-card.tsx` — 首頁「今日 AI 用量」卡片（依本地今天日期查 stats：呼叫次數／成功率／平均耗時／Token 進出）
 - `home/bot-summary-card.tsx` — 首頁「Bot 概況」卡片（群組數／黑名單數／我的 Line／Telegram 綁定狀態）
+- `home/pending-receipts-card.tsx` — 首頁「採購待收貨」卡片（`ordered` 與 `partial` 的單數，列預計到貨最近的五張，逾期標紅）
 - `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁）
 - `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
@@ -188,6 +189,10 @@ npm run build
 - `items/tabs/stock.tsx` — 庫存分頁（各倉餘額表、總庫存、「調整」與「調撥」對話框）
 - `items/tabs/movements.tsx` — 異動分頁（最近二十筆異動，原因 badge 與增減數量）
 - `warehouses/list.tsx` — 倉庫頁（清單、新增／編輯對話框；不佔側邊欄，從物料清單的「倉庫」進去）
+- `purchase-orders/list.tsx` — 採購單清單頁（狀態／供應商／專案三個篩選、分頁；桌面表格、手機卡片；單號連明細、供應商連往來對象）
+- `purchase-orders/editor.tsx` — 採購單新增／編輯頁（新增是單頭＋可增列的行項表格，編輯只改單頭；狀態只收草稿與已下單）
+- `purchase-orders/detail.tsx` — 採購單明細頁（表頭主檔與狀態 badge，「問 AI」「編輯」「收貨」「取消採購單」；行項表含已收與未收）
+- `purchase-orders/receive-dialog.tsx` — 收貨對話框（入庫倉下拉、每行一個本次收貨數量、「送出收貨」與「全部收貨」）
 - `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
@@ -232,6 +237,7 @@ Playwright 端對端測試：
 - `projects.spec.ts` — 專案清單／明細五分頁／新增編輯／權限擋下／知識庫編輯器專案入口測試
 - `parties.spec.ts` — 往來對象清單／明細五分頁／新增編輯／合併／權限擋下測試
 - `items.spec.ts` — 物料清單／明細庫存與異動兩分頁／調整與調撥／新增編輯／倉庫頁／權限擋下測試
+- `purchasing.spec.ts` — 採購單清單篩選／新增行項／明細收貨與取消／首頁待收貨卡／權限擋下測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -265,7 +271,7 @@ Playwright 端對端測試：
 
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
 - **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
-- **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）、「進行中專案」與「逾期里程碑」（依 `project-management` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片
+- **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）、「進行中專案」與「逾期里程碑」（依 `project-management` 權限）、「採購待收貨」（依 `inventory-management` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
@@ -275,6 +281,7 @@ Playwright 端對端測試：
 - **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 不在本階段
 - **往來對象** — 路由 `/parties`（需 `vendor-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的名稱／簡稱／別名／統編／聯絡人姓名（模糊）與電話／手機（等值）搜尋，角色篩選送 `role=supplier|customer|both`，手機寬度改卡片；`/parties/new`、`/parties/:id/edit` 是主檔表單，新增時可一併帶一筆主要聯絡人與地址（後端 `PartyCreate` 支援）；`/parties/:id` 明細分五個分頁（聯絡人、地址、採購單、專案、知識庫），分頁寫進網址 `?tab=`。聯絡人與地址可以新增、編輯、刪除與「設為主要」（`is_primary=true` 由後端把同一家其他筆降級；刪除是硬刪除，刪掉主要那筆不自動指派新主要）。表頭有「問 AI」帶 `?q=` 前綴文字開 AI 助手、「合併」對話框（挑保留哪一筆，送 `POST /api/parties/merge`，後端角色取 OR、統編取 COALESCE、drop 的名稱與簡稱併進別名）與軟刪除。採購單分頁的 `/purchase-orders/:id` 連結先做，頁面在採購單那個 PR 才有
 - **物料庫存** — 路由 `/items`（需 `inventory-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的料號／品名／規格／別名（都是 ILIKE），分類篩選送 `item_group`（等值比對，選項從當頁清單資料收集），欄位含預設供應商連結與各倉合計的總庫存，手機寬度改卡片；`/items/new`、`/items/:id/edit` 是主檔表單，預設供應商下拉打 `/api/parties?role=supplier&page_size=100`（後端 `list_parties` 的參數是 `role`，沒有 `is_supplier`），沒有 `vendor-management` 權限時下拉停用並提示；`/items/:id` 明細分庫存與異動兩個分頁，分頁寫進網址 `?tab=`。庫存分頁有各倉餘額表與「調整」（送 `POST /api/stock/adjust`，`reason` 固定 `adjust`，數量可正可負）、「調撥」（送 `POST /api/stock/transfer`）兩個對話框，後端擋下的負庫存、同倉調撥與非正數調撥都把 400 的 detail 原樣顯示；異動分頁列後端回的最近二十筆，原因用 tint badge。倉庫在 `/warehouses`，從物料清單的「倉庫」按鈕進去，不佔側邊欄，可新增與編輯，代碼撞名的 400 原樣顯示。數量欄位後端是 `Numeric(18,4)`，序列化成帶四位小數的字串，畫面上收掉尾數但保留真的有值的小數
+- **採購單** — 路由 `/purchase-orders`（需 `inventory-management` 權限，側邊欄排在物料庫存之後）。清單有狀態、供應商與專案三個篩選（都寫進網址），欄位含單號、供應商連結、專案、狀態 badge、下單日、預計到貨、行項數與金額，手機寬度改卡片；`/purchase-orders/new` 是單頭加一張可增列的行項表格（物料下拉打 `/api/items?page_size=100`，上面一個搜尋框把 `q` 帶給後端），單號由後端在同一交易產生（`PO-YYYYMM-NNN`）不用自己填；`/purchase-orders/:id/edit` 只改單頭（後端的 `PurchaseOrderUpdate` 沒有行項），狀態只收草稿與已下單。`/purchase-orders/:id` 明細有表頭主檔、「問 AI」與行項表（數量、單價、已收、未收）。收貨對話框每一行預設帶出全部未收量可改，填 0 的行這次不收，送 `POST /{id}/receive` 的 `{lines: [{line_id, qty}], warehouse_id}`；行項的 key 是 `line_id` 不是 `item_id`（同一張單可以有兩行同一個物料）；「全部收貨」送 `ReceiveRequest` 的 `all: true`。超收、倉別沒指定、已結案的單不能收貨，這些 400 都把 detail 原樣顯示。「取消採購單」有確認對話框，已收過貨的單後端會擋下來。已收貨與已取消的單不出現編輯、收貨與取消；部分到貨的單可以收貨與取消，但**不能編輯單頭**（`PurchaseOrderUpdate` 的 `status` 只收草稿與已下單，編輯頁一送出就會把狀態壓回已下單），直接打 `/purchase-orders/:id/edit` 也會被導回明細。清單端點只回 `line_count` 與 `total_amount`，沒有行項數量彙總，所以清單那一欄放的是行項數
 
 ## 相關文件
 

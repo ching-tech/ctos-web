@@ -170,7 +170,7 @@ test.describe("明細", () => {
 
     await page.getByRole("tab", { name: "採購單" }).click()
     await expect(page).toHaveURL(/tab=purchase-orders/)
-    await expect(page.getByRole("link", { name: "PO-2026-0001" })).toHaveAttribute("href", "/purchase-orders/po-1")
+    await expect(page.getByRole("link", { name: "PO-202608-001" })).toHaveAttribute("href", "/purchase-orders/po-1")
     await expect(page.getByText("已下單")).toBeVisible()
     await expect(page.getByText("128,000")).toBeVisible()
 

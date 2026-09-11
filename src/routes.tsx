@@ -18,6 +18,9 @@ import LoginPage from "@/pages/login"
 import PartyDetailPage from "@/pages/parties/detail"
 import PartyEditorPage from "@/pages/parties/editor"
 import PartyListPage from "@/pages/parties/list"
+import PurchaseOrderDetailPage from "@/pages/purchase-orders/detail"
+import PurchaseOrderEditorPage from "@/pages/purchase-orders/editor"
+import PurchaseOrderListPage from "@/pages/purchase-orders/list"
 import ProjectDetailPage from "@/pages/projects/detail"
 import ProjectEditorPage from "@/pages/projects/editor"
 import ProjectListPage from "@/pages/projects/list"
@@ -59,6 +62,10 @@ export const router = createBrowserRouter([
           { path: "items/:id", element: <RequireApp app="inventory-management"><ItemDetailPage /></RequireApp> },
           { path: "items/:id/edit", element: <RequireApp app="inventory-management"><ItemEditorPage /></RequireApp> },
           { path: "warehouses", element: <RequireApp app="inventory-management"><WarehouseListPage /></RequireApp> },
+          { path: "purchase-orders", element: <RequireApp app="inventory-management"><PurchaseOrderListPage /></RequireApp> },
+          { path: "purchase-orders/new", element: <RequireApp app="inventory-management"><PurchaseOrderEditorPage /></RequireApp> },
+          { path: "purchase-orders/:id", element: <RequireApp app="inventory-management"><PurchaseOrderDetailPage /></RequireApp> },
+          { path: "purchase-orders/:id/edit", element: <RequireApp app="inventory-management"><PurchaseOrderEditorPage /></RequireApp> },
           { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
           { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
