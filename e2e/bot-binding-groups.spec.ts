@@ -68,15 +68,15 @@ test("群組分頁：切換 AI 回覆送 PATCH allow_ai_response:false", async (
 test("群組明細：綁定專案下拉預設選中目前綁定的專案，並顯示連到專案明細的連結", async ({ page }) => {
   await page.goto("/bot/groups/grp-1")
   const select = page.getByRole("combobox", { name: "綁定專案" })
-  await expect(select).toHaveText("台北捷運監控案")
-  await expect(page.getByRole("link", { name: "台北捷運監控案" })).toHaveAttribute("href", "/projects/proj-1")
+  await expect(select).toHaveText("乙二站區監控案")
+  await expect(page.getByRole("link", { name: "乙二站區監控案" })).toHaveAttribute("href", "/projects/proj-1")
 })
 
 test("群組明細：已完成／已取消的專案排在選單後段並標狀態", async ({ page }) => {
   await page.goto("/bot/groups/grp-1")
   await page.getByRole("combobox", { name: "綁定專案" }).click()
   const options = page.getByRole("option")
-  await expect(options).toHaveText(["未綁定", "台北捷運監控案", "倉儲自動化評估", "廠務空調更新（已完成）"])
+  await expect(options).toHaveText(["未綁定", "乙二站區監控案", "倉儲自動化評估", "廠務空調更新（已完成）"])
 })
 
 test("群組明細：改選另一個專案送 POST project_id，成功後改顯示新專案名", async ({ page }) => {
@@ -99,7 +99,7 @@ test("群組明細：選「未綁定」送 DELETE，成功後不再顯示專案�
   await page.getByRole("option", { name: "未綁定" }).click()
   await req
   await expect(page.getByRole("combobox", { name: "綁定專案" })).toHaveText("未綁定")
-  await expect(page.getByRole("link", { name: "台北捷運監控案" })).toHaveCount(0)
+  await expect(page.getByRole("link", { name: "乙二站區監控案" })).toHaveCount(0)
 })
 
 test("群組明細：專案清單載入失敗時下拉停用並顯示提示，不影響其他明細內容", async ({ page }) => {

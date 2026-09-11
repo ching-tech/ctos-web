@@ -135,8 +135,8 @@ npm run build
 - `admin.test.ts` — 管理員 API 單元測試
 - `projects.ts` — 專案 API 客戶端（清單／明細／主檔／成員／里程碑／任務／dashboard 摘要；狀態中文與 tint 對照、`canEditProject`、query key）
 - `projects.test.ts` — 專案權限與對照表單元測試
-- `erp.ts` — 往來與物料模組 API 客戶端（往來對象清單／明細／主檔／合併；聯絡人與地址的新增／更新／刪除；角色與採購單狀態的中文與 tint 對照、別名解析、Decimal 金額格式化、`erpKeys`）
-- `erp.test.ts` — 往來對象對照表、別名解析與金額格式化單元測試
+- `erp.ts` — 往來與物料模組 API 客戶端（往來對象清單／明細／主檔／合併；聯絡人與地址的新增／更新／刪除；物料清單／明細／主檔、倉庫清單與主檔、庫存查詢與調整／調撥；角色、採購單狀態與庫存異動原因的中文與 tint 對照、別名解析、Decimal 金額與數量格式化、`erpKeys`）
+- `erp.test.ts` — 往來對象與物料對照表、別名解析、金額與數量格式化單元測試
 - `users.ts` — 使用者選單（`GET /api/user/list`，登入即可讀，供負責人與成員下拉用）
 
 ### `src/pages/`
@@ -182,6 +182,12 @@ npm run build
 - `parties/tabs/purchase-orders.tsx` — 採購單分頁（最近十筆，狀態 badge 與金額，連 `/purchase-orders/:id`）
 - `parties/tabs/projects.tsx` — 專案分頁（採購單掛到的專案，連 `/projects/:id`）
 - `parties/tabs/knowledge.tsx` — 知識庫分頁（`knowledge_count` 與用名稱當關鍵字的知識庫入口）
+- `items/list.tsx` — 物料清單頁（搜尋料號／品名／規格／別名、分類篩選、分頁；桌面表格、手機卡片；總庫存欄與預設供應商連結）
+- `items/editor.tsx` — 物料新增／編輯頁（料號、品名、規格、單位、分類、預設供應商下拉、採購價、交期天數、別名、備註；料號撞名的 400 原樣顯示）
+- `items/detail.tsx` — 物料明細頁（料號與品名表頭、別名 chips，「問 AI」「編輯」「刪除物料」，庫存與異動兩個分頁籤 tab 寫進網址）
+- `items/tabs/stock.tsx` — 庫存分頁（各倉餘額表、總庫存、「調整」與「調撥」對話框）
+- `items/tabs/movements.tsx` — 異動分頁（最近二十筆異動，原因 badge 與增減數量）
+- `warehouses/list.tsx` — 倉庫頁（清單、新增／編輯對話框；不佔側邊欄，從物料清單的「倉庫」進去）
 - `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
@@ -225,6 +231,7 @@ Playwright 端對端測試：
 - `bot-messages-files.spec.ts` — Bot 訊息與檔案分頁測試
 - `projects.spec.ts` — 專案清單／明細五分頁／新增編輯／權限擋下／知識庫編輯器專案入口測試
 - `parties.spec.ts` — 往來對象清單／明細五分頁／新增編輯／合併／權限擋下測試
+- `items.spec.ts` — 物料清單／明細庫存與異動兩分頁／調整與調撥／新增編輯／倉庫頁／權限擋下測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -267,6 +274,7 @@ Playwright 端對端測試：
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載
 - **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 不在本階段
 - **往來對象** — 路由 `/parties`（需 `vendor-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的名稱／簡稱／別名／統編／聯絡人姓名（模糊）與電話／手機（等值）搜尋，角色篩選送 `role=supplier|customer|both`，手機寬度改卡片；`/parties/new`、`/parties/:id/edit` 是主檔表單，新增時可一併帶一筆主要聯絡人與地址（後端 `PartyCreate` 支援）；`/parties/:id` 明細分五個分頁（聯絡人、地址、採購單、專案、知識庫），分頁寫進網址 `?tab=`。聯絡人與地址可以新增、編輯、刪除與「設為主要」（`is_primary=true` 由後端把同一家其他筆降級；刪除是硬刪除，刪掉主要那筆不自動指派新主要）。表頭有「問 AI」帶 `?q=` 前綴文字開 AI 助手、「合併」對話框（挑保留哪一筆，送 `POST /api/parties/merge`，後端角色取 OR、統編取 COALESCE、drop 的名稱與簡稱併進別名）與軟刪除。採購單分頁的 `/purchase-orders/:id` 連結先做，頁面在採購單那個 PR 才有
+- **物料庫存** — 路由 `/items`（需 `inventory-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的料號／品名／規格／別名（都是 ILIKE），分類篩選送 `item_group`（等值比對，選項從當頁清單資料收集），欄位含預設供應商連結與各倉合計的總庫存，手機寬度改卡片；`/items/new`、`/items/:id/edit` 是主檔表單，預設供應商下拉打 `/api/parties?role=supplier&page_size=100`（後端 `list_parties` 的參數是 `role`，沒有 `is_supplier`），沒有 `vendor-management` 權限時下拉停用並提示；`/items/:id` 明細分庫存與異動兩個分頁，分頁寫進網址 `?tab=`。庫存分頁有各倉餘額表與「調整」（送 `POST /api/stock/adjust`，`reason` 固定 `adjust`，數量可正可負）、「調撥」（送 `POST /api/stock/transfer`）兩個對話框，後端擋下的負庫存、同倉調撥與非正數調撥都把 400 的 detail 原樣顯示；異動分頁列後端回的最近二十筆，原因用 tint badge。倉庫在 `/warehouses`，從物料清單的「倉庫」按鈕進去，不佔側邊欄，可新增與編輯，代碼撞名的 400 原樣顯示。數量欄位後端是 `Numeric(18,4)`，序列化成帶四位小數的字串，畫面上收掉尾數但保留真的有值的小數
 
 ## 相關文件
 

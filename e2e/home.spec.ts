@@ -137,13 +137,13 @@ test("admin 看到進行中專案與逾期里程碑卡", async ({ page }) => {
   // fixture 只有 proj-1 是 active，active_count = 1。
   const projectsCard = page.getByRole("heading", { name: "進行中專案" }).locator("..").locator("..")
   await expect(projectsCard.getByText("1", { exact: true })).toBeVisible()
-  await expect(projectsCard.getByRole("link", { name: "台北捷運監控案" })).toHaveAttribute("href", "/projects/proj-1")
+  await expect(projectsCard.getByRole("link", { name: "乙二站區監控案" })).toHaveAttribute("href", "/projects/proj-1")
   await expect(projectsCard.getByRole("link", { name: "查看全部專案" })).toHaveAttribute("href", "/projects?status=active")
 
   // fixture 的 proj-1 有 ms-1／ms-2 兩筆逾期里程碑，mock 固定回 days_overdue: 30。
   const milestonesCard = page.getByRole("heading", { name: "逾期里程碑" }).locator("..").locator("..")
   await expect(milestonesCard.getByText("逾期 30 天")).toHaveCount(2)
-  await expect(milestonesCard.getByRole("link", { name: "台北捷運監控案" }).first()).toHaveAttribute("href", "/projects/proj-1?tab=overview")
+  await expect(milestonesCard.getByRole("link", { name: "乙二站區監控案" }).first()).toHaveAttribute("href", "/projects/proj-1?tab=overview")
 })
 
 test("進行中專案卡：六筆迄日打亂，只顯示迄日最早的五筆且依序排列", async ({ page }) => {

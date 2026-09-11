@@ -28,16 +28,16 @@ test.describe("清單", () => {
     await page.goto("/parties")
 
     await expect(page.getByText("共 3 筆")).toBeVisible()
-    const item = partyItem(page, testInfo, "大同機電股份有限公司")
-    await expect(item.getByRole("link", { name: "大同機電股份有限公司" })).toBeVisible()
-    await expect(item.getByText("大同機電", { exact: true })).toBeVisible()
+    const item = partyItem(page, testInfo, "甲一機電股份有限公司")
+    await expect(item.getByRole("link", { name: "甲一機電股份有限公司" })).toBeVisible()
+    await expect(item.getByText("甲一機電", { exact: true })).toBeVisible()
     await expect(item.getByText("供應商")).toBeVisible()
     await expect(item.getByText("陳采購")).toBeVisible()
     await expect(item.getByText("02-2345-6789")).toBeVisible()
     await expect(item.getByText("12345678")).toBeVisible()
 
-    // 合信電機同時是供應商與客戶，兩個 badge 都要在
-    const both = partyItem(page, testInfo, "合信電機")
+    // 丙三電機同時是供應商與客戶，兩個 badge 都要在
+    const both = partyItem(page, testInfo, "丙三電機")
     await expect(both.getByText("供應商")).toBeVisible()
     await expect(both.getByText("客戶")).toBeVisible()
 
@@ -63,7 +63,7 @@ test.describe("清單", () => {
     await page.getByRole("option", { name: "供應商且客戶" }).click()
     await req
     await expect(page).toHaveURL(/role=both/)
-    // 三筆裡只有合信電機兩個角色都成立
+    // 三筆裡只有丙三電機兩個角色都成立
     await expect(page.getByText("共 1 筆")).toBeVisible()
   })
 
@@ -72,12 +72,12 @@ test.describe("清單", () => {
 
     await page.getByLabel("搜尋").fill("陳采購")
     await expect(page.getByText("共 1 筆")).toBeVisible()
-    await expect(partyItem(page, testInfo, "大同機電股份有限公司")).toBeVisible()
+    await expect(partyItem(page, testInfo, "甲一機電股份有限公司")).toBeVisible()
 
     // 後端電話走等值：整組號碼找得到
     await page.getByLabel("搜尋").fill("02-1234-5678")
     await expect(page.getByText("共 1 筆")).toBeVisible()
-    await expect(partyItem(page, testInfo, "臺北捷運公司")).toBeVisible()
+    await expect(partyItem(page, testInfo, "乙二運輸股份有限公司")).toBeVisible()
 
     // 片段號碼不算命中（"02-1234" 不會出現在統編裡，確定是電話這條路徑在判斷）
     await page.getByLabel("搜尋").fill("02-1234")
@@ -88,8 +88,8 @@ test.describe("清單", () => {
     await page.goto("/parties")
 
     const req = page.waitForRequest((r) => r.url().includes("/api/parties?") && r.url().includes("q="))
-    await page.getByLabel("搜尋").fill("Datong")
-    expect(new URL((await req).url()).searchParams.get("q")).toBe("Datong")
+    await page.getByLabel("搜尋").fill("Jiayi")
+    expect(new URL((await req).url()).searchParams.get("q")).toBe("Jiayi")
     await expect(page.getByText("共 1 筆")).toBeVisible()
     await expect(page).toHaveURL(/q=/)
   })
@@ -104,9 +104,9 @@ test.describe("清單", () => {
   test("點名稱進明細", async ({ page }) => {
     await page.goto("/parties")
 
-    await page.getByRole("link", { name: "大同機電股份有限公司" }).click()
+    await page.getByRole("link", { name: "甲一機電股份有限公司" }).click()
     await expect(page).toHaveURL(/\/parties\/party-1$/)
-    await expect(page.getByRole("heading", { name: "大同機電股份有限公司" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "甲一機電股份有限公司" })).toBeVisible()
   })
 })
 
@@ -146,16 +146,16 @@ test.describe("明細", () => {
   test("表頭顯示主檔與別名 chips", async ({ page }) => {
     await page.goto("/parties/party-1")
 
-    await expect(page.getByRole("heading", { name: "大同機電股份有限公司" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "甲一機電股份有限公司" })).toBeVisible()
     const info = page.getByRole("region", { name: "往來對象資訊" })
-    await expect(info.getByText("大同機電", { exact: true })).toBeVisible()
+    await expect(info.getByText("甲一機電", { exact: true })).toBeVisible()
     // 備註裡也有「供應商」三個字，角色 badge 要用 exact 挑出來
     await expect(info.getByText("供應商", { exact: true })).toBeVisible()
     await expect(info.getByText("12345678")).toBeVisible()
     await expect(info.getByText("機電工程")).toBeVisible()
     await expect(info.getByText("月結 30 天")).toBeVisible()
-    await expect(info.getByText("大同", { exact: true })).toBeVisible()
-    await expect(info.getByText("Datong Electric")).toBeVisible()
+    await expect(info.getByText("甲一", { exact: true })).toBeVisible()
+    await expect(info.getByText("Jiayi Electric")).toBeVisible()
   })
 
   test("五個分頁都能切，tab 寫進網址", async ({ page }) => {
@@ -166,7 +166,7 @@ test.describe("明細", () => {
 
     await page.getByRole("tab", { name: "地址" }).click()
     await expect(page).toHaveURL(/tab=addresses/)
-    await expect(page.getByText("民生東路三段 100 號 5 樓")).toBeVisible()
+    await expect(page.getByText("甲一路三段 100 號 5 樓")).toBeVisible()
 
     await page.getByRole("tab", { name: "採購單" }).click()
     await expect(page).toHaveURL(/tab=purchase-orders/)
@@ -176,14 +176,14 @@ test.describe("明細", () => {
 
     await page.getByRole("tab", { name: "專案" }).click()
     await expect(page).toHaveURL(/tab=projects/)
-    await expect(page.getByRole("link", { name: "台北捷運監控案" })).toHaveAttribute("href", "/projects/proj-1")
+    await expect(page.getByRole("link", { name: "乙二站區監控案" })).toHaveAttribute("href", "/projects/proj-1")
 
     await page.getByRole("tab", { name: /知識庫/ }).click()
     await expect(page).toHaveURL(/tab=knowledge/)
     await expect(page.getByRole("tab", { name: /知識庫/ })).toHaveText("知識庫2")
     await expect(page.getByRole("link", { name: "到知識庫查看" })).toHaveAttribute(
       "href",
-      `/kb?q=${encodeURIComponent("大同機電股份有限公司")}`,
+      `/kb?q=${encodeURIComponent("甲一機電股份有限公司")}`,
     )
 
     await page.getByRole("tab", { name: "聯絡人" }).click()
@@ -196,7 +196,7 @@ test.describe("明細", () => {
     const primary = page.getByRole("listitem").filter({ hasText: "陳采購" })
     await expect(primary.getByText("主要")).toBeVisible()
     await expect(primary.getByText("採購課長")).toBeVisible()
-    await expect(primary.getByText("chen@datong.example")).toBeVisible()
+    await expect(primary.getByText("chen@jiayi.example")).toBeVisible()
 
     await page.getByRole("button", { name: "新增聯絡人" }).click()
     const req = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/parties/party-1/contacts"))
@@ -217,23 +217,23 @@ test.describe("明細", () => {
   test("地址分頁：新增地址送 POST", async ({ page }) => {
     await page.goto("/parties/party-1?tab=addresses")
 
-    const primary = page.getByRole("listitem").filter({ hasText: "民生東路三段 100 號 5 樓" })
+    const primary = page.getByRole("listitem").filter({ hasText: "甲一路三段 100 號 5 樓" })
     await expect(primary.getByText("總公司")).toBeVisible()
     await expect(primary.getByText("主要")).toBeVisible()
 
     await page.getByRole("button", { name: "新增地址" }).click()
     const req = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/parties/party-1/addresses"))
     await page.getByLabel("標籤").fill("倉庫")
-    await page.getByRole("textbox", { name: "地址", exact: true }).fill("工業路 12 號")
+    await page.getByRole("textbox", { name: "地址", exact: true }).fill("戊五路 12 號")
     await page.getByLabel("城市").fill("新北市")
     await page.getByRole("button", { name: "新增", exact: true }).click()
     expect((await req).postDataJSON()).toMatchObject({
       label: "倉庫",
-      address: "工業路 12 號",
+      address: "戊五路 12 號",
       city: "新北市",
       is_primary: false,
     })
-    await expect(page.getByText("工業路 12 號")).toBeVisible()
+    await expect(page.getByText("戊五路 12 號")).toBeVisible()
   })
 
   test("聯絡人分頁：編輯送 PUT、設為主要送 PUT、刪除送 DELETE", async ({ page }) => {
@@ -286,13 +286,13 @@ test.describe("明細", () => {
     await expect(page.getByRole("listitem").filter({ hasText: "工廠" }).getByText("主要", { exact: true })).toBeVisible()
 
     await page.getByRole("listitem").filter({ hasText: "總公司" }).getByRole("button", { name: "編輯" }).click()
-    await expect(page.getByRole("textbox", { name: "地址", exact: true })).toHaveValue("民生東路三段 100 號 5 樓")
+    await expect(page.getByRole("textbox", { name: "地址", exact: true })).toHaveValue("甲一路三段 100 號 5 樓")
     const editReq = page.waitForRequest(
       (r) => r.method() === "PUT" && r.url().endsWith("/api/parties/party-1/addresses/addr-1"),
     )
     await page.getByLabel("城市").fill("新北市")
     await page.getByRole("button", { name: "儲存" }).click()
-    expect((await editReq).postDataJSON()).toMatchObject({ address: "民生東路三段 100 號 5 樓", city: "新北市" })
+    expect((await editReq).postDataJSON()).toMatchObject({ address: "甲一路三段 100 號 5 樓", city: "新北市" })
 
     await page.getByRole("listitem").filter({ hasText: "總公司" }).getByRole("button", { name: "刪除" }).click()
     await expect(page.getByText("確定刪除這筆地址？")).toBeVisible()
@@ -334,7 +334,7 @@ test.describe("明細", () => {
 
     await expect(page.getByRole("link", { name: "問 AI" })).toHaveAttribute(
       "href",
-      `/assistant?q=${encodeURIComponent("關於往來對象「大同機電股份有限公司」：")}`,
+      `/assistant?q=${encodeURIComponent("關於往來對象「甲一機電股份有限公司」：")}`,
     )
   })
 
@@ -378,9 +378,9 @@ test.describe("合併", () => {
     await page.goto("/parties/party-1")
 
     await page.getByRole("button", { name: "合併" }).click()
-    await page.getByLabel("搜尋往來對象").fill("合信")
+    await page.getByLabel("搜尋往來對象").fill("丙三")
     await page.getByRole("combobox", { name: "要合併的往來對象" }).click()
-    await page.getByRole("option", { name: "合信電機" }).click()
+    await page.getByRole("option", { name: "丙三電機" }).click()
 
     const req = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/parties/merge"))
     await page.getByRole("button", { name: "合併", exact: true }).last().click()
@@ -388,7 +388,7 @@ test.describe("合併", () => {
     await expect(page).toHaveURL(/\/parties\/party-1$/)
     const info = page.getByRole("region", { name: "往來對象資訊" })
     // drop 的名稱併進 keep 的別名，之後用舊名字也找得到
-    await expect(info.getByText("合信電機")).toBeVisible()
+    await expect(info.getByText("丙三電機")).toBeVisible()
     // 角色取 OR：keep 原本只是供應商，drop 兩者皆是，合併後兩個 badge 都在
     await expect(info.getByText("供應商", { exact: true })).toBeVisible()
     await expect(info.getByText("客戶", { exact: true })).toBeVisible()
@@ -399,14 +399,14 @@ test.describe("合併", () => {
 
     await page.getByRole("button", { name: "合併" }).click()
     await page.getByRole("combobox", { name: "要合併的往來對象" }).click()
-    await page.getByRole("option", { name: "合信電機" }).click()
+    await page.getByRole("option", { name: "丙三電機" }).click()
     await page.getByRole("radio", { name: /保留選到的那筆/ }).click()
 
     const req = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/parties/merge"))
     await page.getByRole("button", { name: "合併", exact: true }).last().click()
     expect((await req).postDataJSON()).toEqual({ keep_id: "party-3", drop_id: "party-1" })
     await expect(page).toHaveURL(/\/parties\/party-3$/)
-    await expect(page.getByRole("heading", { name: "合信電機" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "丙三電機" })).toBeVisible()
   })
 
   test("後端 400 的 detail 原樣顯示", async ({ page }) => {
@@ -418,7 +418,7 @@ test.describe("合併", () => {
       route.fulfill({ status: 400, json: { detail: "不能把同一筆往來對象合併到自己" } }),
     )
     await page.getByRole("combobox", { name: "要合併的往來對象" }).click()
-    await page.getByRole("option", { name: "合信電機" }).click()
+    await page.getByRole("option", { name: "丙三電機" }).click()
     await page.getByRole("button", { name: "合併", exact: true }).last().click()
 
     await expect(page.getByRole("alert")).toContainText("不能把同一筆往來對象合併到自己")
@@ -436,49 +436,49 @@ test.describe("新增與編輯", () => {
     await page.goto("/parties/new")
 
     const req = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/parties"))
-    await page.getByLabel("名稱").fill("新光電機")
-    await page.getByLabel("簡稱").fill("新光")
-    await page.getByLabel("別名").fill("新光電, Shinkong")
+    await page.getByLabel("名稱").fill("丁四電機")
+    await page.getByLabel("簡稱").fill("丁四")
+    await page.getByLabel("別名").fill("丁四電, Dingsi")
     await page.getByRole("switch", { name: "供應商" }).click()
     await page.getByLabel("統一編號").fill("55667788")
     await page.getByLabel("產業").fill("電機")
     await page.getByLabel("付款條件").fill("月結 60 天")
     await page.getByLabel("聯絡人姓名").fill("李經理")
     await page.getByLabel("聯絡人電話").fill("03-111-2222")
-    await page.getByRole("textbox", { name: "地址", exact: true }).fill("和平路 1 號")
+    await page.getByRole("textbox", { name: "地址", exact: true }).fill("丁四路 1 號")
     await page.getByRole("button", { name: "儲存" }).click()
 
     expect((await req).postDataJSON()).toMatchObject({
-      name: "新光電機",
-      short_name: "新光",
-      aliases: ["新光電", "Shinkong"],
+      name: "丁四電機",
+      short_name: "丁四",
+      aliases: ["丁四電", "Dingsi"],
       is_supplier: true,
       is_customer: false,
       tax_id: "55667788",
       industry: "電機",
       payment_terms: "月結 60 天",
       contacts: [{ name: "李經理", phone: "03-111-2222", is_primary: true }],
-      addresses: [{ address: "和平路 1 號", is_primary: true }],
+      addresses: [{ address: "丁四路 1 號", is_primary: true }],
     })
     await expect(page).toHaveURL(/\/parties\/party-new-1$/)
-    await expect(page.getByRole("heading", { name: "新光電機" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "丁四電機" })).toBeVisible()
   })
 
   test("編輯載入既有值，PUT 後回明細", async ({ page }) => {
     await page.goto("/parties/party-1/edit")
 
-    await expect(page.getByLabel("名稱")).toHaveValue("大同機電股份有限公司")
-    await expect(page.getByLabel("別名")).toHaveValue("大同, Datong Electric")
+    await expect(page.getByLabel("名稱")).toHaveValue("甲一機電股份有限公司")
+    await expect(page.getByLabel("別名")).toHaveValue("甲一, Jiayi Electric")
     await expect(page.getByRole("switch", { name: "供應商" })).toBeChecked()
     await expect(page.getByRole("switch", { name: "客戶" })).not.toBeChecked()
     // 編輯頁不重複開聯絡人／地址，那是明細分頁的事
     await expect(page.getByLabel("聯絡人姓名")).toHaveCount(0)
 
     const req = page.waitForRequest((r) => r.method() === "PUT" && r.url().endsWith("/api/parties/party-1"))
-    await page.getByLabel("名稱").fill("大同機電工程")
+    await page.getByLabel("名稱").fill("甲一機電工程")
     await page.getByRole("switch", { name: "客戶" }).click()
     await page.getByRole("button", { name: "儲存" }).click()
-    expect((await req).postDataJSON()).toMatchObject({ name: "大同機電工程", is_customer: true })
+    expect((await req).postDataJSON()).toMatchObject({ name: "甲一機電工程", is_customer: true })
     await expect(page).toHaveURL(/\/parties\/party-1$/)
   })
 })
