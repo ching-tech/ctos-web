@@ -97,8 +97,17 @@ export interface ListFilters {
 export const SCOPE_LABEL = { global: "全域", personal: "個人", project: "專案" } as const satisfies Record<Scope, string>
 export const TYPE_LABEL: Record<string, string> = { context: "脈絡", knowledge: "知識", operations: "作業", reference: "參考" }
 export const CATEGORY_LABEL: Record<string, string> = { technical: "技術", business: "業務", management: "管理" }
+// 卡片上分類小字的固定三色（低飽和），沒對到的 category 用預設灰字。
+export const CATEGORY_COLOR: Record<string, string> = {
+  technical: "text-sky-600 dark:text-sky-400",
+  business: "text-amber-600 dark:text-amber-400",
+  management: "text-violet-600 dark:text-violet-400",
+}
 export function label(dict: Record<string, string>, key: string): string {
   return dict[key] ?? key
+}
+export function categoryColor(category: string): string {
+  return CATEGORY_COLOR[category] ?? "text-muted-foreground"
 }
 
 export function listKnowledge(filters: ListFilters): Promise<KnowledgeListResponse> {
