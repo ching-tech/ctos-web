@@ -135,6 +135,8 @@ npm run build
 - `admin.test.ts` — 管理員 API 單元測試
 - `projects.ts` — 專案 API 客戶端（清單／明細／主檔／成員／里程碑／任務／dashboard 摘要；狀態中文與 tint 對照、`canEditProject`、query key）
 - `projects.test.ts` — 專案權限與對照表單元測試
+- `erp.ts` — 往來與物料模組 API 客戶端（往來對象清單／明細／主檔／合併／聯絡人／地址；角色與採購單狀態的中文與 tint 對照、別名解析、Decimal 金額格式化、`erpKeys`）
+- `erp.test.ts` — 往來對象對照表、別名解析與金額格式化單元測試
 - `users.ts` — 使用者選單（`GET /api/user/list`，登入即可讀，供負責人與成員下拉用）
 
 ### `src/pages/`
@@ -172,6 +174,14 @@ npm run build
 - `projects/tabs/members.tsx` — 成員分頁（成員清單與角色、加入成員選單、移除；負責人不給移除）
 - `projects/tabs/knowledge.tsx` — 知識庫分頁（`scope=project` 的條目清單、新增條目帶 `project_id`）
 - `projects/tabs/groups.tsx` — 群組分頁（綁定的 Bot 群組，連到群組明細）
+- `parties/list.tsx` — 往來對象清單頁（搜尋、角色篩選、分頁；桌面表格、手機卡片；供應商／客戶兩個 tint badge 可同時出現）
+- `parties/editor.tsx` — 往來對象新增／編輯頁（名稱、簡稱、別名以逗號分隔、供應商／客戶開關、統編、產業、付款條件、備註；新增時可一併帶一筆主要聯絡人與地址）
+- `parties/detail.tsx` — 往來對象明細頁（主檔與別名 chips 表頭，「問 AI」「編輯」「合併」「刪除」，五個分頁籤 tab 寫進網址）
+- `parties/tabs/contacts.tsx` — 聯絡人分頁（清單與主要標記、新增聯絡人對話框）
+- `parties/tabs/addresses.tsx` — 地址分頁（清單與主要標記、新增地址對話框）
+- `parties/tabs/purchase-orders.tsx` — 採購單分頁（最近十筆，狀態 badge 與金額，連 `/purchase-orders/:id`）
+- `parties/tabs/projects.tsx` — 專案分頁（採購單掛到的專案，連 `/projects/:id`）
+- `parties/tabs/knowledge.tsx` — 知識庫分頁（`knowledge_count` 與用名稱當關鍵字的知識庫入口）
 - `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
@@ -191,6 +201,8 @@ UI 元件與版面：
 - `kb/history-sheet.tsx` — 版本歷史側欄（歷史清單、舊版內容檢視）
 - `kb/markdown.tsx` — Markdown 渲染（含圖片路徑改寫）
 - `kb/share-dialog.tsx` — 分享連結對話框
+- `parties/role-badges.tsx` — 往來對象角色 badge（供應商／客戶可同時出現，都沒有時顯示破折號）
+- `parties/merge-dialog.tsx` — 合併對話框（搜尋挑另一筆、選保留哪一筆，送 `{keep_id, drop_id}`）
 
 ### `e2e/`
 
@@ -212,6 +224,7 @@ Playwright 端對端測試：
 - `bot-users-blocklist.spec.ts` — Bot 使用者與黑名單分頁測試
 - `bot-messages-files.spec.ts` — Bot 訊息與檔案分頁測試
 - `projects.spec.ts` — 專案清單／明細五分頁／新增編輯／權限擋下／知識庫編輯器專案入口測試
+- `parties.spec.ts` — 往來對象清單／明細五分頁／新增編輯／合併／權限擋下測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -253,6 +266,7 @@ Playwright 端對端測試：
 - **使用者管理** — 路由 `/admin/users`（僅管理員），使用者清單與每人的 app／知識庫權限開關（PATCH 只送變動的鍵，即時生效）
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載
 - **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 不在本階段
+- **往來對象** — 路由 `/parties`（需 `vendor-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的名稱／簡稱／別名／統編模糊搜尋，角色篩選送 `role=supplier|customer`，手機寬度改卡片；`/parties/new`、`/parties/:id/edit` 是主檔表單，新增時可一併帶一筆主要聯絡人與地址（後端 `PartyCreate` 支援）；`/parties/:id` 明細分五個分頁（聯絡人、地址、採購單、專案、知識庫），分頁寫進網址 `?tab=`。表頭有「問 AI」帶 `?q=` 前綴文字開 AI 助手、「合併」對話框（挑保留哪一筆，送 `POST /api/parties/merge`）與軟刪除。聯絡人與地址目前只能新增：後端沒有 `PUT`／`DELETE /{id}/contacts/{cid}` 與 `/addresses/{aid}`，也沒有單獨的「設為主要」端點（新增時帶 `is_primary` 才會把原本的主要降級），所以畫面不放做不到的按鈕。採購單分頁的 `/purchase-orders/:id` 連結先做，頁面在採購單那個 PR 才有
 
 ## 相關文件
 
