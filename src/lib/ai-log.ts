@@ -33,6 +33,24 @@ export interface AiLogStats {
   total_output_tokens: number
 }
 
+export interface ToolCallEntry {
+  id: string
+  name: string
+  input: Record<string, unknown>
+  output: string | null
+}
+
+export interface ToolTiming {
+  name: string
+  duration_ms: number
+}
+
+export interface ParsedResponse {
+  tool_calls?: ToolCallEntry[]
+  tool_timings?: ToolTiming[]
+  [key: string]: unknown
+}
+
 export interface AiLog {
   id: string
   agent_id: string | null
@@ -44,7 +62,7 @@ export interface AiLog {
   system_prompt: string | null
   allowed_tools: string[] | null
   raw_response: string | null
-  parsed_response: Record<string, unknown> | null
+  parsed_response: ParsedResponse | null
   model: string | null
   success: boolean
   error_message: string | null
@@ -91,6 +109,35 @@ export const CONTEXT_LABEL: Record<string, string> = {
 export function contextLabel(t: string | null): string {
   if (t === null) return "—"
   return CONTEXT_LABEL[t] ?? t
+}
+
+export function toolDisplayName(tc: ToolCallEntry): string {
+  if (tc.name.includes("run_skill_script")) {
+    const skill = tc.input.skill
+    if (typeof skill === "string" && skill) {
+      const script = tc.input.script
+      return typeof script === "string" && script ? `run_skill_script(${skill}/${script})` : `run_skill_script(${skill})`
+    }
+  }
+  return tc.name
+}
+
+export function usedToolsFrom(parsed: ParsedResponse | null): string[] {
+  const toolCalls = parsed?.tool_calls
+  if (!toolCalls || toolCalls.length === 0) return []
+  const seen: string[] = []
+  for (const tc of toolCalls) {
+    const name = toolDisplayName(tc)
+    if (!seen.includes(name)) seen.push(name)
+  }
+  return seen
+}
+
+export function toolDurationMs(parsed: ParsedResponse, index: number): number | null {
+  const toolCalls = parsed.tool_calls
+  const timings = parsed.tool_timings
+  if (!toolCalls || !timings || timings.length !== toolCalls.length) return null
+  return timings[index]?.duration_ms ?? null
 }
 
 export function toDayStart(d: string): string {
