@@ -12,14 +12,14 @@ export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true },
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true },
     knowledge: { global_write: false, global_delete: false },
   },
 }
 export const adminFixture = {
   ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true },
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true },
     knowledge: { global_write: true, global_delete: true },
   },
 }
@@ -666,6 +666,7 @@ export const defaultAppNames: Record<string, string> = {
   settings: "設定",
   "project-management": "專案管理",
   "vendor-management": "廠商管理",
+  "inventory-management": "物料管理",
 }
 
 export const adminUserFixtures: AdminUserFixture[] = [
@@ -701,7 +702,7 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
     async (route) =>
       route.fulfill({
         json: {
-          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true },
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true },
           knowledge: { global_write: false, global_delete: false },
           app_names: defaultAppNames,
         },
@@ -2021,6 +2022,157 @@ export const partyFixtures: PartyFixture[] = [
   },
 ]
 
+// ============================================================
+// 物料與庫存（/items、/warehouses、/stock）
+//
+// fixture 欄位逐一對 backend/src/ching_tech_os/models/erp.py 的 Item*／Warehouse*／
+// Stock* 模型。migration 030 把 qty 與 qty_delta 開成 Numeric(18,4)、purchase_price
+// 開成 Numeric(14,4)，pydantic v2 的 JSON 模式把 Decimal 序列化成字串，所以
+// fixture 一律給帶四位小數的字串，前端要自己收尾數。
+// 名稱與料號全部是杜撰的，不對應任何真實供應商或品項。
+// ============================================================
+
+export interface WarehouseFixture {
+  id: string
+  code: string
+  name: string
+  created_by: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StockBalanceFixture {
+  warehouse_id: string
+  qty: string
+}
+
+export interface StockMovementFixture {
+  id: string
+  item_id: string
+  warehouse_id: string
+  qty_delta: string
+  reason: string
+  ref_type: string | null
+  ref_id: string | null
+  note: string | null
+  actor_user_id: number | null
+  created_at: string
+}
+
+export interface ItemFixture {
+  id: string
+  code: string
+  name: string
+  spec: string | null
+  unit: string | null
+  item_group: string | null
+  default_supplier_id: string | null
+  purchase_price: string | null
+  lead_days: number | null
+  aliases: string[]
+  notes: string | null
+  source_ref: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+  /** 各倉餘額；warehouse_code／warehouse_name 由 mock 依 warehouses 陣列補上 */
+  balances: StockBalanceFixture[]
+  movements: StockMovementFixture[]
+}
+
+export const warehouseFixtures: WarehouseFixture[] = [
+  { id: "wh-1", code: "A01", name: "主倉", created_by: 1, created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00" },
+  { id: "wh-2", code: "B01", name: "工地倉", created_by: 1, created_at: "2026-01-01T00:00:00", updated_at: "2026-02-01T00:00:00" },
+  // 沒有任何餘額，用來驗「倉庫還有庫存餘額，不能刪除」的反面
+  { id: "wh-3", code: "C01", name: "備品倉", created_by: 1, created_at: "2026-03-01T00:00:00", updated_at: "2026-03-01T00:00:00" },
+]
+
+export const itemFixtures: ItemFixture[] = [
+  {
+    id: "item-1",
+    code: "MTR-0001",
+    name: "感應馬達",
+    spec: "三相 220V 1HP",
+    unit: "台",
+    item_group: "馬達",
+    default_supplier_id: "party-1",
+    purchase_price: "8200.0000",
+    lead_days: 14,
+    aliases: ["induction motor", "感應電動機"],
+    notes: "常備品，安全庫存 10 台。",
+    source_ref: null,
+    created_by: 1,
+    created_at: "2026-01-05T00:00:00",
+    updated_at: "2026-09-10T09:00:00",
+    balances: [
+      { warehouse_id: "wh-1", qty: "12.0000" },
+      { warehouse_id: "wh-2", qty: "3.0000" },
+    ],
+    movements: [
+      {
+        id: "mv-1", item_id: "item-1", warehouse_id: "wh-1", qty_delta: "10.0000",
+        reason: "receipt", ref_type: "purchase_order", ref_id: "po-1", note: "採購入庫",
+        actor_user_id: 1, created_at: "2026-09-10T09:00:00",
+      },
+      {
+        id: "mv-2", item_id: "item-1", warehouse_id: "wh-2", qty_delta: "-2.0000",
+        reason: "issue", ref_type: null, ref_id: null, note: "工地領用",
+        actor_user_id: 2, created_at: "2026-09-08T14:30:00",
+      },
+      {
+        id: "mv-3", item_id: "item-1", warehouse_id: "wh-1", qty_delta: "5.0000",
+        reason: "adjust", ref_type: null, ref_id: null, note: "盤點補回",
+        actor_user_id: 1, created_at: "2026-09-05T10:00:00",
+      },
+    ],
+  },
+  {
+    id: "item-2",
+    code: "SNS-0002",
+    name: "光電感測器",
+    spec: "NPN 常開 12–24V",
+    unit: "個",
+    item_group: "感測器",
+    default_supplier_id: "party-3",
+    purchase_price: "1250.5000",
+    lead_days: 7,
+    aliases: [],
+    notes: null,
+    source_ref: null,
+    created_by: 1,
+    created_at: "2026-02-01T00:00:00",
+    updated_at: "2026-09-02T00:00:00",
+    balances: [{ warehouse_id: "wh-1", qty: "40.0000" }],
+    movements: [
+      {
+        id: "mv-4", item_id: "item-2", warehouse_id: "wh-1", qty_delta: "40.0000",
+        reason: "import", ref_type: null, ref_id: null, note: "舊系統匯入",
+        actor_user_id: null, created_at: "2026-02-01T00:00:00",
+      },
+    ],
+  },
+  {
+    id: "item-3",
+    code: "CBL-0003",
+    name: "控制電纜",
+    // 沒有供應商、沒有價格、沒有庫存也沒有異動：驗空狀態與破折號
+    spec: "0.75mm² 10C",
+    unit: "公尺",
+    item_group: "線材",
+    default_supplier_id: null,
+    purchase_price: null,
+    lead_days: null,
+    aliases: [],
+    notes: null,
+    source_ref: null,
+    created_by: 1,
+    created_at: "2026-03-01T00:00:00",
+    updated_at: "2026-08-01T00:00:00",
+    balances: [],
+    movements: [],
+  },
+]
+
 function cloneParty(p: PartyFixture): PartyFixture {
   return {
     ...p,
@@ -2029,6 +2181,15 @@ function cloneParty(p: PartyFixture): PartyFixture {
     addresses: p.addresses.map((a) => ({ ...a })),
     purchase_orders: p.purchase_orders.map((o) => ({ ...o })),
     projects: p.projects.map((j) => ({ ...j })),
+  }
+}
+
+function cloneItem(it: ItemFixture): ItemFixture {
+  return {
+    ...it,
+    aliases: [...it.aliases],
+    balances: it.balances.map((b) => ({ ...b })),
+    movements: it.movements.map((m) => ({ ...m })),
   }
 }
 
@@ -2056,14 +2217,19 @@ function partyDetailOf(p: PartyFixture, auditId: string | null = null) {
 }
 
 /**
- * 攔 /api/parties 全部端點。照 mockProjects 的寫法，狀態與錯誤訊息對 api/erp.py：
+ * 攔 /api/parties、/api/items、/api/warehouses、/api/stock 全部端點。照 mockProjects 的寫法，狀態與錯誤訊息對 api/erp.py：
  * - 清單 query 只有 q／role／page／page_size（後端搜尋名稱、簡稱、統編、別名）
  * - POST /merge 的 keep_id === drop_id 回 400「不能把同一筆往來對象合併到自己」
  * - forbidEdits：寫入端點回 403（require_app_permission("vendor-management") 的樣子）
  */
 export async function mockErp(
   page: Page,
-  opts: { parties?: PartyFixture[]; forbidEdits?: boolean } = {},
+  opts: {
+    parties?: PartyFixture[]
+    items?: ItemFixture[]
+    warehouses?: WarehouseFixture[]
+    forbidEdits?: boolean
+  } = {},
 ) {
   const parties: PartyFixture[] = (opts.parties ?? partyFixtures).map(cloneParty)
   const forbidEdits = opts.forbidEdits ?? false
@@ -2322,5 +2488,373 @@ export async function mockErp(
     },
   )
 
-  return { parties }
+  // ── 物料、倉庫、庫存 ──────────────────────────────────────
+  // 錯誤訊息逐字對 services/erp_inventory.py：料號／倉庫代碼撞名、負庫存、
+  // 調撥數量與同倉調撥都是 400（api/erp.py 的 _http_error 把 ErpError 翻成 400）。
+  const items: ItemFixture[] = (opts.items ?? itemFixtures).map(cloneItem)
+  const warehouses: WarehouseFixture[] = (opts.warehouses ?? warehouseFixtures).map((w) => ({ ...w }))
+  const itemNotFound = { status: 404, json: { detail: "物料不存在" } }
+  const warehouseNotFound = { status: 404, json: { detail: "倉庫不存在" } }
+
+  /** Numeric(18,4)：mock 用浮點算完再固定四位，跟後端送出來的字串同形狀 */
+  const q4 = (n: number) => n.toFixed(4)
+  const balanceOf = (item: ItemFixture, warehouseId: string) =>
+    item.balances.find((b) => b.warehouse_id === warehouseId)
+  const totalQtyOf = (item: ItemFixture) =>
+    q4(item.balances.reduce((sum, b) => sum + Number(b.qty), 0))
+
+  function warehouseOf(id: string) {
+    return warehouses.find((w) => w.id === id)
+  }
+
+  function itemListItemOf(it: ItemFixture) {
+    return {
+      id: it.id,
+      code: it.code,
+      name: it.name,
+      spec: it.spec,
+      unit: it.unit,
+      item_group: it.item_group,
+      default_supplier_id: it.default_supplier_id,
+      // 後端是 LEFT JOIN parties，供應商名字跟著往來對象主檔走
+      default_supplier_name: parties.find((p) => p.id === it.default_supplier_id)?.name ?? null,
+      purchase_price: it.purchase_price,
+      total_qty: totalQtyOf(it),
+      created_at: it.created_at,
+      updated_at: it.updated_at,
+    }
+  }
+
+  function itemDetailOf(it: ItemFixture, auditId: string | null = null) {
+    return {
+      id: it.id,
+      audit_id: auditId,
+      code: it.code,
+      name: it.name,
+      spec: it.spec,
+      unit: it.unit,
+      item_group: it.item_group,
+      default_supplier_id: it.default_supplier_id,
+      default_supplier_name: parties.find((p) => p.id === it.default_supplier_id)?.name ?? null,
+      purchase_price: it.purchase_price,
+      lead_days: it.lead_days,
+      aliases: [...it.aliases],
+      notes: it.notes,
+      source_ref: it.source_ref,
+      created_by: it.created_by,
+      created_at: it.created_at,
+      updated_at: it.updated_at,
+      // 後端 ORDER BY w.code，而且 JOIN 掉已刪除的倉庫
+      balances: it.balances
+        .filter((b) => warehouseOf(b.warehouse_id))
+        .map((b) => ({
+          warehouse_id: b.warehouse_id,
+          warehouse_code: warehouseOf(b.warehouse_id)!.code,
+          warehouse_name: warehouseOf(b.warehouse_id)!.name,
+          qty: b.qty,
+        }))
+        .sort((a, b) => a.warehouse_code.localeCompare(b.warehouse_code)),
+      total_qty: totalQtyOf(it),
+      // 後端 ORDER BY m.created_at DESC LIMIT 20
+      movements: [...it.movements]
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 20)
+        .map((m) => ({ ...m, warehouse_name: warehouseOf(m.warehouse_id)?.name ?? null })),
+    }
+  }
+
+  /** apply_movement：先寫異動再累計餘額，餘額為負就整筆退回（交易回滾） */
+  function applyMovement(
+    item: ItemFixture,
+    warehouseId: string,
+    delta: number,
+    reason: string,
+    note: string | null,
+  ): { error?: string } {
+    const current = Number(balanceOf(item, warehouseId)?.qty ?? "0")
+    const next = current + delta
+    if (next < 0) {
+      return { error: `庫存不足：目前 ${q4(current)}，要異動 ${q4(delta)}（不允許負庫存）` }
+    }
+    const existing = balanceOf(item, warehouseId)
+    if (existing) existing.qty = q4(next)
+    else item.balances.push({ warehouse_id: warehouseId, qty: q4(next) })
+    seq += 1
+    item.movements.push({
+      id: `mv-new-${seq}`,
+      item_id: item.id,
+      warehouse_id: warehouseId,
+      qty_delta: q4(delta),
+      reason,
+      ref_type: null,
+      ref_id: null,
+      note,
+      actor_user_id: 2,
+      created_at: "2026-09-12T12:00:00",
+    })
+    return {}
+  }
+
+  // 物料明細／更新／刪除
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/items/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = items.findIndex((it) => it.id === id)
+      if (idx === -1) return route.fulfill(itemNotFound)
+      const method = route.request().method()
+      if (method === "DELETE") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        items.splice(idx, 1)
+        seq += 1
+        return route.fulfill({ json: { success: true, audit_id: `audit-${seq}` } })
+      }
+      if (method === "PUT") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<ItemFixture>
+        for (const field of ["code", "name", "aliases"] as const) {
+          if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+        }
+        if (body.code && items.some((it) => it.id !== id && it.code === body.code)) {
+          return route.fulfill({ status: 400, json: { detail: `料號已存在：${body.code}` } })
+        }
+        items[idx] = { ...items[idx], ...body, updated_at: "2026-09-12T12:00:00" }
+        seq += 1
+        return route.fulfill({ json: itemDetailOf(items[idx], `audit-${seq}`) })
+      }
+      return route.fulfill({ json: itemDetailOf(items[idx]) })
+    },
+  )
+
+  // 物料清單／建立
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/items`,
+    async (route) => {
+      const method = route.request().method()
+      if (method === "POST") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<ItemFixture>
+        if (items.some((it) => it.code === body.code)) {
+          return route.fulfill({ status: 400, json: { detail: `料號已存在：${body.code}` } })
+        }
+        seq += 1
+        const created: ItemFixture = {
+          id: `item-new-${seq}`,
+          code: body.code ?? "",
+          name: body.name ?? "",
+          spec: body.spec ?? null,
+          unit: body.unit ?? null,
+          item_group: body.item_group ?? null,
+          default_supplier_id: body.default_supplier_id ?? null,
+          purchase_price: body.purchase_price ?? null,
+          lead_days: body.lead_days ?? null,
+          aliases: body.aliases ?? [],
+          notes: body.notes ?? null,
+          source_ref: body.source_ref ?? null,
+          created_by: 1,
+          created_at: "2026-09-12T12:00:00",
+          updated_at: "2026-09-12T12:00:00",
+          balances: [],
+          movements: [],
+        }
+        items.push(created)
+        return route.fulfill({ status: 201, json: itemDetailOf(created, `audit-${seq}`) })
+      }
+      const params = new URL(route.request().url()).searchParams
+      let filtered = items
+      const group = params.get("item_group")
+      // 後端是 i.item_group = $1 的等值比對，不是模糊
+      if (group) filtered = filtered.filter((it) => it.item_group === group)
+      const q = params.get("q")
+      if (q) {
+        // 後端 ILIKE：料號／品名／規格／別名，四個欄位都不分大小寫
+        const needle = q.toLowerCase()
+        const has = (v: string | null) => (v ?? "").toLowerCase().includes(needle)
+        filtered = filtered.filter((it) => has(it.code) || has(it.name) || has(it.spec) || it.aliases.some(has))
+      }
+      // 後端 ORDER BY i.updated_at DESC
+      filtered = [...filtered].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "20")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({
+        json: { items: filtered.slice(start, start + pageSize).map(itemListItemOf), total: filtered.length },
+      })
+    },
+  )
+
+  // 倉庫更新／刪除
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/warehouses/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = warehouses.findIndex((w) => w.id === id)
+      if (idx === -1) return route.fulfill(warehouseNotFound)
+      if (route.request().method() === "DELETE") {
+        const used = items.some((it) => it.balances.some((b) => b.warehouse_id === id && Number(b.qty) !== 0))
+        if (used) return route.fulfill({ status: 400, json: { detail: "倉庫還有庫存餘額，不能刪除" } })
+        warehouses.splice(idx, 1)
+        seq += 1
+        return route.fulfill({ json: { success: true, audit_id: `audit-${seq}` } })
+      }
+      const body = route.request().postDataJSON() as Partial<WarehouseFixture>
+      for (const field of ["code", "name"] as const) {
+        if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+      }
+      if (body.code && warehouses.some((w) => w.id !== id && w.code === body.code)) {
+        return route.fulfill({ status: 400, json: { detail: `倉庫代碼已存在：${body.code}` } })
+      }
+      warehouses[idx] = { ...warehouses[idx], ...body, updated_at: "2026-09-12T12:00:00" }
+      seq += 1
+      return route.fulfill({ json: { ...warehouses[idx], audit_id: `audit-${seq}` } })
+    },
+  )
+
+  // 倉庫清單／建立
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/warehouses`,
+    async (route) => {
+      const method = route.request().method()
+      if (method === "POST") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<WarehouseFixture>
+        if (warehouses.some((w) => w.code === body.code)) {
+          return route.fulfill({ status: 400, json: { detail: `倉庫代碼已存在：${body.code}` } })
+        }
+        seq += 1
+        const created: WarehouseFixture = {
+          id: `wh-new-${seq}`,
+          code: body.code ?? "",
+          name: body.name ?? "",
+          created_by: 1,
+          created_at: "2026-09-12T12:00:00",
+          updated_at: "2026-09-12T12:00:00",
+        }
+        warehouses.push(created)
+        return route.fulfill({ status: 201, json: { ...created, audit_id: `audit-${seq}` } })
+      }
+      // 後端 ORDER BY code；page_size 預設 50
+      const params = new URL(route.request().url()).searchParams
+      const sorted = [...warehouses].sort((a, b) => a.code.localeCompare(b.code))
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "50")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({
+        json: { items: sorted.slice(start, start + pageSize).map((w) => ({ ...w, audit_id: null })), total: sorted.length },
+      })
+    },
+  )
+
+  // 調整庫存
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/stock/adjust`,
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const body = route.request().postDataJSON() as {
+        item_id: string
+        warehouse_id: string
+        qty_delta: number | string
+        reason?: string
+        note?: string | null
+      }
+      const item = items.find((it) => it.id === body.item_id)
+      if (!item) return route.fulfill(itemNotFound)
+      const delta = Number(body.qty_delta)
+      if (delta === 0) return route.fulfill({ status: 400, json: { detail: "異動數量不可為 0" } })
+      const applied = applyMovement(item, body.warehouse_id, delta, body.reason ?? "adjust", body.note ?? null)
+      if (applied.error) return route.fulfill({ status: 400, json: { detail: applied.error } })
+      item.updated_at = "2026-09-12T12:00:00"
+      seq += 1
+      return route.fulfill({
+        json: {
+          success: true,
+          audit_id: `audit-${seq}`,
+          qty_after: balanceOf(item, body.warehouse_id)!.qty,
+        },
+      })
+    },
+  )
+
+  // 倉別調撥
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/stock/transfer`,
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const body = route.request().postDataJSON() as {
+        item_id: string
+        from_warehouse_id: string
+        to_warehouse_id: string
+        qty: number | string
+        note?: string | null
+      }
+      const item = items.find((it) => it.id === body.item_id)
+      if (!item) return route.fulfill(itemNotFound)
+      const qty = Number(body.qty)
+      if (qty <= 0) return route.fulfill({ status: 400, json: { detail: "調撥數量必須大於 0" } })
+      if (body.from_warehouse_id === body.to_warehouse_id) {
+        return route.fulfill({ status: 400, json: { detail: "來源倉與目的倉不能相同" } })
+      }
+      const out = applyMovement(item, body.from_warehouse_id, -qty, "transfer_out", body.note ?? null)
+      if (out.error) return route.fulfill({ status: 400, json: { detail: out.error } })
+      applyMovement(item, body.to_warehouse_id, qty, "transfer_in", body.note ?? null)
+      item.updated_at = "2026-09-12T12:00:00"
+      seq += 1
+      return route.fulfill({
+        json: {
+          success: true,
+          audit_id: `audit-${seq}`,
+          balances: [body.from_warehouse_id, body.to_warehouse_id].map((wid) => ({
+            warehouse_id: wid,
+            qty: balanceOf(item, wid)!.qty,
+          })),
+        },
+      })
+    },
+  )
+
+  // 庫存查詢（item × warehouse 一列）
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/stock`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      const itemId = params.get("item_id")
+      const warehouseId = params.get("warehouse_id")
+      const rows = items
+        .filter((it) => !itemId || it.id === itemId)
+        .flatMap((it) =>
+          it.balances
+            .filter((b) => (!warehouseId || b.warehouse_id === warehouseId) && warehouseOf(b.warehouse_id))
+            .map((b) => ({
+              item_id: it.id,
+              item_code: it.code,
+              item_name: it.name,
+              warehouse_id: b.warehouse_id,
+              warehouse_code: warehouseOf(b.warehouse_id)!.code,
+              warehouse_name: warehouseOf(b.warehouse_id)!.name,
+              qty: b.qty,
+            })),
+        )
+      // 後端 ORDER BY i.code, w.code
+      rows.sort((a, b) => a.item_code.localeCompare(b.item_code) || a.warehouse_code.localeCompare(b.warehouse_code))
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "50")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({ json: { items: rows.slice(start, start + pageSize), total: rows.length } })
+    },
+  )
+
+  return { parties, items, warehouses }
 }
