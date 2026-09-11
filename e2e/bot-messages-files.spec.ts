@@ -147,6 +147,16 @@ test("檔案分頁：圖片列有「預覽」，文件列沒有", async ({ page 
 })
 
 test("檔案分頁：點預覽開啟圖片對話框，帶 Authorization 下載並顯示圖片，可關閉", async ({ page }) => {
+  // 記錄 revokeObjectURL 被叫幾次，關閉對話框後必須釋放預覽用的 blob URL
+  await page.addInitScript(() => {
+    const w = window as unknown as { __revoked: string[] }
+    w.__revoked = []
+    const orig = URL.revokeObjectURL.bind(URL)
+    URL.revokeObjectURL = (url: string) => {
+      w.__revoked.push(url)
+      orig(url)
+    }
+  })
   await page.goto("/bot?tab=files")
 
   const imageRow = page.locator("table tbody tr").filter({ hasText: "現場照片.jpg" })
@@ -160,7 +170,11 @@ test("檔案分頁：點預覽開啟圖片對話框，帶 Authorization 下載�
   const img = dialog.locator("img")
   await expect(img).toBeVisible()
   await expect(img).toHaveAttribute("src", /^blob:/)
+  const blobUrl = await img.getAttribute("src")
 
   await page.getByRole("button", { name: "Close" }).click()
   await expect(dialog).toHaveCount(0)
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __revoked: string[] }).__revoked))
+    .toContain(blobUrl)
 })

@@ -270,3 +270,8 @@ export const botKeys = {
   messages: (f: MessageFilter) => ["bot", "messages", f] as const,
   files: (f: FileFilter) => ["bot", "files", f] as const,
 }
+
+/** 檔案顯示名稱：沒有檔名就用類型＋id 前 8 碼 */
+export function fileDisplayName(f: BotFile): string {
+  return f.file_name || `${f.file_type}_${f.id.slice(0, 8)}`
+}

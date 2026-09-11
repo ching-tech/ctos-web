@@ -15,13 +15,14 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DownloadAction } from "@/components/bot/download-action"
 import { ImagePreviewDialog } from "@/components/bot/image-preview-dialog"
 import { Pagination } from "@/components/pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
-import { botKeys, deleteFile, downloadFile, listFiles, type BotFile, type FileFilter, type Platform } from "@/lib/bot"
+import { botKeys, deleteFile, fileDisplayName, listFiles, type BotFile, type FileFilter, type Platform } from "@/lib/bot"
 import { GroupFilterSelect } from "../group-filter"
 
 const PAGE_SIZE = 30
@@ -34,10 +35,6 @@ const FILE_TYPES = [
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i
 
-function fileDisplayName(f: BotFile): string {
-  return f.file_name || `${f.file_type}_${f.id.slice(0, 8)}`
-}
-
 function isImageFile(f: BotFile): boolean {
   return f.file_type === "image" || (!!f.file_name && IMAGE_EXT.test(f.file_name))
 }
@@ -47,35 +44,6 @@ function formatSize(bytes: number | null): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function DownloadAction({ file }: { file: BotFile }) {
-  const mutation = useMutation({
-    mutationFn: () => downloadFile(file.id),
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = fileDisplayName(file)
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
-    },
-  })
-
-  return (
-    <div>
-      <Button variant="outline" size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-        下載
-      </Button>
-      {mutation.isError && (
-        <Alert variant="destructive" role="alert" className="mt-2">
-          <AlertDescription>{mutation.error instanceof ApiError ? mutation.error.detail : "下載失敗，請稍後再試"}</AlertDescription>
-        </Alert>
-      )}
-    </div>
-  )
 }
 
 function PreviewAction({ file }: { file: BotFile }) {

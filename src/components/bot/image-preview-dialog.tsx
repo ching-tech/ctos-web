@@ -1,15 +1,11 @@
 import * as React from "react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DownloadAction } from "@/components/bot/download-action"
 import { ApiError } from "@/lib/api"
-import { downloadFile, type BotFile } from "@/lib/bot"
-
-function fileDisplayName(f: BotFile): string {
-  return f.file_name || `${f.file_type}_${f.id.slice(0, 8)}`
-}
+import { downloadFile, fileDisplayName, type BotFile } from "@/lib/bot"
 
 export function ImagePreviewDialog({
   file,
@@ -28,27 +24,18 @@ export function ImagePreviewDialog({
     enabled: open,
   })
 
-  const imageUrl = React.useMemo(() => (query.data ? URL.createObjectURL(query.data) : null), [query.data])
-
+  // object URL 只在對話框開著時存在：關閉或換圖就 revoke（外部資源同步，放 effect）
+  const [imageUrl, setImageUrl] = React.useState<string | null>(null)
   React.useEffect(() => {
+    if (!open || !query.data) return
+    const url = URL.createObjectURL(query.data)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部資源（object URL）的標準寫法
+    setImageUrl(url)
     return () => {
-      if (imageUrl) URL.revokeObjectURL(imageUrl)
-    }
-  }, [imageUrl])
-
-  const downloadMutation = useMutation({
-    mutationFn: () => downloadFile(file.id),
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = fileName
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
       URL.revokeObjectURL(url)
-    },
-  })
+      setImageUrl(null)
+    }
+  }, [open, query.data])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,18 +58,7 @@ export function ImagePreviewDialog({
           )}
         </div>
 
-        <div>
-          <Button variant="outline" size="sm" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
-            下載
-          </Button>
-          {downloadMutation.isError && (
-            <Alert variant="destructive" role="alert" className="mt-2">
-              <AlertDescription>
-                {downloadMutation.error instanceof ApiError ? downloadMutation.error.detail : "下載失敗，請稍後再試"}
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
+        <DownloadAction file={file} />
       </DialogContent>
     </Dialog>
   )
