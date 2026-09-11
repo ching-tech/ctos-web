@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 import { fetchMe, logout } from "./auth"
-import { getCachedUser, getToken, setCachedUser } from "./token"
+import { getCachedUser, getToken, SESSION_CLEARED_EVENT, setCachedUser } from "./token"
 import type { UserInfo } from "./types"
 
 interface AuthState {
@@ -17,26 +17,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<UserInfo | null>(() => (getToken() ? getCachedUser() : null))
   const [loading, setLoading] = React.useState<boolean>(() => Boolean(getToken()))
 
+  // 用 .then/.catch/.finally 串接而非 async/await + try/catch：
+  // react-hooks/set-state-in-effect 的靜態分析不會追蹤 await 之後才落地的
+  // setState，只要函式本體（含 catch）掛著 setState 呼叫就會判定為「在 effect
+  // 內同步 setState」而誤判；改成 Promise chaining 能讓它正確辨識為非同步回呼。
+  const load = React.useCallback(() => {
+    return fetchMe()
+      .then((me) => {
+        setCachedUser(me)
+        setUser(me)
+      })
+      .catch(() => {
+        setUser(null)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [])
+
   const refresh = React.useCallback(async () => {
     if (!getToken()) { setUser(null); setLoading(false); return }
     setLoading(true)
-    try {
-      const me = await fetchMe()
-      setCachedUser(me)
-      setUser(me)
-    } catch {
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    await load()
+  }, [load])
 
   const signOut = React.useCallback(async () => {
     await logout()
     setUser(null)
   }, [])
 
-  React.useEffect(() => { void refresh() }, [refresh])
+  React.useEffect(() => {
+    if (getToken()) void load()
+  }, [load])
+
+  // session 被其他端點的 401（非 /api/user/me）清掉時，apiFetch 只會清 localStorage，
+  // 不會知道要更新這個元件的 user state；訂閱 clearSession() 廣播的事件，在事件
+  // callback（非 effect 本體）裡才 setState，避免 user 停留在舊值造成登入頁與
+  // RequireAuth 互相導頁的迴圈。
+  React.useEffect(() => {
+    const onSessionCleared = () => {
+      setUser(null)
+      setLoading(false)
+    }
+    window.addEventListener(SESSION_CLEARED_EVENT, onSessionCleared)
+    return () => window.removeEventListener(SESSION_CLEARED_EVENT, onSessionCleared)
+  }, [])
 
   return <AuthContext.Provider value={{ user, loading, refresh, signOut }}>{children}</AuthContext.Provider>
 }

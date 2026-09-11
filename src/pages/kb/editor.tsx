@@ -21,10 +21,12 @@ import {
   SCOPE_LABEL,
   TYPE_LABEL,
   updateKnowledge,
+  type Knowledge,
   type KnowledgeCreate,
   type KnowledgeUpdate,
   type Scope,
 } from "@/lib/kb"
+import type { UserInfo } from "@/lib/types"
 
 const TYPE_OPTIONS = Object.entries(TYPE_LABEL)
 const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABEL)
@@ -47,11 +49,20 @@ const DEFAULT_FORM: FormState = {
   is_public: false,
 }
 
+function formFromKnowledge(kb: Knowledge): FormState {
+  return {
+    title: kb.title,
+    content: kb.content,
+    type: kb.type,
+    category: kb.category,
+    scope: kb.scope,
+    is_public: kb.is_public,
+  }
+}
+
 export default function KbEditorPage() {
   const { id } = useParams()
   const isEdit = Boolean(id)
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { user } = useAuth()
 
   const detailQuery = useQuery({
@@ -61,24 +72,57 @@ export default function KbEditorPage() {
     retry: false,
   })
 
-  const [form, setForm] = React.useState<FormState>(DEFAULT_FORM)
-  const [preview, setPreview] = React.useState(false)
-  const [loaded, setLoaded] = React.useState(false)
+  if (isEdit && detailQuery.isError) {
+    const err = detailQuery.error
+    return (
+      <Alert variant="destructive" role="alert">
+        <AlertDescription>{err instanceof ApiError ? err.detail : "載入失敗，請稍後再試"}</AlertDescription>
+      </Alert>
+    )
+  }
 
-  React.useEffect(() => {
-    if (isEdit && detailQuery.data && !loaded) {
-      setLoaded(true)
-      const kb = detailQuery.data
-      setForm({
-        title: kb.title,
-        content: kb.content,
-        type: kb.type,
-        category: kb.category,
-        scope: kb.scope,
-        is_public: kb.is_public,
-      })
-    }
-  }, [isEdit, detailQuery.data, loaded])
+  // 等表單已經套用讀到的資料再掛載 Select，避免掛載後才把 value 從預設值
+  // 程式化改成讀到的值（Radix Select 對此時機敏感，曾觀察到掛載後才變更
+  // value 會被內部重設回空字串）。
+  if (isEdit && !detailQuery.data) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  return (
+    <EditorForm
+      key={isEdit ? detailQuery.data!.id : "new"}
+      id={id}
+      isEdit={isEdit}
+      initial={isEdit ? formFromKnowledge(detailQuery.data!) : DEFAULT_FORM}
+      original={detailQuery.data ?? null}
+      user={user}
+    />
+  )
+}
+
+function EditorForm({
+  id,
+  isEdit,
+  initial,
+  original,
+  user,
+}: {
+  id: string | undefined
+  isEdit: boolean
+  initial: FormState
+  original: Knowledge | null
+  user: UserInfo | null
+}) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const [form, setForm] = React.useState<FormState>(initial)
+  const [preview, setPreview] = React.useState(false)
 
   // 範圍選項依權限收斂：一般使用者只能選「個人」，選「全域」會清空 owner
   // 導致自己失去編輯權；「專案」需要 project_id，UI 尚無管道提供，先移除。
@@ -112,7 +156,6 @@ export default function KbEditorPage() {
     if (!form.title.trim()) return
 
     if (isEdit) {
-      const original = detailQuery.data
       if (!original) return
       const diff: KnowledgeUpdate = {}
       if (form.title !== original.title) diff.title = form.title
@@ -142,27 +185,6 @@ export default function KbEditorPage() {
 
   function onCancel() {
     navigate(isEdit ? `/kb/${id}` : "/kb")
-  }
-
-  if (isEdit && detailQuery.isError) {
-    const err = detailQuery.error
-    return (
-      <Alert variant="destructive" role="alert">
-        <AlertDescription>{err instanceof ApiError ? err.detail : "載入失敗，請稍後再試"}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  // 等表單已經套用讀到的資料再掛載 Select，避免掛載後才把 value 從預設值
-  // 程式化改成讀到的值（Radix Select 對此時機敏感，曾觀察到掛載後才變更
-  // value 會被內部重設回空字串）。
-  if (isEdit && !loaded) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    )
   }
 
   return (

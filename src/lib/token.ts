@@ -17,7 +17,12 @@ export function getCachedUser(): UserInfo | null {
 export function setCachedUser(user: UserInfo) {
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
+// 事件名稱：session 被清掉時廣播，讓 AuthProvider 同步丟掉記憶體裡的 user，
+// 避免「token 已清但 user 還留著」造成登入頁與 RequireAuth 互踢的重導迴圈。
+export const SESSION_CLEARED_EVENT = "ctos:session-cleared"
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_CLEARED_EVENT))
 }
