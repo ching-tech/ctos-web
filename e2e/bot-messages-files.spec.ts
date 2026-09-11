@@ -135,3 +135,46 @@ test("檔案分頁：下載送出帶 Authorization 的請求", async ({ page }) 
 
   expect(request.headers()["authorization"]).toBeTruthy()
 })
+
+test("檔案分頁：圖片列有「預覽」，文件列沒有", async ({ page }) => {
+  await page.goto("/bot?tab=files")
+
+  const imageRow = page.locator("table tbody tr").filter({ hasText: "現場照片.jpg" })
+  await expect(imageRow.getByRole("button", { name: "預覽" })).toBeVisible()
+
+  const docRow = page.locator("table tbody tr").filter({ hasText: "保養手冊.pdf" })
+  await expect(docRow.getByRole("button", { name: "預覽" })).toHaveCount(0)
+})
+
+test("檔案分頁：點預覽開啟圖片對話框，帶 Authorization 下載並顯示圖片，可關閉", async ({ page }) => {
+  // 記錄 revokeObjectURL 被叫幾次，關閉對話框後必須釋放預覽用的 blob URL
+  await page.addInitScript(() => {
+    const w = window as unknown as { __revoked: string[] }
+    w.__revoked = []
+    const orig = URL.revokeObjectURL.bind(URL)
+    URL.revokeObjectURL = (url: string) => {
+      w.__revoked.push(url)
+      orig(url)
+    }
+  })
+  await page.goto("/bot?tab=files")
+
+  const imageRow = page.locator("table tbody tr").filter({ hasText: "現場照片.jpg" })
+  const req = page.waitForRequest((r) => /\/files\/file-1\/download$/.test(new URL(r.url()).pathname))
+  await imageRow.getByRole("button", { name: "預覽" }).click()
+  const request = await req
+  expect(request.headers()["authorization"]).toBeTruthy()
+
+  const dialog = page.getByRole("dialog")
+  await expect(dialog.getByText("現場照片.jpg")).toBeVisible()
+  const img = dialog.locator("img")
+  await expect(img).toBeVisible()
+  await expect(img).toHaveAttribute("src", /^blob:/)
+  const blobUrl = await img.getAttribute("src")
+
+  await page.getByRole("button", { name: "Close" }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __revoked: string[] }).__revoked))
+    .toContain(blobUrl)
+})
