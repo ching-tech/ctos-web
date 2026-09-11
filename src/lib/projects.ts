@@ -86,6 +86,7 @@ export interface ProjectDetail {
   updated_at: string
   progress: number
   member_count: number
+  /** 逾期里程碑「數」。ProjectSummary 的同名欄位是「清單」，兩者是不同型別，不要共用別名。 */
   overdue_milestones: number
   members: ProjectMember[]
   milestones: Milestone[]
@@ -106,6 +107,7 @@ export interface OverdueMilestoneItem {
 
 export interface ProjectSummary {
   active_count: number
+  /** 逾期里程碑「清單」。ProjectDetail／ProjectListItem 的同名欄位是「數」。 */
   overdue_milestones: OverdueMilestoneItem[]
 }
 

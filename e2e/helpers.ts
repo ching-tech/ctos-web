@@ -1340,6 +1340,16 @@ export async function mockProjects(
   const prefix = base.pathname.replace(/\/$/, "")
   const sameOrigin = (url: URL) => url.origin === base.origin
   const forbidden = { status: 403, json: { detail: "只有專案成員能編輯" } }
+  // 後端 api/project.py 的 _reject_bad_reference：外鍵對不到就翻成這兩個錯誤
+  const userNotFound = { status: 404, json: { detail: "使用者不存在" } }
+  const milestoneNotInProject = { status: 400, json: { detail: "里程碑不屬於此專案" } }
+  // models/project.py 的 _not_null：更新請求對 NOT NULL 欄位明確送 null 是 422，
+  // 而且 FastAPI 的 detail 是驗證錯誤陣列不是字串
+  const nullRejected = (field: string) => ({
+    status: 422,
+    json: { detail: [{ loc: ["body", field], msg: "Value error, 此欄位不可為 null", type: "value_error" }] },
+  })
+  const knownUser = (id: number | null | undefined) => id === null || id === undefined || users.some((u) => u.id === id)
 
   // ── 使用者選單 ──
   await page.route(
@@ -1375,6 +1385,7 @@ export async function mockProjects(
       if (method === "POST") {
         if (forbidEdits) return route.fulfill(forbidden)
         const body = route.request().postDataJSON() as Partial<ProjectFixture>
+        if (!knownUser(body.owner_id)) return route.fulfill(userNotFound)
         seq += 1
         const owner = users.find((u) => u.id === body.owner_id)
         const created: ProjectFixture = {
@@ -1497,6 +1508,9 @@ export async function mockProjects(
       }
       if (method === "PUT") {
         const body = route.request().postDataJSON() as Partial<MilestoneFixture>
+        for (const field of ["name", "due_date", "status", "sort_order"] as const) {
+          if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+        }
         project.milestones[idx] = { ...project.milestones[idx], ...body }
         if (body.status === "completed") {
           project.milestones[idx].is_overdue = false
@@ -1524,6 +1538,10 @@ export async function mockProjects(
         const project = projects.find((p) => p.id === id)
         if (!project) return route.fulfill({ status: 404, json: { detail: "專案不存在" } })
         const body = route.request().postDataJSON() as Partial<TaskFixture>
+        if (!knownUser(body.assignee_id)) return route.fulfill(userNotFound)
+        if (body.milestone_id && !project.milestones.some((m) => m.id === body.milestone_id && m.project_id === project.id)) {
+          return route.fulfill(milestoneNotInProject)
+        }
         const assignee = users.find((u) => u.id === body.assignee_id)
         seq += 1
         const created: TaskFixture = {
@@ -1548,6 +1566,13 @@ export async function mockProjects(
       }
       if (method === "PUT") {
         const body = route.request().postDataJSON() as Partial<TaskFixture>
+        for (const field of ["title", "status", "sort_order"] as const) {
+          if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+        }
+        if (!knownUser(body.assignee_id)) return route.fulfill(userNotFound)
+        if (body.milestone_id && !project.milestones.some((m) => m.id === body.milestone_id && m.project_id === project.id)) {
+          return route.fulfill(milestoneNotInProject)
+        }
         project.tasks[idx] = { ...project.tasks[idx], ...body }
         return route.fulfill({ json: project.tasks[idx] })
       }
@@ -1577,6 +1602,10 @@ export async function mockProjects(
       if (method === "PUT") {
         if (forbidEdits) return route.fulfill(forbidden)
         const body = route.request().postDataJSON() as Partial<ProjectFixture>
+        for (const field of ["name", "status"] as const) {
+          if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+        }
+        if (!knownUser(body.owner_id)) return route.fulfill(userNotFound)
         const owner = users.find((u) => u.id === body.owner_id)
         projects[idx] = {
           ...projects[idx],

@@ -31,6 +31,14 @@ describe("apiFetch", () => {
     mockFetch(409, { detail: "此 NAS 帳號已綁定其他使用者" })
     await expect(apiFetch("/x")).rejects.toMatchObject({ status: 409, detail: "此 NAS 帳號已綁定其他使用者" })
   })
+  it("flattens FastAPI 422 validation detail arrays into one message", async () => {
+    mockFetch(422, { detail: [{ loc: ["body", "name"], msg: "Value error, 此欄位不可為 null", type: "value_error" }] })
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 422, detail: "Value error, 此欄位不可為 null" })
+  })
+  it("falls back to HTTP status when the 422 detail array has no msg", async () => {
+    mockFetch(422, { detail: [{ loc: ["body"] }] })
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 422, detail: "HTTP 422" })
+  })
   it("clears session on 401", async () => {
     setToken("t1")
     mockFetch(401, { detail: "no" })

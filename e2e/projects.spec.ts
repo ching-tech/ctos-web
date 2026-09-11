@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockApi, mockKb, mockProjects, seedToken, userFixture } from "./helpers"
+import { adminFixture, API, mockApi, mockKb, mockProjects, projectFixtures, seedToken, simpleUserFixtures, userFixture } from "./helpers"
 
 /** 清單在 md 以下換成卡片；表格列與卡片各自只有一種會進可及性樹，用 role 分流。 */
 function projectItem(page: Page, testInfo: TestInfo, name: string) {
@@ -355,5 +355,78 @@ test.describe("知識庫編輯器的專案入口", () => {
     const body = (await req).postDataJSON() as Record<string, unknown>
     expect(body.scope).toBe("personal")
     expect(body.project_id).toBeUndefined()
+  })
+})
+
+test.describe("後端錯誤契約", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApi(page)
+    await mockKb(page)
+    await seedToken(page)
+  })
+
+  test("負責人選單過期時，404「使用者不存在」原樣顯示", async ({ page }) => {
+    await mockProjects(page)
+    // 選單比後端多一個已經不存在的使用者：後端會回 404，不是靜默塞 null
+    await page.route(`${API}/api/user/list`, (route) =>
+      route.fulfill({ json: { users: [...simpleUserFixtures, { id: 99, username: "ghost", display_name: "已離職" }] } }),
+    )
+    await page.goto("/projects/proj-1?tab=tasks")
+
+    await page.getByRole("button", { name: "新增任務" }).click()
+    await page.getByLabel("任務標題").fill("交接文件")
+    await page.getByRole("combobox", { name: "任務負責人" }).click()
+    await page.getByRole("option", { name: "已離職" }).click()
+    await page.getByRole("button", { name: "新增", exact: true }).click()
+
+    await expect(page.getByRole("alert")).toContainText("使用者不存在")
+  })
+
+  test("里程碑屬於別的專案時，400「里程碑不屬於此專案」原樣顯示", async ({ page }) => {
+    const projects = projectFixtures.map((p) =>
+      p.id !== "proj-1"
+        ? p
+        : {
+            ...p,
+            milestones: [
+              ...p.milestones,
+              {
+                id: "ms-foreign", project_id: "proj-2", name: "別案的里程碑", due_date: "2026-10-31",
+                completed_at: null, status: "pending", sort_order: 9, is_overdue: false,
+                created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+              },
+            ],
+          },
+    )
+    await mockProjects(page, { projects })
+    await page.goto("/projects/proj-1?tab=tasks")
+
+    await page.getByRole("button", { name: "新增任務" }).click()
+    await page.getByLabel("任務標題").fill("試車紀錄")
+    await page.getByRole("combobox", { name: "里程碑" }).click()
+    await page.getByRole("option", { name: "別案的里程碑" }).click()
+    await page.getByRole("button", { name: "新增", exact: true }).click()
+
+    await expect(page.getByRole("alert")).toContainText("里程碑不屬於此專案")
+  })
+
+  test("422 的驗證錯誤陣列攤成一句話，不是「HTTP 422」", async ({ page }) => {
+    await mockProjects(page)
+    await page.route(
+      (url) => url.pathname.endsWith("/api/projects/proj-1"),
+      async (route) => {
+        if (route.request().method() !== "PUT") return route.fallback()
+        await route.fulfill({
+          status: 422,
+          json: { detail: [{ loc: ["body", "name"], msg: "Value error, 此欄位不可為 null", type: "value_error" }] },
+        })
+      },
+    )
+    await page.goto("/projects/proj-1/edit")
+
+    await page.getByLabel("名稱").fill("台北捷運監控案 三期")
+    await page.getByRole("button", { name: "儲存" }).click()
+
+    await expect(page.getByRole("alert")).toContainText("此欄位不可為 null")
   })
 })

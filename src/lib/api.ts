@@ -33,7 +33,14 @@ export async function apiFetch<T>(path: string, init: RequestInit & { keepSessio
     try {
       const data = (await res.json()) as { detail?: unknown; error?: unknown }
       if (typeof data.detail === "string") detail = data.detail
-      else if (typeof data.error === "string") detail = data.error
+      // FastAPI 的 422 會把 detail 給成驗證錯誤陣列（每筆有 msg），不是字串；
+      // 攤成可讀的一行，否則使用者只看得到「HTTP 422」。
+      else if (Array.isArray(data.detail)) {
+        const msgs = data.detail
+          .map((e) => (typeof e === "object" && e !== null && "msg" in e ? String((e as { msg: unknown }).msg) : ""))
+          .filter(Boolean)
+        if (msgs.length > 0) detail = msgs.join("；")
+      } else if (typeof data.error === "string") detail = data.error
     } catch { /* 非 JSON 回應 */ }
     if (res.status === 401 && !keepSessionOn401) clearSession()
     throw new ApiError(res.status, detail)
