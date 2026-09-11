@@ -18,7 +18,7 @@ export function KbCard({ item }: { item: KnowledgeListItem }) {
   return (
     <Link
       to={`/kb/${item.id}`}
-      className="flex flex-col gap-1.5 rounded-lg border p-4 hover:border-foreground/30"
+      className="flex min-h-28 flex-col gap-1.5 rounded-lg border p-4 hover:border-foreground/30"
     >
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="shrink-0">{label(SCOPE_LABEL, item.scope)}</Badge>
@@ -27,7 +27,7 @@ export function KbCard({ item }: { item: KnowledgeListItem }) {
         </span>
       </div>
       <span className="line-clamp-1 font-medium">{item.title}</span>
-      <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">{summary}</p>
+      {summary && <p className="line-clamp-2 text-sm text-muted-foreground">{summary}</p>}
       <div className="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-muted-foreground">
         <span className="truncate">
           {item.author}・{item.updated_at}
