@@ -16,6 +16,7 @@ import {
   getLogStats,
   listAgents,
   listLogs,
+  listUsers,
   type LogFilters,
 } from "@/lib/ai-log"
 import { ApiError } from "@/lib/api"
@@ -30,6 +31,9 @@ function filtersFromParams(params: URLSearchParams): LogFilters {
   const rawSuccess = params.get("success")
   const success = rawSuccess === "true" || rawSuccess === "false" ? rawSuccess : undefined
   const rawPage = params.get("page")
+  // user 可能是 "0"（未記錄使用者），不能用 || undefined 這種 truthy 判斷把它吃掉
+  const rawUser = params.get("user")
+  const user = rawUser !== null && /^\d+$/.test(rawUser) ? Number(rawUser) : undefined
   return {
     agent: params.get("agent") || undefined,
     context: params.get("context") || undefined,
@@ -37,6 +41,7 @@ function filtersFromParams(params: URLSearchParams): LogFilters {
     from: params.get("from") || undefined,
     to: params.get("to") || undefined,
     page: rawPage ? Math.max(1, Number(rawPage) || 1) : undefined,
+    user,
   }
 }
 
@@ -71,8 +76,9 @@ export default function AiLogListPage() {
     setSearchParams(new URLSearchParams(), { replace: true })
   }
 
-  const statsFilters = { agent: filters.agent, from: filters.from, to: filters.to }
+  const statsFilters = { agent: filters.agent, from: filters.from, to: filters.to, user: filters.user }
   const agentsQuery = useQuery({ queryKey: aiLogKeys.agents, queryFn: listAgents })
+  const usersQuery = useQuery({ queryKey: aiLogKeys.users, queryFn: listUsers })
   const statsQuery = useQuery({ queryKey: aiLogKeys.stats(statsFilters), queryFn: () => getLogStats(statsFilters) })
   const listQuery = useQuery({ queryKey: aiLogKeys.list(filters), queryFn: () => listLogs(filters) })
 
@@ -89,6 +95,16 @@ export default function AiLogListPage() {
       if (byId) return byId
     }
     return item.agent_name || "—"
+  }
+  const userLabelById = new Map(
+    (usersQuery.data?.users ?? []).map((u) => [u.id, u.display_name || u.username]),
+  )
+  function userLabel(item: { user_id: number | null; username: string | null }): string {
+    if (item.user_id !== null) {
+      const byId = userLabelById.get(item.user_id)
+      if (byId) return byId
+    }
+    return item.username || "—"
   }
 
   return (
@@ -178,6 +194,23 @@ export default function AiLogListPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={filters.user === undefined ? "all" : String(filters.user)}
+          onValueChange={(v) => updateFilter("user", v === "all" ? "" : v)}
+        >
+          <SelectTrigger className="w-36" aria-label="使用者">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="0">未記錄使用者</SelectItem>
+            {(usersQuery.data?.users ?? []).map((u) => (
+              <SelectItem key={u.id} value={String(u.id)}>
+                {u.display_name || u.username}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <input
           type="date"
           aria-label="起日"
@@ -227,6 +260,7 @@ export default function AiLogListPage() {
                     <TableHead>耗時</TableHead>
                     <TableHead>Token</TableHead>
                     <TableHead>工具</TableHead>
+                    <TableHead>使用者</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -261,6 +295,7 @@ export default function AiLogListPage() {
                           {fmtNumber(item.input_tokens)}/{fmtNumber(item.output_tokens)}
                         </TableCell>
                         <TableCell>{item.used_tools?.length ?? 0}</TableCell>
+                        <TableCell>{userLabel(item)}</TableCell>
                       </TableRow>
                     )
                   })}

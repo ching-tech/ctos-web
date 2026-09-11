@@ -416,6 +416,9 @@ export interface AiLogFixture {
   input_tokens: number | null
   output_tokens: number | null
   created_at: string
+  /** 發起這次呼叫的 CTOS 使用者；不設代表舊資料／未綁定（後端回 null，篩選 user_id=0 會找到它） */
+  user_id?: number | null
+  username?: string | null
   prompt_id?: string | null
   context_id?: string | null
   input_prompt?: string
@@ -448,6 +451,7 @@ export const aiLogFixtures: AiLogFixture[] = [
     id: "log-01", agent_id: "ag-1", agent_name: "群組助理", context_type: "web-chat", model: "claude-sonnet-4-5",
     script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true,
     duration_ms: 1200, input_tokens: 350, output_tokens: 120, created_at: "2026-09-12T09:00:00",
+    user_id: 2, username: "yazelin",
     prompt_id: "p-01", context_id: "c-01",
     input_prompt: "請幫我查泵浦保養週期", system_prompt: "你是擎添的助理", raw_response: "每三個月",
     parsed_response: {
@@ -467,7 +471,7 @@ export const aiLogFixtures: AiLogFixture[] = [
   },
   { id: "log-02", agent_id: "ag-2", agent_name: "個人助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: [], success: true, duration_ms: 900, input_tokens: 210, output_tokens: 88, created_at: "2026-09-11T09:00:00" },
   { id: "log-03", agent_id: "ag-1", agent_name: "群組助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "daily-report", allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: false, duration_ms: 30000, input_tokens: 400, output_tokens: 0, created_at: "2026-09-10T09:00:00", error_message: "模型逾時" },
-  { id: "log-04", agent_id: "ag-2", agent_name: "個人助理", context_type: "web-chat", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1100, input_tokens: 300, output_tokens: 140, created_at: "2026-09-09T09:00:00" },
+  { id: "log-04", agent_id: "ag-2", agent_name: "個人助理", context_type: "web-chat", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1100, input_tokens: 300, output_tokens: 140, created_at: "2026-09-09T09:00:00", user_id: 1, username: "admin" },
   { id: "log-05", agent_id: "ag-1", agent_name: "群組助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: [], success: true, duration_ms: 800, input_tokens: 180, output_tokens: 70, created_at: "2026-09-08T09:00:00" },
   { id: "log-06", agent_id: "ag-2", agent_name: "個人助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "weekly-report", allowed_tools: ["search_knowledge"], used_tools: [], success: false, duration_ms: 500, input_tokens: 90, output_tokens: 0, created_at: "2026-09-07T09:00:00", error_message: "工具呼叫失敗" },
   { id: "log-07", agent_id: "ag-1", agent_name: "群組助理", context_type: "web-chat", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: true, duration_ms: 1300, input_tokens: 320, output_tokens: 150, created_at: "2026-09-06T09:00:00" },
@@ -506,7 +510,13 @@ export function makeAiLogs(n: number): AiLogFixture[] {
 
 function aiLogListItem(l: AiLogFixture) {
   const { id, agent_id, agent_name, context_type, model, script_label, allowed_tools, used_tools, success, duration_ms, input_tokens, output_tokens, created_at } = l
-  return { id, agent_id, agent_name, context_type, model, script_label, allowed_tools, used_tools, success, duration_ms, input_tokens, output_tokens, created_at }
+  return {
+    id, agent_id, agent_name, context_type, model, script_label, allowed_tools, used_tools, success,
+    duration_ms, input_tokens, output_tokens,
+    user_id: l.user_id ?? null,
+    username: l.username ?? null,
+    created_at,
+  }
 }
 
 function aiLogDetail(l: AiLogFixture) {
@@ -528,6 +538,8 @@ function aiLogDetail(l: AiLogFixture) {
     duration_ms: l.duration_ms,
     input_tokens: l.input_tokens,
     output_tokens: l.output_tokens,
+    user_id: l.user_id ?? null,
+    username: l.username ?? null,
     created_at: l.created_at,
   }
 }
@@ -546,6 +558,13 @@ function filterAiLogs(logs: AiLogFixture[], params: URLSearchParams, opts: { wit
     const end = new Date(endDate).getTime()
     filtered = filtered.filter((l) => new Date(l.created_at).getTime() <= end)
   }
+  // user_id 套用在清單與統計兩支端點；0 代表「未記錄使用者」（user_id IS NULL），
+  // 不能用 truthy 判斷（0 是合法值），要判是否為 null（沒帶這個參數）
+  const userIdParam = params.get("user_id")
+  if (userIdParam !== null) {
+    const uid = Number(userIdParam)
+    filtered = uid === 0 ? filtered.filter((l) => (l.user_id ?? null) === null) : filtered.filter((l) => l.user_id === uid)
+  }
   if (opts.withListFilters) {
     const contextType = params.get("context_type")
     const success = params.get("success")
@@ -555,12 +574,17 @@ function filterAiLogs(logs: AiLogFixture[], params: URLSearchParams, opts: { wit
   return filtered
 }
 
-export async function mockAiLog(page: Page, opts: { logs?: AiLogFixture[]; agents?: AiAgentFixture[] } = {}) {
+export async function mockAiLog(
+  page: Page,
+  opts: { logs?: AiLogFixture[]; agents?: AiAgentFixture[]; users?: SimpleUserFixture[] } = {},
+) {
   const logs: AiLogFixture[] = (opts.logs ?? aiLogFixtures).map((l) => ({ ...l }))
   const agents: AiAgentFixture[] = (opts.agents ?? aiAgentFixtures).map((a) => ({ ...a }))
   const base = new URL(API)
   const prefix = base.pathname.replace(/\/$/, "")
   const sameOrigin = (url: URL) => url.origin === base.origin
+
+  await mockUserList(page, opts.users ?? simpleUserFixtures)
 
   await page.route(
     (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/agents`,
@@ -1167,6 +1191,17 @@ export const simpleUserFixtures: SimpleUserFixture[] = [
   { id: 4, username: "lin", display_name: null },
 ]
 
+/** 攔 `/api/user/list`（使用者下拉選單）；mockProjects 與 mockAiLog 共用這支，避免各自註冊出不同形狀的 mock。 */
+export async function mockUserList(page: Page, users: SimpleUserFixture[] = simpleUserFixtures) {
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/user/list`,
+    async (route) => route.fulfill({ json: { users } }),
+  )
+}
+
 export interface ProjectMemberFixture {
   user_id: number
   username: string | null
@@ -1394,10 +1429,7 @@ export async function mockProjects(
   const knownUser = (id: number | null | undefined) => id === null || id === undefined || users.some((u) => u.id === id)
 
   // ── 使用者選單 ──
-  await page.route(
-    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/user/list`,
-    async (route) => route.fulfill({ json: { users } }),
-  )
+  await mockUserList(page, users)
 
   // ── dashboard 摘要（宣告在 /{id} 之前，與後端同序） ──
   await page.route(
