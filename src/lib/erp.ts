@@ -594,6 +594,8 @@ export const ITEM_PAGE_SIZE = 20
 export const WAREHOUSE_PAGE_SIZE = 50
 /** 供應商下拉吃 /api/parties 的上限（後端 page_size 最大 100）。 */
 export const SUPPLIER_PAGE_SIZE = 100
+/** 表單裡當選項用的清單（物料、專案）一次抓幾筆；後端 page_size 上限一樣是 100。 */
+export const ERP_OPTIONS_PAGE_SIZE = 100
 
 export function listItems(filters: ItemFilters): Promise<ItemListResponse> {
   const params = new URLSearchParams()
@@ -798,12 +800,20 @@ export const PO_EDITABLE_STATUS_OPTIONS: EditablePurchaseOrderStatus[] = ["draft
 const PO_CLOSED_STATUSES = ["received", "cancelled"]
 
 /**
- * 還沒結案的單。編輯、收貨與取消三個動作共用同一條界線：後端對前兩個看
- * `_CLOSED_STATUSES`，取消另外還會擋「已收過貨」（`partial` 按下去會拿到 400，
- * 那個 400 照樣顯示出來，不在前端先猜）。
+ * 還沒結案的單：收貨與取消看這條界線（後端 `_CLOSED_STATUSES`）。取消另外還會
+ * 擋「已收過貨」，`partial` 按下去會拿到 400，那個 400 照樣顯示出來，不在前端先猜。
  */
 export function isPurchaseOrderOpen(status: string): boolean {
   return !PO_CLOSED_STATUSES.includes(status)
+}
+
+/**
+ * 單頭可不可以編輯。比 `isPurchaseOrderOpen` 嚴一階：`PurchaseOrderUpdate` 的
+ * `status` 只收 `draft`／`ordered`，所以 `partial` 的單不能進編輯頁——表單一送出
+ * 就會把狀態壓回 `ordered`，把「已經收過一部分」這件事抹掉。
+ */
+export function canEditPurchaseOrderHeader(status: string): boolean {
+  return (PO_EDITABLE_STATUS_OPTIONS as string[]).includes(status)
 }
 
 /** 某一行還沒收的數量；四位小數是 Numeric(18,4) 的上限，收掉浮點誤差。 */
@@ -873,7 +883,7 @@ export interface PurchaseOrderFilters {
 }
 
 export const PO_PAGE_SIZE = 20
-/** 首頁待收貨卡與下拉選單吃的上限（後端 page_size 最大 100）。 */
+/** 首頁待收貨卡每個狀態各抓一頁的上限（後端 page_size 最大 100）。 */
 export const PO_PENDING_PAGE_SIZE = 100
 
 export function listPurchaseOrders(filters: PurchaseOrderFilters): Promise<PurchaseOrderListResponse> {

@@ -312,6 +312,22 @@ test.describe("採購單明細", () => {
     await expect(page.getByRole("alert")).toContainText("已收過貨的採購單不能取消，請先做庫存調整")
   })
 
+  test("partial 的單不給編輯：明細沒有「編輯」，直開 edit 會被導回明細", async ({ page }) => {
+    await page.goto("/purchase-orders/po-3")
+
+    await expect(page.getByText("部分到貨")).toBeVisible()
+    // PurchaseOrderUpdate 的 status 只收 draft／ordered，partial 進編輯頁一送出
+    // 就會被壓回 ordered，所以這個狀態只留收貨與取消
+    await expect(page.getByRole("link", { name: "編輯" })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "收貨" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "取消採購單" })).toBeVisible()
+
+    // 直接打網址也要擋，不是只把按鈕藏起來
+    await page.goto("/purchase-orders/po-3/edit")
+    await expect(page).toHaveURL(/\/purchase-orders\/po-3$/)
+    await expect(page.getByRole("heading", { name: "PO-202609-001" })).toBeVisible()
+  })
+
   test("received 狀態沒有編輯、收貨與取消", async ({ page }) => {
     await page.goto("/purchase-orders/po-2")
 
@@ -353,6 +369,16 @@ test.describe("採購單明細", () => {
       notes: null,
     })
     await expect(page).toHaveURL(/\/purchase-orders\/po-4$/)
+  })
+
+  test("已收貨與已取消的單直開 edit 也被導回明細", async ({ page }) => {
+    await page.goto("/purchase-orders/po-2/edit")
+    await expect(page).toHaveURL(/\/purchase-orders\/po-2$/)
+    await expect(page.getByRole("heading", { name: "PO-202606-001" })).toBeVisible()
+
+    await page.goto("/purchase-orders/po-5/edit")
+    await expect(page).toHaveURL(/\/purchase-orders\/po-5$/)
+    await expect(page.getByRole("heading", { name: "PO-202607-001" })).toBeVisible()
   })
 
   test("找不到的單顯示回清單連結", async ({ page }) => {

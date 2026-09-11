@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
-import { useNavigate, useParams } from "react-router"
+import { Navigate, useNavigate, useParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,13 +11,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ApiError } from "@/lib/api"
 import {
+  canEditPurchaseOrderHeader,
   createPurchaseOrder,
+  ERP_OPTIONS_PAGE_SIZE,
   erpKeys,
   getPurchaseOrder,
   listItems,
   listParties,
   PO_EDITABLE_STATUS_OPTIONS,
-  PO_PENDING_PAGE_SIZE,
   PO_STATUS_LABEL,
   SUPPLIER_PAGE_SIZE,
   updatePurchaseOrder,
@@ -34,7 +35,7 @@ const NONE = "none"
 const SEARCH_DEBOUNCE_MS = 300
 
 const SUPPLIER_FILTERS: PartyFilters = { role: "supplier", page: 1, pageSize: SUPPLIER_PAGE_SIZE }
-const PROJECT_FILTERS: ProjectFilters = { page: 1, pageSize: 100 }
+const PROJECT_FILTERS: ProjectFilters = { page: 1, pageSize: ERP_OPTIONS_PAGE_SIZE }
 
 interface LineDraft {
   key: number
@@ -64,11 +65,11 @@ const DEFAULT_HEADER: HeaderForm = {
   notes: "",
 }
 
+/** 只有 draft／ordered 的單進得來（其餘狀態在下面就被導回明細），狀態照原樣回填。 */
 function headerFromDetail(po: PurchaseOrderDetail): HeaderForm {
   return {
     supplierId: po.supplier_id,
     projectId: po.project_id ?? NONE,
-    // PUT 的 status 只收 draft／ordered；partial 之後的單根本進不來這一頁
     status: po.status === "draft" ? "draft" : "ordered",
     orderDate: po.order_date ?? "",
     expectedDate: po.expected_date ?? "",
@@ -103,6 +104,13 @@ export default function PurchaseOrderEditorPage() {
         <Skeleton className="h-64 w-full" />
       </div>
     )
+  }
+
+  // partial／received／cancelled 不給進編輯頁：PurchaseOrderUpdate 的 status 只收
+  // draft／ordered，表單一送出就會把 partial 壓回 ordered，把已收過一部分這件事抹掉。
+  // 直接打網址進來也要擋，不是只把明細上的「編輯」藏起來。
+  if (isEdit && !canEditPurchaseOrderHeader(detailQuery.data!.status)) {
+    return <Navigate to={`/purchase-orders/${id}`} replace />
   }
 
   return isEdit ? (
@@ -238,6 +246,8 @@ function HeaderEditor({ po }: { po: PurchaseOrderDetail }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [form, setForm] = React.useState<HeaderForm>(headerFromDetail(po))
+  // 路由已經擋掉非 draft／ordered 的單；這裡再守一次，免得將來有人繞過那道 guard
+  const statusEditable = canEditPurchaseOrderHeader(po.status)
 
   const mutation = useMutation({
     mutationFn: (data: PurchaseOrderUpdate) => updatePurchaseOrder(po.id, data),
@@ -264,7 +274,9 @@ function HeaderEditor({ po }: { po: PurchaseOrderDetail }) {
           mutation.mutate({
             supplier_id: form.supplierId,
             project_id: form.projectId === NONE ? null : form.projectId,
-            status: form.status,
+            // 原狀態不是 draft／ordered 時整個省略 status：後端是 exclude_unset，
+            // 不送等於不動狀態，送了才會把它壓成表單上那個值
+            ...(statusEditable ? { status: form.status } : {}),
             order_date: form.orderDate || null,
             expected_date: form.expectedDate || null,
             notes: form.notes.trim() || null,
@@ -274,7 +286,7 @@ function HeaderEditor({ po }: { po: PurchaseOrderDetail }) {
         <HeaderFields
           form={form}
           set={set}
-          withStatus
+          withStatus={statusEditable}
           supplierName={po.supplier_name}
           projectName={po.project_name}
         />
@@ -319,7 +331,7 @@ function CreateForm() {
     }
   }, [])
 
-  const itemFilters: ItemFilters = { q: itemQ || undefined, page: 1, pageSize: PO_PENDING_PAGE_SIZE }
+  const itemFilters: ItemFilters = { q: itemQ || undefined, page: 1, pageSize: ERP_OPTIONS_PAGE_SIZE }
   const itemsQuery = useQuery({ queryKey: erpKeys.itemList(itemFilters), queryFn: () => listItems(itemFilters), retry: false })
   const items = itemsQuery.data?.items ?? []
 

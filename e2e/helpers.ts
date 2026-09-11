@@ -3002,6 +3002,13 @@ export async function mockErp(
   const purchaseOrders: PurchaseOrderFixture[] = (opts.purchaseOrders ?? purchaseOrderFixtures).map(clonePo)
   const projects: ProjectFixture[] = (opts.projects ?? projectFixtures).map((p) => ({ ...p }))
   const poNotFound = { status: 404, json: { detail: "採購單不存在" } }
+  // models/erp.py 的 ConfigDict(extra="forbid")：pydantic v2 的 extra_forbidden
+  const PO_CREATE_FIELDS = ["supplier_id", "lines", "project_id", "status", "order_date", "expected_date", "notes"]
+  const PO_LINE_CREATE_FIELDS = ["item_id", "qty", "unit_price", "description"]
+  const extraForbidden = (loc: (string | number)[], field: string) => ({
+    status: 422,
+    json: { detail: [{ loc: [...loc, field], msg: "Extra inputs are not permitted", type: "extra_forbidden" }] },
+  })
   // 後端 _CLOSED_STATUSES：已收貨與已取消的單不給改、也不給收貨
   const CLOSED_STATUSES = ["received", "cancelled"]
 
@@ -3233,9 +3240,17 @@ export async function mockErp(
           notes?: string | null
           lines?: { item_id: string; qty: string; unit_price?: string | null; description?: string | null }[]
         }
+        // PurchaseOrderCreate 與 PurchaseOrderLineCreate 都是 extra="forbid"：
+        // po_no 由 service 產生、received_qty 只給匯入腳本用，REST 送進來是 422
+        const extra = Object.keys(body).find((k) => !PO_CREATE_FIELDS.includes(k))
+        if (extra) return route.fulfill(extraForbidden(["body"], extra))
         const lines = body.lines ?? []
         if (lines.length === 0) {
           return route.fulfill({ status: 400, json: { detail: "採購單至少要一個行項" } })
+        }
+        for (const [i, l] of lines.entries()) {
+          const bad = Object.keys(l).find((k) => !PO_LINE_CREATE_FIELDS.includes(k))
+          if (bad) return route.fulfill(extraForbidden(["body", "lines", i], bad))
         }
         if (!parties.some((p) => p.id === body.supplier_id)) {
           return route.fulfill({ status: 400, json: { detail: "供應商不存在或已刪除" } })

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
 import {
+  ERP_OPTIONS_PAGE_SIZE,
   erpKeys,
   erpLabel,
   erpTint,
@@ -34,7 +35,7 @@ const ALL = "all"
 // 沒有 is_supplier 這個參數）。要 vendor-management 權限，拿不到就停用下拉。
 const SUPPLIER_FILTERS: PartyFilters = { role: "supplier", page: 1, pageSize: SUPPLIER_PAGE_SIZE }
 // 專案下拉要 project-management 權限，拿不到一樣停用。
-const PROJECT_FILTERS: ProjectFilters = { page: 1, pageSize: 100 }
+const PROJECT_FILTERS: ProjectFilters = { page: 1, pageSize: ERP_OPTIONS_PAGE_SIZE }
 
 function filtersFromParams(params: URLSearchParams): PurchaseOrderFilters {
   const rawPage = params.get("page")

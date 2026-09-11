@@ -19,6 +19,13 @@ import {
  *
  * 後端 `list_purchase_orders` 的 `status` 是等值比對（`po.status = $2`），吃不了
  * 多個狀態，所以 `ordered` 與 `partial` 各打一次，兩份結果在前端合併。
+ *
+ * 這裡刻意只看**每個狀態的第一頁**（`page_size=100`，後端上限就是 100）：
+ * - 「待收貨單數」用的是兩支回應的 `total`，那個數字是**準的**，不受分頁影響。
+ * - 「預計到貨最近的五張」是從當頁一百筆裡挑的**近似值**。後端 `ORDER BY
+ *   po.created_at DESC`，不是按預計到貨排，所以某個狀態超過一百張時，第一頁
+ *   之外可能還藏著更早到期的單。要做準得動後端（加一個依 `expected_date`
+ *   排序的參數，或開一支 dashboard 端點），那是另一支 PR。
  */
 function usePendingOrders(status: "ordered" | "partial") {
   const filters = { status, page: 1, pageSize: PO_PENDING_PAGE_SIZE } as const

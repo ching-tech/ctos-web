@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
 import {
+  canEditPurchaseOrderHeader,
   cancelPurchaseOrder,
   erpKeys,
   erpLabel,
@@ -86,9 +87,11 @@ export default function PurchaseOrderDetailPage() {
   }
 
   const po = detailQuery.data!
-  // 編輯、收貨、取消三個動作共用同一條界線（後端 _CLOSED_STATUSES）；
-  // 「已收過貨不能取消」那條由後端擋，400 原樣顯示
+  // 收貨與取消看 _CLOSED_STATUSES；「已收過貨不能取消」那條由後端擋，400 原樣顯示。
+  // 編輯嚴一階：PurchaseOrderUpdate 的 status 只收 draft／ordered，partial 的單
+  // 進編輯頁一送出就會把狀態壓回 ordered，所以那個狀態不給編輯。
   const isOpen = isPurchaseOrderOpen(po.status)
+  const canEditHeader = canEditPurchaseOrderHeader(po.status)
 
   return (
     <div className="space-y-4">
@@ -108,11 +111,13 @@ export default function PurchaseOrderDetailPage() {
             <Button asChild variant="outline">
               <Link to={poAskAiHref(po.po_no)}>問 AI</Link>
             </Button>
+            {canEditHeader && (
+              <Button asChild variant="outline">
+                <Link to={`/purchase-orders/${po.id}/edit`}>編輯</Link>
+              </Button>
+            )}
             {isOpen && (
               <>
-                <Button asChild variant="outline">
-                  <Link to={`/purchase-orders/${po.id}/edit`}>編輯</Link>
-                </Button>
                 <ReceiveDialog po={po} />
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -197,13 +202,11 @@ export default function PurchaseOrderDetailPage() {
             {po.lines.map((line) => (
               <TableRow key={line.id}>
                 <TableCell>
-                  {line.item_id ? (
-                    <Link to={`/items/${line.item_id}`} className="text-primary underline-offset-4 hover:underline">
-                      <span className="font-mono">{line.item_code || "—"}</span> {line.item_name || ""}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
+                  {/* item_id 在後端是 NOT NULL ＋ FK RESTRICT，不會沒有；item_code／item_name
+                      是 LEFT JOIN 來的，理論上也一定有，還是留破折號當保險 */}
+                  <Link to={`/items/${line.item_id}`} className="text-primary underline-offset-4 hover:underline">
+                    <span className="font-mono">{line.item_code || "—"}</span> {line.item_name || ""}
+                  </Link>
                 </TableCell>
                 <TableCell>{line.description || "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatQty(line.qty)}</TableCell>

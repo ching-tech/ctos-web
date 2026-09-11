@@ -8,6 +8,7 @@ import {
   formatLeadDays,
   formatQty,
   formatQtyDelta,
+  canEditPurchaseOrderHeader,
   isExpectedOverdue,
   isPurchaseOrderOpen,
   itemAskAiHref,
@@ -176,6 +177,16 @@ describe("採購單狀態規則", () => {
     expect(isPurchaseOrderOpen("partial")).toBe(true)
     expect(isPurchaseOrderOpen("received")).toBe(false)
     expect(isPurchaseOrderOpen("cancelled")).toBe(false)
+  })
+
+  it("能編輯單頭的只有草稿與已下單（比「還沒結案」嚴一階）", () => {
+    // PurchaseOrderUpdate 的 status 只收 draft／ordered，partial 進編輯頁
+    // 一送出就會被壓回 ordered，所以那個狀態不給編輯
+    expect(canEditPurchaseOrderHeader("draft")).toBe(true)
+    expect(canEditPurchaseOrderHeader("ordered")).toBe(true)
+    expect(canEditPurchaseOrderHeader("partial")).toBe(false)
+    expect(canEditPurchaseOrderHeader("received")).toBe(false)
+    expect(canEditPurchaseOrderHeader("cancelled")).toBe(false)
   })
 
   it("狀態有中文，對不到的鍵原樣顯示", () => {
