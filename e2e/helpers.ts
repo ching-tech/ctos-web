@@ -415,7 +415,20 @@ export const aiLogFixtures: AiLogFixture[] = [
     duration_ms: 1200, input_tokens: 350, output_tokens: 120, created_at: "2026-09-12T09:00:00",
     prompt_id: "p-01", context_id: "c-01",
     input_prompt: "請幫我查泵浦保養週期", system_prompt: "你是擎添的助理", raw_response: "每三個月",
-    parsed_response: { answer: "每三個月" }, error_message: null,
+    parsed_response: {
+      answer: "每三個月",
+      tool_calls: [
+        { id: "toolu_01", name: "ToolSearch", input: { query: "泵浦" }, output: "找到 2 筆" },
+        { id: "toolu_02", name: "run_skill_script", input: { skill: "base", script: "list_files", path: "/" }, output: "a.txt\nb.txt" },
+      ],
+      tool_timings: [
+        { name: "ToolSearch", duration_ms: 24 },
+        { name: "run_skill_script", duration_ms: 310 },
+      ],
+      tool_routing: { mode: "auto" },
+      routing: { provider: "claude" },
+    },
+    error_message: null,
   },
   { id: "log-02", agent_id: "ag-2", agent_name: "個人助理", context_type: "linebot-group", model: "claude-sonnet-4-5", script_label: null, allowed_tools: ["search_knowledge"], used_tools: [], success: true, duration_ms: 900, input_tokens: 210, output_tokens: 88, created_at: "2026-09-11T09:00:00" },
   { id: "log-03", agent_id: "ag-1", agent_name: "群組助理", context_type: "scheduler", model: "claude-sonnet-4-5", script_label: "daily-report", allowed_tools: ["search_knowledge"], used_tools: ["search_knowledge"], success: false, duration_ms: 30000, input_tokens: 400, output_tokens: 0, created_at: "2026-09-10T09:00:00", error_message: "模型逾時" },

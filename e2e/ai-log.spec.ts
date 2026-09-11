@@ -72,9 +72,33 @@ test("明細頁顯示輸入、回應與解析結果", async ({ page }) => {
   await expect(page.getByText("每三個月").first()).toBeVisible()
   await page.getByRole("button", { name: "系統提示" }).click()
   await expect(page.getByText("你是擎添的助理")).toBeVisible()
+  await page.getByRole("button", { name: "解析結果（原始 JSON）" }).click()
+  await expect(page.getByText('"answer": "每三個月"')).toBeVisible()
 })
 
 test("失敗紀錄顯示錯誤訊息", async ({ page }) => {
   await page.goto("/ai-log/log-03") // fixture 中 success=false 且 error_message 「模型逾時」
   await expect(page.getByText("模型逾時")).toBeVisible()
+})
+
+test("明細頁顯示工具呼叫時間軸與使用的工具", async ({ page }) => {
+  await page.goto("/ai-log/log-01")
+  const card = page.getByRole("region", { name: "工具呼叫" }) // Card 用 <section aria-labelledby> 或 aria-label="工具呼叫"
+  const steps = card.getByRole("listitem")
+  await expect(steps).toHaveCount(2)
+  await expect(steps.nth(0)).toContainText("第 1 步")
+  await expect(steps.nth(0)).toContainText("ToolSearch")
+  await expect(steps.nth(0)).toContainText("24 ms")
+  await expect(steps.nth(1)).toContainText("run_skill_script(base/list_files)")
+  await steps.nth(0).getByRole("button", { name: "輸入" }).click()
+  await expect(steps.nth(0)).toContainText('"query": "泵浦"')
+  await steps.nth(1).getByRole("button", { name: "輸出" }).click()
+  await expect(steps.nth(1)).toContainText("a.txt")
+  await expect(page.getByText("使用的工具")).toBeVisible()
+  await expect(page.getByText("run_skill_script(base/list_files)").first()).toBeVisible()
+})
+
+test("沒有工具呼叫的紀錄不顯示時間軸", async ({ page }) => {
+  await page.goto("/ai-log/log-02")
+  await expect(page.getByRole("region", { name: "工具呼叫" })).toHaveCount(0)
 })
