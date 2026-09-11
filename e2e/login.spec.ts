@@ -1,10 +1,16 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { API, mockApi, mockKb, seedToken } from "./helpers"
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await mockKb(page)
 })
+
+async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: /Toggle Sidebar/i }).click()
+  }
+}
 
 test("未登入進首頁會導到登入頁", async ({ page }) => {
   await page.goto("/")
@@ -62,4 +68,31 @@ test("token 存在但 /api/user/me 回非 401 錯誤（後端掛掉）不會造�
   await expect(page.getByRole("tab", { name: "NAS 帳號" })).toBeVisible()
   await page.waitForTimeout(1000)
   await expect(page).toHaveURL(/\/login$/)
+})
+
+test("其他端點（非 /api/user/me）回 401 清掉 session 不會造成重導迴圈", async ({ page }, testInfo) => {
+  await seedToken(page)
+  // 註冊在 beforeEach 的 mockApi 之後，會蓋掉它原本對這支端點的處理。
+  await page.route(`${API}/api/user/me/nas-binding`, (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback()
+    return route.fulfill({ status: 401, json: { detail: "expired" } })
+  })
+
+  await page.goto("/settings")
+  await page.getByRole("button", { name: "解除綁定" }).click()
+  await page.waitForTimeout(300)
+
+  // AuthProvider 收到 clearSession 的事件會立刻把 user 設回 null，RequireAuth
+  // 因此馬上重新渲染並導去 /login，通常不需要再點連結；為了同時保護「還沒同步、
+  // 要等下一次互動才重新檢查」這種情況，這裡補點一次側邊欄的「首頁」連結。
+  if (!/\/login$/.test(new URL(page.url()).pathname)) {
+    await openSidebarIfMobile(page, testInfo)
+    await page.getByRole("navigation").first().getByRole("link", { name: "首頁" }).click()
+  }
+
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page.getByRole("tab", { name: "NAS 帳號" })).toBeVisible()
+  await page.waitForTimeout(1000)
+  await expect(page).toHaveURL(/\/login$/)
+  expect(await page.evaluate(() => localStorage.getItem("ctos-web.token"))).toBeNull()
 })

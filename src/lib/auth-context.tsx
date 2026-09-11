@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 import { fetchMe, logout } from "./auth"
-import { getCachedUser, getToken, setCachedUser } from "./token"
+import { getCachedUser, getToken, SESSION_CLEARED_EVENT, setCachedUser } from "./token"
 import type { UserInfo } from "./types"
 
 interface AuthState {
@@ -49,6 +49,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (getToken()) void load()
   }, [load])
+
+  // session 被其他端點的 401（非 /api/user/me）清掉時，apiFetch 只會清 localStorage，
+  // 不會知道要更新這個元件的 user state；訂閱 clearSession() 廣播的事件，在事件
+  // callback（非 effect 本體）裡才 setState，避免 user 停留在舊值造成登入頁與
+  // RequireAuth 互相導頁的迴圈。
+  React.useEffect(() => {
+    const onSessionCleared = () => {
+      setUser(null)
+      setLoading(false)
+    }
+    window.addEventListener(SESSION_CLEARED_EVENT, onSessionCleared)
+    return () => window.removeEventListener(SESSION_CLEARED_EVENT, onSessionCleared)
+  }, [])
 
   return <AuthContext.Provider value={{ user, loading, refresh, signOut }}>{children}</AuthContext.Provider>
 }

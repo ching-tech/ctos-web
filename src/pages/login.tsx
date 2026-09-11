@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { login } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
+import { getToken } from "@/lib/token"
 import type { LoginMethod } from "@/lib/types"
 
 function LoginForm({ method }: { method: LoginMethod }) {
@@ -53,7 +54,9 @@ function LoginForm({ method }: { method: LoginMethod }) {
 export default function LoginPage() {
   const { user, loading } = useAuth()
   if (loading) return null
-  if (user) return <Navigate to="/" replace />
+  // 只憑 user 判斷會漏掉「token 已被清掉但 user state 還沒同步」的瞬間，
+  // 導致跟 RequireAuth 互相導頁形成迴圈；加上 getToken() 確認 session 真的還有效。
+  if (user && getToken()) return <Navigate to="/" replace />
   return (
     <main className="flex min-h-svh items-center justify-center p-4">
       <Card className="w-full max-w-sm">
