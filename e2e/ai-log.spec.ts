@@ -103,3 +103,63 @@ test("沒有工具呼叫的紀錄不顯示時間軸", async ({ page }) => {
   await page.goto("/ai-log/log-02")
   await expect(page.getByRole("region", { name: "工具呼叫" })).toHaveCount(0)
 })
+
+test("選「未記錄使用者」，清單與統計請求都帶 user_id=0，網址帶 user=0", async ({ page }) => {
+  await page.goto("/ai-log")
+  const listReq = page.waitForRequest((r) => r.url().includes("/api/ai/logs?") && r.url().includes("user_id=0"))
+  const statsReq = page.waitForRequest((r) => r.url().includes("/api/ai/logs/stats?") && r.url().includes("user_id=0"))
+  await page.getByLabel("使用者").click()
+  await page.getByRole("option", { name: "未記錄使用者" }).click()
+  await listReq
+  await statsReq
+  await expect(page).toHaveURL(/user=0/)
+  // log-01／log-04 有綁定使用者，其餘 10 筆是「未記錄使用者」
+  await expect(page.getByText("共 10 筆")).toBeVisible()
+})
+
+test("選某使用者，兩個請求都帶對應 user_id", async ({ page }) => {
+  await page.goto("/ai-log")
+  const listReq = page.waitForRequest((r) => r.url().includes("/api/ai/logs?") && r.url().includes("user_id=2"))
+  const statsReq = page.waitForRequest((r) => r.url().includes("/api/ai/logs/stats?") && r.url().includes("user_id=2"))
+  await page.getByLabel("使用者").click()
+  await page.getByRole("option", { name: "亞澤" }).click()
+  await listReq
+  await statsReq
+  await expect(page).toHaveURL(/user=2/)
+  await expect(page.getByText("共 1 筆")).toBeVisible()
+})
+
+test("使用者篩選選回「全部」，請求不帶 user_id", async ({ page }) => {
+  await page.goto("/ai-log?user=2")
+  const req = page.waitForRequest((r) => r.url().includes("/api/ai/logs?") && !r.url().includes("user_id"))
+  await page.getByLabel("使用者").click()
+  await page.getByRole("option", { name: "全部" }).click()
+  await req
+  await expect(page).not.toHaveURL(/user=/)
+  await expect(page.getByText("共 12 筆")).toBeVisible()
+})
+
+test("直接開 /ai-log?user=0，選單預設選中「未記錄使用者」", async ({ page }) => {
+  await page.goto("/ai-log?user=0")
+  await expect(page.getByLabel("使用者")).toHaveText("未記錄使用者")
+  await expect(page.getByText("共 10 筆")).toBeVisible()
+})
+
+test("清單使用者欄顯示 username，未綁定顯示 —", async ({ page }) => {
+  await page.goto("/ai-log?user=2")
+  const userCells = page.locator("table tbody tr td:nth-child(9)")
+  await expect(userCells).toHaveCount(1)
+  await expect(userCells.first()).toHaveText("亞澤")
+
+  await page.goto("/ai-log?user=0")
+  const emptyCells = page.locator("table tbody tr td:nth-child(9)")
+  await expect(emptyCells.first()).toHaveText("—")
+})
+
+test("明細頁使用者列顯示 username，未綁定顯示 —", async ({ page }) => {
+  await page.goto("/ai-log/log-01") // fixture user_id=2, username=yazelin
+  await expect(page.locator("dt", { hasText: "使用者" }).locator("..")).toContainText("yazelin")
+
+  await page.goto("/ai-log/log-02") // 未綁定使用者
+  await expect(page.locator("dt", { hasText: "使用者" }).locator("..")).toContainText("—")
+})

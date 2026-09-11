@@ -141,6 +141,7 @@ export default function AiLogDetailPage() {
         <CardContent className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
           <SummaryRow term="時間" value={time} />
           <SummaryRow term="Agent" value={log.agent_name ?? "—"} />
+          <SummaryRow term="使用者" value={log.username ?? "—"} />
           <SummaryRow term="情境" value={contextLabel(log.context_type)} />
           <SummaryRow term="模型" value={log.model ?? "—"} />
           <SummaryRow

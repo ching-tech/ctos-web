@@ -13,6 +13,8 @@ export interface AiLogListItem {
   duration_ms: number | null
   input_tokens: number | null
   output_tokens: number | null
+  user_id: number | null
+  username: string | null
   created_at: string
 }
 
@@ -69,6 +71,8 @@ export interface AiLog {
   duration_ms: number | null
   input_tokens: number | null
   output_tokens: number | null
+  user_id: number | null
+  username: string | null
   created_at: string
 }
 
@@ -89,6 +93,14 @@ export interface LogFilters {
   from?: string
   to?: string
   page?: number
+  /** 依使用者篩選；0 代表「未記錄使用者」（user_id IS NULL），必須能與 undefined 區分，不能用 truthy 判斷 */
+  user?: number
+}
+
+export interface SimpleUserInfo {
+  id: number
+  username: string
+  display_name: string | null
 }
 
 export const CONTEXT_LABEL: Record<string, string> = {
@@ -155,6 +167,8 @@ export function buildLogQuery(f: LogFilters, pageSize = 50): string {
   if (f.success) params.set("success", f.success)
   if (f.from) params.set("start_date", toDayStart(f.from))
   if (f.to) params.set("end_date", toDayEnd(f.to))
+  // user 可能是 0（未記錄使用者），不能用 truthy 判斷，要判 undefined
+  if (f.user !== undefined) params.set("user_id", String(f.user))
   params.set("page", String(f.page ?? 1))
   params.set("page_size", String(pageSize))
   return `?${params.toString()}`
@@ -164,11 +178,12 @@ export function listLogs(f: LogFilters): Promise<AiLogListResponse> {
   return apiFetch<AiLogListResponse>(`/api/ai/logs${buildLogQuery(f)}`)
 }
 
-export function getLogStats(f: Pick<LogFilters, "agent" | "from" | "to">): Promise<AiLogStats> {
+export function getLogStats(f: Pick<LogFilters, "agent" | "from" | "to" | "user">): Promise<AiLogStats> {
   const params = new URLSearchParams()
   if (f.agent) params.set("agent_id", f.agent)
   if (f.from) params.set("start_date", toDayStart(f.from))
   if (f.to) params.set("end_date", toDayEnd(f.to))
+  if (f.user !== undefined) params.set("user_id", String(f.user))
   const qs = params.toString()
   return apiFetch<AiLogStats>(`/api/ai/logs/stats${qs ? `?${qs}` : ""}`)
 }
@@ -181,10 +196,15 @@ export function listAgents(): Promise<{ items: AiAgentListItem[]; total: number 
   return apiFetch<{ items: AiAgentListItem[]; total: number }>("/api/ai/agents")
 }
 
+export function listUsers(): Promise<{ users: SimpleUserInfo[] }> {
+  return apiFetch<{ users: SimpleUserInfo[] }>("/api/user/list")
+}
+
 export const aiLogKeys = {
   all: ["ai-log"] as const,
   list: (f: LogFilters) => ["ai-log", "list", f] as const,
-  stats: (f: Pick<LogFilters, "agent" | "from" | "to">) => ["ai-log", "stats", f] as const,
+  stats: (f: Pick<LogFilters, "agent" | "from" | "to" | "user">) => ["ai-log", "stats", f] as const,
   detail: (id: string) => ["ai-log", "detail", id] as const,
   agents: ["ai-log", "agents"] as const,
+  users: ["ai-log", "users"] as const,
 }
