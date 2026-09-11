@@ -785,11 +785,12 @@ export interface BotBindingFixture {
   telegram: BotPlatformBindingFixture | null
 }
 
-// 兩個群組：grp-1（line、allow_ai_response 開）、grp-2（telegram、is_active 關且有 left_at）。
+// 兩個群組：grp-1（line、allow_ai_response 開、已綁定 proj-1——與 projectFixtures 的
+// proj-1.bot_groups 對得上）、grp-2（telegram、is_active 關且有 left_at、未綁定）。
 export const botGroupFixtures: BotGroupFixture[] = [
   {
     id: "grp-1", platform_type: "line", platform_group_id: "C-line-001", name: "擎添業務群",
-    picture_url: null, member_count: 12, project_id: null, project_name: "展望 HIS 案",
+    picture_url: null, member_count: 12, project_id: "proj-1", project_name: "台北捷運監控案",
     is_active: true, allow_ai_response: true, joined_at: "2026-06-01T09:00:00", left_at: null,
     created_at: "2026-06-01T09:00:00", updated_at: "2026-09-01T09:00:00",
   },
@@ -990,6 +991,30 @@ export async function mockBot(
         return route.fulfill({ json: groups[idx] })
       }
       return route.fulfill({ json: groups[idx] })
+    },
+  )
+
+  // ── 群組專案綁定：POST 帶 project_id 綁定、DELETE 解除 ──
+  // 專案名稱查 projectFixtures（本檔下方定義），照後端 LineGroupResponse 同時回 project_id／project_name。
+  await page.route(
+    (url) => sameOrigin(url) && /\/api\/bot\/groups\/[^/]+\/bind-project$/.test(url.pathname),
+    async (route) => {
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const id = segs[segs.length - 2]
+      const idx = groups.findIndex((g) => g.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "Group not found" } })
+      const method = route.request().method()
+      if (method === "POST") {
+        const body = route.request().postDataJSON() as { project_id: string }
+        const project = projectFixtures.find((p) => p.id === body.project_id)
+        groups[idx] = { ...groups[idx], project_id: body.project_id, project_name: project?.name ?? null }
+        return route.fulfill({ json: { status: "ok", message: "專案綁定成功" } })
+      }
+      if (method === "DELETE") {
+        groups[idx] = { ...groups[idx], project_id: null, project_name: null }
+        return route.fulfill({ json: { status: "ok", message: "已解除專案綁定" } })
+      }
+      return route.fallback()
     },
   )
 
