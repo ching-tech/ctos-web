@@ -807,6 +807,30 @@ export const botMessageFixtures: BotMessageFixture[] = [
   { id: "msg-6", message_id: "m-line-006", bot_user_id: "usr-1", user_display_name: "王小明", user_picture_url: null, bot_group_id: "grp-1", message_type: "document", content: null, file_id: "file-2", file_info: { file_type: "document" }, is_from_bot: false, ai_processed: false, created_at: "2026-09-05T09:00:00" },
 ]
 
+/** 供訊息分頁測試用：產生 n 筆遞減時間的文字訊息。 */
+export function makeBotMessages(n: number): BotMessageFixture[] {
+  const base = new Date("2026-09-10T09:00:00Z").getTime()
+  const items: BotMessageFixture[] = []
+  for (let i = 0; i < n; i++) {
+    items.push({
+      id: `msg-gen-${String(i + 1).padStart(3, "0")}`,
+      message_id: `m-gen-${String(i + 1).padStart(3, "0")}`,
+      bot_user_id: "usr-1",
+      user_display_name: "王小明",
+      user_picture_url: null,
+      bot_group_id: "grp-1",
+      message_type: "text",
+      content: `訊息 ${i + 1}`,
+      file_id: null,
+      file_info: null,
+      is_from_bot: false,
+      ai_processed: false,
+      created_at: new Date(base - i * 60_000).toISOString().replace(/\.\d{3}Z$/, ""),
+    })
+  }
+  return items
+}
+
 // 兩個檔案：file-1 image、file-2 document，皆帶 file_size。
 export const botFileFixtures: BotFileFixture[] = [
   { id: "file-1", message_id: "msg-3", file_type: "image", file_name: "現場照片.jpg", file_size: 245678, mime_type: "image/jpeg", nas_path: "/linebot/files/file-1.jpg", thumbnail_path: "/linebot/thumbs/file-1.jpg", duration: null, created_at: "2026-09-02T09:00:00", bot_group_id: "grp-1", bot_user_id: "usr-1", user_display_name: "王小明", group_name: "擎添業務群" },

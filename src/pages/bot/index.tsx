@@ -5,7 +5,9 @@ import { titleForPath } from "@/lib/nav"
 import type { Platform } from "@/lib/bot"
 import BindingTab from "./tabs/binding"
 import BlocklistTab from "./tabs/blocklist"
+import FilesTab from "./tabs/files"
 import GroupsTab from "./tabs/groups"
+import MessagesTab from "./tabs/messages"
 import UsersTab from "./tabs/users"
 
 const TAB_VALUES = ["binding", "groups", "users", "blocklist", "messages", "files"] as const
@@ -98,10 +100,10 @@ export default function BotPage() {
           <BlocklistTab platform={platform} />
         </TabsContent>
         <TabsContent value="messages">
-          <p className="text-muted-foreground">建置中</p>
+          <MessagesTab platform={platform} />
         </TabsContent>
         <TabsContent value="files">
-          <p className="text-muted-foreground">建置中</p>
+          <FilesTab platform={platform} />
         </TabsContent>
       </Tabs>
     </div>
