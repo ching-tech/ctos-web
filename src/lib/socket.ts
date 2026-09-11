@@ -74,8 +74,9 @@ function createRealSocket(): ChatSocket {
   const { origin, path } = socketTarget(API_BASE)
   const socket: Socket = io(origin, {
     path,
-    auth: { token: getToken() ?? "" },
-    transports: ["websocket", "polling"],
+    // callback 形式：socket.io 每次（重）連線都會再呼叫一次，拿到的是當下的 token，
+    // 不是建立連線那一刻的。物件形式在重連時會沿用舊 token。
+    auth: (cb: (data: object) => void) => cb({ token: getToken() ?? "" }),
   })
 
   for (const event of FORWARDED_EVENTS) {
