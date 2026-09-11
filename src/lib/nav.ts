@@ -1,9 +1,10 @@
-import { BookOpen, Bot, FolderKanban, Home, ScrollText, Settings, Users, type LucideIcon } from "lucide-react"
+import { BookOpen, Bot, FolderKanban, Home, ScrollText, Settings, Sparkles, Users, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
 export const NAV_ITEMS: NavItem[] = [
   { title: "首頁", path: "/", icon: Home },
+  { title: "AI 助手", path: "/assistant", icon: Sparkles, app: "ai-assistant" },
   { title: "知識庫", path: "/kb", icon: BookOpen, app: "knowledge-base" },
   { title: "專案", path: "/projects", icon: FolderKanban, app: "project-management" },
   { title: "Bot 管理", path: "/bot", icon: Bot, app: "linebot" },

@@ -12,14 +12,14 @@ export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true },
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true },
     knowledge: { global_write: false, global_delete: false },
   },
 }
 export const adminFixture = {
   ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true },
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true },
     knowledge: { global_write: true, global_delete: true },
   },
 }
@@ -660,6 +660,7 @@ export interface AdminUserFixture {
 
 export const defaultAppNames: Record<string, string> = {
   "knowledge-base": "知識庫",
+  "ai-assistant": "AI 助手",
   "ai-log": "AI Log",
   linebot: "Bot 管理",
   settings: "設定",
@@ -699,7 +700,7 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
     async (route) =>
       route.fulfill({
         json: {
-          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true },
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true },
           knowledge: { global_write: false, global_delete: false },
           app_names: defaultAppNames,
         },
@@ -1693,4 +1694,150 @@ export async function mockProjects(
   )
 
   return { projects, users }
+}
+
+// ============================================================
+// AI 助手（/assistant）
+// ============================================================
+
+export interface ChatMessageFixture {
+  role: string
+  content: string
+  timestamp: number
+  is_summary?: boolean
+}
+
+export interface ChatFixture {
+  id: string
+  user_id: number | null
+  title: string
+  model: string
+  prompt_name: string
+  messages: ChatMessageFixture[]
+  created_at: string
+  updated_at: string
+}
+
+export const chatFixtures: ChatFixture[] = [
+  {
+    id: "11111111-1111-4111-8111-111111111111",
+    user_id: 2,
+    title: "上週出貨進度",
+    model: "claude-sonnet",
+    prompt_name: "personal-assistant",
+    messages: [
+      { role: "user", content: "上週出貨到哪了？", timestamp: 1757600000 },
+      { role: "assistant", content: "目前有 **三張** 單還沒出。", timestamp: 1757600010 },
+    ],
+    created_at: "2026-09-10T01:00:00Z",
+    updated_at: "2026-09-12T01:00:00Z",
+  },
+  {
+    id: "22222222-2222-4222-8222-222222222222",
+    user_id: 2,
+    title: "報價單格式",
+    model: "claude-sonnet",
+    prompt_name: "personal-assistant",
+    messages: [],
+    created_at: "2026-09-08T01:00:00Z",
+    updated_at: "2026-09-09T01:00:00Z",
+  },
+]
+
+/** 清單回應不含 messages（後端 ChatResponse 沒有這個欄位）。 */
+function chatListItem(c: ChatFixture) {
+  return {
+    id: c.id, user_id: c.user_id, title: c.title, model: c.model,
+    prompt_name: c.prompt_name, created_at: c.created_at, updated_at: c.updated_at,
+  }
+}
+
+/** 攔 `/api/ai/chats`（清單／建立／詳情／改標題／刪除）與 `/api/ai/agents`；狀態留在記憶體，同一個 page 內連續操作看得到結果。 */
+export async function mockAssistant(
+  page: Page,
+  opts: { chats?: ChatFixture[]; agents?: AiAgentFixture[] } = {},
+) {
+  const chats: ChatFixture[] = (opts.chats ?? chatFixtures).map((c) => ({ ...c, messages: [...c.messages] }))
+  const agents: AiAgentFixture[] = (opts.agents ?? aiAgentFixtures).map((a) => ({ ...a }))
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  let created = 0
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/agents`,
+    async (route) => route.fulfill({ json: { items: agents, total: agents.length } }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/chats`,
+    async (route) => {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON() as { title?: string; model?: string; prompt_name?: string }
+        created += 1
+        const now = new Date().toISOString()
+        const chat: ChatFixture = {
+          id: `99999999-9999-4999-8999-99999999000${created}`,
+          user_id: 2,
+          title: body.title ?? "新對話",
+          model: body.model ?? "claude-sonnet",
+          prompt_name: body.prompt_name ?? "default",
+          messages: [],
+          created_at: now,
+          updated_at: now,
+        }
+        chats.unshift(chat)
+        return route.fulfill({ json: chat })
+      }
+      return route.fulfill({ json: chats.map(chatListItem) })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname.startsWith(`${prefix}/api/ai/chats/`),
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = chats.findIndex((c) => c.id === id)
+      if (idx < 0) return route.fulfill({ status: 404, json: { detail: "對話不存在" } })
+      const method = route.request().method()
+      if (method === "DELETE") {
+        chats.splice(idx, 1)
+        return route.fulfill({ json: { success: true } })
+      }
+      if (method === "PATCH") {
+        const body = route.request().postDataJSON() as { title?: string; model?: string; prompt_name?: string }
+        if (body.title !== undefined && body.title !== null) chats[idx].title = body.title
+        if (body.model) chats[idx].model = body.model
+        if (body.prompt_name) chats[idx].prompt_name = body.prompt_name
+        return route.fulfill({ json: chats[idx] })
+      }
+      return route.fulfill({ json: chats[idx] })
+    },
+  )
+
+  return { chats, agents }
+}
+
+/** 讀出假 socket 收到的送出事件（`src/lib/socket.ts` 在 VITE_E2E build 下記錄）。 */
+export async function sentSocketEvents(page: Page): Promise<{ event: string; payload: unknown }[]> {
+  return page.evaluate(() => (window as unknown as { __sentEvents?: { event: string; payload: unknown }[] }).__sentEvents ?? [])
+}
+
+/** 讓假 socket 對頁面派送一個「收到」的事件。 */
+export async function emitSocketEvent(page: Page, event: string, payload: unknown) {
+  await page.evaluate(
+    ([e, p]) => {
+      const mock = (window as unknown as { __CTOS_SOCKET_MOCK__?: { receive: (e: string, p: unknown) => void } }).__CTOS_SOCKET_MOCK__
+      if (!mock) throw new Error("假 socket 沒有掛上 window.__CTOS_SOCKET_MOCK__")
+      mock.receive(e as string, p)
+    },
+    [event, payload] as [string, unknown],
+  )
+}
+
+/** 假 socket 連線時帶的 auth.token。 */
+export async function socketAuthToken(page: Page): Promise<string | null> {
+  return page.evaluate(
+    () => (window as unknown as { __CTOS_SOCKET_MOCK__?: { token: string | null } }).__CTOS_SOCKET_MOCK__?.token ?? null,
+  )
 }

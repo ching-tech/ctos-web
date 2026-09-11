@@ -8,7 +8,8 @@ ChingTech OS 新前端（React），擎添工業內部系統的 Web 介面。後
 - **樣式**：Tailwind CSS 4、shadcn/ui（Radix 版 preset nova）、Lucide React 圖示
 - **路由**：React Router 7
 - **資料**：@tanstack/react-query 5（伺服器狀態快取）
-- **Markdown**：react-markdown 10、remark-gfm 4（知識庫內容渲染）
+- **Markdown**：react-markdown 10、remark-gfm 4（知識庫內容與 AI 助手回覆渲染）
+- **即時通訊**：socket.io-client 4（AI 助手對話，對應後端 python-socketio 5）
 - **測試**：Vitest 5、Playwright（desktop 與 mobile）
 - **其他**：Geist Variable 字體、tailwind-animate
 
@@ -75,11 +76,13 @@ npx playwright install chromium
 npm run e2e
 ```
 
-測試檔在 `e2e/` 目錄，其中知識庫相關的四支：`kb-list.spec.ts`（清單搜尋與篩選）、`kb-detail.spec.ts`（閱讀、附件、刪除）、`kb-editor.spec.ts`（新增／編輯）、`kb-share-history.spec.ts`（分享連結與版本歷史）；另有 `ai-log.spec.ts`（統計卡、篩選、分頁、明細頁）。Playwright 設定包含兩個 project：
+測試檔在 `e2e/` 目錄，其中知識庫相關的四支：`kb-list.spec.ts`（清單搜尋與篩選）、`kb-detail.spec.ts`（閱讀、附件、刪除）、`kb-editor.spec.ts`（新增／編輯）、`kb-share-history.spec.ts`（分享連結與版本歷史）；另有 `ai-log.spec.ts`（統計卡、篩選、分頁、明細頁）與 `assistant.spec.ts`（AI 助手）。Playwright 設定包含兩個 project：
 - **desktop**：Desktop Chrome
 - **mobile**：iPhone 13（Chromium）
 
 測試使用 `page.route()` 攔截 API，不打真後端。
+
+AI 助手的 Socket.IO 也不連真後端：Playwright 的 webServer 跑的是 `npm run build:e2e`（帶 `VITE_E2E=1`，輸出到 `dist-e2e/`）加 `npm run preview:e2e`，這時 `src/lib/socket.ts` 換成假 socket，把送出的事件記進 `window.__sentEvents`，並開 `window.__CTOS_SOCKET_MOCK__.receive(event, payload)` 讓測試模擬後端推事件。正式 `npm run build` 沒有這個旗標，假 socket 整段會被 tree-shake 掉；輸出目錄分開，跑 e2e 不會把 `dist/` 蓋成假 socket 版。
 
 ### 建置與預覽
 
@@ -121,6 +124,9 @@ npm run build
 - `kb.ts` — 知識庫 API 客戶端（清單／詳情／建立／編輯／刪除／附件／分享／版本歷史）
 - `kb.test.ts` — 知識庫 API 單元測試
 - `ai-log.ts` — AI Log API 客戶端（清單／統計／詳情／篩選轉換／query key）
+- `assistant.ts` — AI 助手 API 客戶端（對話 CRUD、Socket.IO 事件型別、訊息過濾與時間標籤、query key）
+- `assistant.test.ts` — AI 助手 API 與事件處理單元測試
+- `socket.ts` — Socket.IO 單例客戶端（握手帶 `auth.token`、`clearSession` 時斷線；e2e build 換成假 socket）
 - `bot.ts` — Bot 管理 API 客戶端（綁定狀態、群組、使用者、黑名單、訊息、檔案；分頁與檔案下載 Helper）
 - `bot.test.ts` — Bot API 單元測試
 - `permissions.ts` — `canAccessApp`（依 `is_admin` 與 `permissions.apps` 判斷是否有權限使用某 app）
@@ -144,6 +150,9 @@ npm run build
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
 - `kb/home-recent.tsx` — 首頁「知識庫最近更新」卡片
+- `assistant/index.tsx` — AI 助手頁（對話清單、訊息串、輸入區、連線狀態、Agent 選單、壓縮）
+- `assistant/chat-list.tsx` — 對話清單（新對話、重新命名、刪除；手機收進抽屜）
+- `assistant/message-list.tsx` — 訊息串（使用者／助手氣泡、Markdown、摺疊的工具時間軸）
 - `ai-log/list.tsx` — AI Log 清單頁（統計卡、篩選、表格、分頁）
 - `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、允許的工具、工具呼叫時間軸）
 - `bot/index.tsx` — Bot 管理殼頁（平台篩選、六個分頁籤）
@@ -177,6 +186,7 @@ UI 元件與版面：
 - `theme-provider.tsx` — 主題提供者（深色／淺色切換）
 - `ui/` — shadcn/ui 元件（按鈕、卡片、輸入框、模態框等）
 - `pagination.tsx` — 分頁元件（上一頁／第 p／P 頁／下一頁，供清單頁重用）
+- `ai-log/tool-calls.tsx` — 工具呼叫時間軸（AI Log 明細頁與 AI 助手共用）
 - `kb/attachments.tsx` — 附件清單（上傳、下載、刪除）
 - `kb/history-sheet.tsx` — 版本歷史側欄（歷史清單、舊版內容檢視）
 - `kb/markdown.tsx` — Markdown 渲染（含圖片路徑改寫）
@@ -195,6 +205,7 @@ Playwright 端對端測試：
 - `kb-editor.spec.ts` — 知識庫新增／編輯測試
 - `kb-share-history.spec.ts` — 分享連結與版本歷史測試
 - `ai-log.spec.ts` — AI Log 清單與明細頁測試
+- `assistant.spec.ts` — AI 助手測試（對話清單與新對話、送訊息的 `ai_chat_event` payload、typing／回覆／工具時間軸、錯誤 alert、改名與刪除、`?q=` 預填、斷線、權限擋下）
 - `permissions.spec.ts` — 依 app 權限顯示側邊欄／擋下受限路由、使用者管理頁切換權限
 - `bot-binding-groups.spec.ts` — Bot 綁定與群組清單測試
 - `bot-group-detail.spec.ts` — Bot 群組明細測試
@@ -237,6 +248,7 @@ Playwright 端對端測試：
 - **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）、「進行中專案」與「逾期里程碑」（依 `project-management` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
+- **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細、依使用者篩選）
 - **使用者管理** — 路由 `/admin/users`（僅管理員），使用者清單與每人的 app／知識庫權限開關（PATCH 只送變動的鍵，即時生效）
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載
