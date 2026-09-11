@@ -2112,7 +2112,9 @@ export const itemFixtures: ItemFixture[] = [
       {
         id: "mv-1", item_id: "item-1", warehouse_id: "wh-1", qty_delta: "10.0000",
         reason: "receipt", ref_type: "purchase_order", ref_id: "po-1", note: "採購入庫",
-        actor_user_id: 1, created_at: "2026-09-10T09:00:00",
+        // created_at 在 migration 030 是 TIMESTAMP(timezone=True)，pydantic 會帶偏移送出來；
+        // 這筆刻意給 UTC，畫面要顯示成台北時間 17:00 才算有轉
+        actor_user_id: 1, created_at: "2026-09-10T09:00:00+00:00",
       },
       {
         id: "mv-2", item_id: "item-1", warehouse_id: "wh-2", qty_delta: "-2.0000",

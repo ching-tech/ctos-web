@@ -56,7 +56,7 @@ function formFromItem(it: ItemDetail): FormState {
     unit: it.unit ?? "",
     itemGroup: it.item_group ?? "",
     supplierId: it.default_supplier_id ?? NO_SUPPLIER,
-    // Decimal 字串照原樣回填輸入框，不要先格式化再送回去
+    // 去掉尾端 .0000（Numeric(14,4) 序列化出來的零尾數），不套千分位免得送回去變 NaN
     purchasePrice: it.purchase_price === null ? "" : String(Number(it.purchase_price)),
     leadDays: it.lead_days === null ? "" : String(it.lead_days),
     aliases: formatAliases(it.aliases),

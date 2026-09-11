@@ -1,5 +1,16 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockApi, mockBot, mockErp, mockKb, mockProjects, seedToken, trapUnmockedApi, userFixture } from "./helpers"
+import {
+  adminFixture,
+  mockApi,
+  mockBot,
+  mockErp,
+  mockKb,
+  mockProjects,
+  seedToken,
+  trapUnmockedApi,
+  userFixture,
+  type WarehouseFixture,
+} from "./helpers"
 
 /** 物料清單在 md 以下換成卡片；表格列與卡片各自只有一種會進可及性樹，用 role 分流。 */
 function itemRow(page: Page, testInfo: TestInfo, text: string) {
@@ -29,7 +40,7 @@ test.describe("物料清單", () => {
     // 兩個倉合計 12 + 3；後端送的是 Numeric(18,4) 字串，畫面要收掉尾數
     await expect(row.getByText("15", { exact: true })).toBeVisible()
 
-    // 沒有庫存也沒有供應商的那筆顯示破折號
+    // 沒有任何倉別餘額的那筆，總庫存欄是 0 不是破折號（後端 total_qty 預設 Decimal(0)）
     const noStock = itemRow(page, testInfo, "CBL-0003")
     await expect(noStock.getByText("0", { exact: true })).toBeVisible()
 
@@ -122,6 +133,8 @@ test.describe("物料明細", () => {
     const receipt = page.getByRole("row").filter({ hasText: "採購入庫" })
     await expect(receipt.getByText("採購收貨")).toBeVisible()
     await expect(receipt.getByText("+10")).toBeVisible()
+    // fixture 是 2026-09-10T09:00:00+00:00，時區釘在 Asia/Taipei，要顯示成當地的 17:00
+    await expect(receipt.getByText("2026/9/10 17:00:00")).toBeVisible()
     const issue = page.getByRole("row").filter({ hasText: "工地領用" })
     await expect(issue.getByText("領用出庫")).toBeVisible()
     await expect(issue.getByText("-2")).toBeVisible()
@@ -161,6 +174,31 @@ test.describe("物料明細", () => {
     const balances = page.getByRole("region", { name: "各倉餘額" })
     await expect(balances.getByRole("row").filter({ hasText: "主倉" }).getByText("8")).toBeVisible()
     await expect(page.getByText("總庫存 11")).toBeVisible()
+  })
+
+  test("沒挑倉庫或沒填數量時，兩個對話框的送出鈕都是停用的", async ({ page }) => {
+    await page.goto("/items/item-1")
+
+    await page.getByRole("button", { name: "調整" }).click()
+    await expect(page.getByRole("button", { name: "送出調整" })).toBeDisabled()
+    // 只填數量還不夠，倉庫也要挑
+    await page.getByLabel("增減數量").fill("1")
+    await expect(page.getByRole("button", { name: "送出調整" })).toBeDisabled()
+    await page.getByRole("combobox", { name: "倉庫" }).click()
+    await page.getByRole("option", { name: "主倉" }).click()
+    await expect(page.getByRole("button", { name: "送出調整" })).toBeEnabled()
+    await page.keyboard.press("Escape")
+
+    await page.getByRole("button", { name: "調撥" }).click()
+    await expect(page.getByRole("button", { name: "送出調撥" })).toBeDisabled()
+    await page.getByRole("combobox", { name: "來源倉" }).click()
+    await page.getByRole("option", { name: "主倉" }).click()
+    await page.getByLabel("數量").fill("1")
+    // 目的倉還沒挑
+    await expect(page.getByRole("button", { name: "送出調撥" })).toBeDisabled()
+    await page.getByRole("combobox", { name: "目的倉" }).click()
+    await page.getByRole("option", { name: "工地倉" }).click()
+    await expect(page.getByRole("button", { name: "送出調撥" })).toBeEnabled()
   })
 
   test("調整到負庫存時後端的 400 detail 原樣顯示", async ({ page }) => {
@@ -333,6 +371,26 @@ test.describe("倉庫", () => {
     await page.getByRole("button", { name: "儲存" }).click()
     expect((await editReq).postDataJSON()).toEqual({ code: "C01", name: "備品倉（二樓）" })
     await expect(page.getByText("備品倉（二樓）")).toBeVisible()
+  })
+
+  test("倉庫超過一頁時，清單與調撥下拉都講只列前 50 筆", async ({ page }) => {
+    // 後端 list_warehouses 的 page_size 預設 50，前端只抓第一頁
+    const many: WarehouseFixture[] = Array.from({ length: 51 }, (_, i) => ({
+      id: `wh-many-${i}`,
+      code: `W${String(i).padStart(3, "0")}`,
+      name: `倉庫 ${i}`,
+      created_by: 1,
+      created_at: "2026-01-01T00:00:00",
+      updated_at: "2026-01-01T00:00:00",
+    }))
+    await mockErp(page, { warehouses: many })
+
+    await page.goto("/warehouses")
+    await expect(page.getByText("共 51 筆，只列前 50 筆")).toBeVisible()
+
+    await page.goto("/items/item-1")
+    await page.getByRole("button", { name: "調撥" }).click()
+    await expect(page.getByText("只列前 50 筆倉庫")).toBeVisible()
   })
 
   test("代碼撞名時後端的 400 detail 原樣顯示", async ({ page }) => {
