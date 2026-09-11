@@ -12,14 +12,14 @@ export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true },
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true },
     knowledge: { global_write: false, global_delete: false },
   },
 }
 export const adminFixture = {
   ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true },
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true },
     knowledge: { global_write: true, global_delete: true },
   },
 }
@@ -253,9 +253,11 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
       const scope = reqUrl.searchParams.get("scope") ?? ""
       const type = reqUrl.searchParams.get("type") ?? ""
       const category = reqUrl.searchParams.get("category") ?? ""
+      const projectId = reqUrl.searchParams.get("project_id") ?? ""
       let filtered = items
       if (q) filtered = filtered.filter((i) => i.title.includes(q))
       if (scope) filtered = filtered.filter((i) => i.scope === scope)
+      if (projectId) filtered = filtered.filter((i) => i.project_id === projectId)
       if (type) filtered = filtered.filter((i) => i.type === type)
       if (category) filtered = filtered.filter((i) => i.category === category)
       const result = filtered.map((i) => ({
@@ -288,7 +290,7 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
         category: body.category ?? "technical",
         scope: body.scope ?? "personal",
         owner: null,
-        project_id: null,
+        project_id: body.project_id ?? null,
         is_public: body.is_public ?? false,
         tags: { projects: [], roles: [], topics: [], level: null, ...body.tags },
         author: body.author ?? "",
@@ -620,6 +622,7 @@ export const defaultAppNames: Record<string, string> = {
   "ai-log": "AI Log",
   linebot: "Bot 管理",
   settings: "設定",
+  "project-management": "專案管理",
 }
 
 export const adminUserFixtures: AdminUserFixture[] = [
@@ -655,7 +658,7 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
     async (route) =>
       route.fulfill({
         json: {
-          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true },
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true },
           knowledge: { global_write: false, global_delete: false },
           app_names: defaultAppNames,
         },
@@ -1103,4 +1106,488 @@ export async function mockBot(
   )
 
   return { groups, users, messages, files, binding }
+}
+
+// ============================================================
+// 專案模組（欄位逐一對後端 models/project.py 的 feat/projects-backend 版本）
+// ============================================================
+
+export interface SimpleUserFixture {
+  id: number
+  username: string
+  display_name: string | null
+}
+
+export const simpleUserFixtures: SimpleUserFixture[] = [
+  { id: 1, username: "admin", display_name: "管理員" },
+  { id: 2, username: "yazelin", display_name: "亞澤" },
+  { id: 3, username: "chen", display_name: "陳工" },
+  { id: 4, username: "lin", display_name: null },
+]
+
+export interface ProjectMemberFixture {
+  user_id: number
+  username: string | null
+  display_name: string | null
+  role: string
+}
+
+export interface MilestoneFixture {
+  id: string
+  project_id: string
+  name: string
+  due_date: string
+  completed_at: string | null
+  status: string
+  sort_order: number
+  is_overdue: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface TaskFixture {
+  id: string
+  project_id: string
+  title: string
+  description: string | null
+  milestone_id: string | null
+  assignee_id: number | null
+  assignee_name: string | null
+  status: string
+  due_date: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectBotGroupFixture {
+  id: string
+  platform_type: string
+  group_name: string | null
+}
+
+export interface ProjectFixture {
+  id: string
+  name: string
+  customer: string | null
+  status: string
+  owner_id: number | null
+  owner_name: string | null
+  start_date: string | null
+  end_date: string | null
+  description: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+  progress: number
+  member_count: number
+  overdue_milestones: number
+  members: ProjectMemberFixture[]
+  milestones: MilestoneFixture[]
+  tasks: TaskFixture[]
+  bot_groups: ProjectBotGroupFixture[]
+  knowledge_count: number
+}
+
+export const projectFixtures: ProjectFixture[] = [
+  {
+    id: "proj-1",
+    name: "台北捷運監控案",
+    customer: "捷運公司",
+    status: "active",
+    owner_id: 2,
+    owner_name: "亞澤",
+    start_date: "2026-01-01",
+    end_date: "2026-12-31",
+    description: "監控主機汰換與圖控整合。",
+    created_by: 1,
+    created_at: "2026-01-01T00:00:00",
+    updated_at: "2026-09-10T08:00:00",
+    progress: 33,
+    member_count: 2,
+    // 逾期只在 status = active 時成立；ms-1、ms-2 兩筆逾期
+    overdue_milestones: 2,
+    members: [
+      { user_id: 2, username: "yazelin", display_name: "亞澤", role: "owner" },
+      { user_id: 3, username: "chen", display_name: "陳工", role: "member" },
+    ],
+    milestones: [
+      {
+        id: "ms-1", project_id: "proj-1", name: "細部設計完成", due_date: "2026-03-31", completed_at: null,
+        status: "in_progress", sort_order: 0, is_overdue: true,
+        created_at: "2026-01-01T00:00:00", updated_at: "2026-03-01T00:00:00",
+      },
+      {
+        id: "ms-2", project_id: "proj-1", name: "現場安裝", due_date: "2026-06-30", completed_at: null,
+        status: "pending", sort_order: 1, is_overdue: true,
+        created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+      },
+      {
+        id: "ms-3", project_id: "proj-1", name: "系統驗收", due_date: "2026-11-30", completed_at: "2026-09-01",
+        status: "completed", sort_order: 2, is_overdue: false,
+        created_at: "2026-01-01T00:00:00", updated_at: "2026-09-01T00:00:00",
+      },
+    ],
+    tasks: [
+      {
+        id: "task-1", project_id: "proj-1", title: "盤點現場點位", description: "先做 B1 與 1F。",
+        milestone_id: "ms-1", assignee_id: 2, assignee_name: "亞澤", status: "done", due_date: "2026-02-10",
+        sort_order: 0, created_at: "2026-01-05T00:00:00", updated_at: "2026-02-10T00:00:00",
+      },
+      {
+        id: "task-2", project_id: "proj-1", title: "繪製配電圖", description: null,
+        milestone_id: "ms-1", assignee_id: 3, assignee_name: "陳工", status: "doing", due_date: "2026-10-01",
+        sort_order: 1, created_at: "2026-01-05T00:00:00", updated_at: "2026-09-01T00:00:00",
+      },
+      {
+        id: "task-3", project_id: "proj-1", title: "採購清單", description: null,
+        milestone_id: null, assignee_id: null, assignee_name: null, status: "todo", due_date: null,
+        sort_order: 2, created_at: "2026-01-05T00:00:00", updated_at: "2026-01-05T00:00:00",
+      },
+    ],
+    bot_groups: [{ id: "grp-1", platform_type: "line", group_name: "擎添業務群" }],
+    knowledge_count: 1,
+  },
+  {
+    id: "proj-2",
+    name: "廠務空調更新",
+    customer: "擎添工業",
+    status: "completed",
+    owner_id: 1,
+    owner_name: "管理員",
+    start_date: "2025-06-01",
+    end_date: "2026-02-28",
+    description: null,
+    created_by: 1,
+    created_at: "2025-06-01T00:00:00",
+    updated_at: "2026-02-28T00:00:00",
+    progress: 100,
+    member_count: 1,
+    // 已完成的專案不標逾期，即使里程碑早就過期
+    overdue_milestones: 0,
+    members: [{ user_id: 1, username: "admin", display_name: "管理員", role: "owner" }],
+    milestones: [
+      {
+        id: "ms-9", project_id: "proj-2", name: "結案報告", due_date: "2026-02-20", completed_at: "2026-02-18",
+        status: "completed", sort_order: 0, is_overdue: false,
+        created_at: "2025-06-01T00:00:00", updated_at: "2026-02-18T00:00:00",
+      },
+    ],
+    tasks: [],
+    bot_groups: [],
+    knowledge_count: 0,
+  },
+  {
+    id: "proj-3",
+    name: "倉儲自動化評估",
+    customer: null,
+    status: "planning",
+    owner_id: 1,
+    owner_name: "管理員",
+    start_date: null,
+    end_date: null,
+    description: null,
+    created_by: 1,
+    created_at: "2026-09-01T00:00:00",
+    updated_at: "2026-09-01T00:00:00",
+    progress: 0,
+    member_count: 1,
+    overdue_milestones: 0,
+    // yazelin（userFixture，id 2）不在成員裡，用來驗「非成員看不到編輯控制」
+    members: [{ user_id: 1, username: "admin", display_name: "管理員", role: "owner" }],
+    milestones: [],
+    tasks: [],
+    bot_groups: [],
+    knowledge_count: 0,
+  },
+]
+
+function cloneProject(p: ProjectFixture): ProjectFixture {
+  return {
+    ...p,
+    members: p.members.map((m) => ({ ...m })),
+    milestones: p.milestones.map((m) => ({ ...m })),
+    tasks: p.tasks.map((t) => ({ ...t })),
+    bot_groups: p.bot_groups.map((g) => ({ ...g })),
+  }
+}
+
+function listItemOf(p: ProjectFixture) {
+  return {
+    id: p.id, name: p.name, customer: p.customer, status: p.status,
+    owner_id: p.owner_id, owner_name: p.owner_name,
+    start_date: p.start_date, end_date: p.end_date,
+    created_at: p.created_at, updated_at: p.updated_at,
+    progress: p.progress, member_count: p.member_count,
+    overdue_milestones: p.status === "active" ? p.overdue_milestones : 0,
+  }
+}
+
+/**
+ * 攔專案模組全部端點與 /api/user/list，照 mockBot 的寫法。
+ * forbidEdits：所有寫入端點回 403「只有專案成員能編輯」，驗 role="alert" 用。
+ */
+export async function mockProjects(
+  page: Page,
+  opts: { projects?: ProjectFixture[]; users?: SimpleUserFixture[]; forbidEdits?: boolean } = {},
+) {
+  const projects: ProjectFixture[] = (opts.projects ?? projectFixtures).map(cloneProject)
+  const users: SimpleUserFixture[] = (opts.users ?? simpleUserFixtures).map((u) => ({ ...u }))
+  const forbidEdits = opts.forbidEdits ?? false
+  let seq = 0
+
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  const forbidden = { status: 403, json: { detail: "只有專案成員能編輯" } }
+
+  // ── 使用者選單 ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/user/list`,
+    async (route) => route.fulfill({ json: { users } }),
+  )
+
+  // ── dashboard 摘要（宣告在 /{id} 之前，與後端同序） ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/projects/summary`,
+    async (route) => {
+      const overdue = projects
+        .filter((p) => p.status === "active")
+        .flatMap((p) =>
+          p.milestones
+            .filter((m) => m.is_overdue)
+            .map((m) => ({
+              project_id: p.id, project_name: p.name, milestone_id: m.id,
+              name: m.name, due_date: m.due_date, days_overdue: 30,
+            })),
+        )
+      await route.fulfill({
+        json: { active_count: projects.filter((p) => p.status === "active").length, overdue_milestones: overdue },
+      })
+    },
+  )
+
+  // ── 清單與建立 ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/projects`,
+    async (route) => {
+      const method = route.request().method()
+      if (method === "POST") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<ProjectFixture>
+        seq += 1
+        const owner = users.find((u) => u.id === body.owner_id)
+        const created: ProjectFixture = {
+          id: `proj-new-${seq}`,
+          name: body.name ?? "",
+          customer: body.customer ?? null,
+          status: body.status ?? "active",
+          owner_id: body.owner_id ?? null,
+          owner_name: owner ? owner.display_name || owner.username : null,
+          start_date: body.start_date ?? null,
+          end_date: body.end_date ?? null,
+          description: body.description ?? null,
+          created_by: 1,
+          created_at: "2026-09-11T00:00:00",
+          updated_at: "2026-09-11T00:00:00",
+          progress: 0,
+          member_count: owner ? 1 : 0,
+          overdue_milestones: 0,
+          members: owner
+            ? [{ user_id: owner.id, username: owner.username, display_name: owner.display_name, role: "owner" }]
+            : [],
+          milestones: [],
+          tasks: [],
+          bot_groups: [],
+          knowledge_count: 0,
+        }
+        projects.push(created)
+        return route.fulfill({ status: 201, json: created })
+      }
+      const params = new URL(route.request().url()).searchParams
+      let filtered = projects
+      const statusFilter = params.get("status")
+      const q = params.get("q")
+      if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter)
+      if (q) filtered = filtered.filter((p) => p.name.includes(q) || (p.customer ?? "").includes(q))
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "20")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({
+        json: { items: filtered.slice(start, start + pageSize).map(listItemOf), total: filtered.length },
+      })
+    },
+  )
+
+  // ── 成員：POST /{id}/members、DELETE /{id}/members/{user_id} ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const rest = url.pathname.slice(`${prefix}/api/projects/`.length).split("/")
+      return url.pathname.startsWith(`${prefix}/api/projects/`) && rest[1] === "members"
+    },
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const method = route.request().method()
+      if (method === "POST") {
+        const id = segs[segs.length - 2]
+        const project = projects.find((p) => p.id === id)
+        if (!project) return route.fulfill({ status: 404, json: { detail: "專案不存在" } })
+        const body = route.request().postDataJSON() as { user_id: number }
+        const user = users.find((u) => u.id === body.user_id)
+        if (!user) return route.fulfill({ status: 404, json: { detail: "使用者不存在" } })
+        const member = { user_id: user.id, username: user.username, display_name: user.display_name, role: "member" }
+        project.members.push(member)
+        project.member_count = project.members.length
+        return route.fulfill({ status: 201, json: member })
+      }
+      if (method === "DELETE") {
+        const userId = Number(segs[segs.length - 1])
+        const id = segs[segs.length - 3]
+        const project = projects.find((p) => p.id === id)
+        if (!project) return route.fulfill({ status: 404, json: { detail: "專案不存在" } })
+        const idx = project.members.findIndex((m) => m.user_id === userId)
+        if (idx === -1) return route.fulfill({ status: 404, json: { detail: "成員不存在" } })
+        if (project.members[idx].role === "owner") {
+          return route.fulfill({ status: 400, json: { detail: "負責人不能移除" } })
+        }
+        project.members.splice(idx, 1)
+        project.member_count = project.members.length
+        return route.fulfill({ json: { success: true } })
+      }
+      return route.fallback()
+    },
+  )
+
+  // ── 里程碑 ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const rest = url.pathname.slice(`${prefix}/api/projects/`.length).split("/")
+      return url.pathname.startsWith(`${prefix}/api/projects/`) && rest[1] === "milestones"
+    },
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const method = route.request().method()
+      if (method === "POST") {
+        const id = segs[segs.length - 2]
+        const project = projects.find((p) => p.id === id)
+        if (!project) return route.fulfill({ status: 404, json: { detail: "專案不存在" } })
+        const body = route.request().postDataJSON() as Partial<MilestoneFixture>
+        seq += 1
+        const created: MilestoneFixture = {
+          id: `ms-new-${seq}`, project_id: project.id, name: body.name ?? "",
+          due_date: body.due_date ?? "2026-12-31", completed_at: body.completed_at ?? null,
+          status: body.status ?? "pending", sort_order: body.sort_order ?? 0, is_overdue: false,
+          created_at: "2026-09-11T00:00:00", updated_at: "2026-09-11T00:00:00",
+        }
+        project.milestones.push(created)
+        return route.fulfill({ status: 201, json: created })
+      }
+      const milestoneId = segs[segs.length - 1]
+      const id = segs[segs.length - 3]
+      const project = projects.find((p) => p.id === id)
+      const idx = project?.milestones.findIndex((m) => m.id === milestoneId) ?? -1
+      if (!project || idx === -1) return route.fulfill({ status: 404, json: { detail: "里程碑不存在" } })
+      if (method === "DELETE") {
+        project.milestones.splice(idx, 1)
+        return route.fulfill({ json: { success: true } })
+      }
+      if (method === "PUT") {
+        const body = route.request().postDataJSON() as Partial<MilestoneFixture>
+        project.milestones[idx] = { ...project.milestones[idx], ...body }
+        if (body.status === "completed") {
+          project.milestones[idx].is_overdue = false
+          project.overdue_milestones = Math.max(0, project.overdue_milestones - 1)
+        }
+        return route.fulfill({ json: project.milestones[idx] })
+      }
+      return route.fallback()
+    },
+  )
+
+  // ── 任務 ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const rest = url.pathname.slice(`${prefix}/api/projects/`.length).split("/")
+      return url.pathname.startsWith(`${prefix}/api/projects/`) && rest[1] === "tasks"
+    },
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const method = route.request().method()
+      if (method === "POST") {
+        const id = segs[segs.length - 2]
+        const project = projects.find((p) => p.id === id)
+        if (!project) return route.fulfill({ status: 404, json: { detail: "專案不存在" } })
+        const body = route.request().postDataJSON() as Partial<TaskFixture>
+        const assignee = users.find((u) => u.id === body.assignee_id)
+        seq += 1
+        const created: TaskFixture = {
+          id: `task-new-${seq}`, project_id: project.id, title: body.title ?? "",
+          description: body.description ?? null, milestone_id: body.milestone_id ?? null,
+          assignee_id: body.assignee_id ?? null,
+          assignee_name: assignee ? assignee.display_name || assignee.username : null,
+          status: body.status ?? "todo", due_date: body.due_date ?? null, sort_order: body.sort_order ?? 0,
+          created_at: "2026-09-11T00:00:00", updated_at: "2026-09-11T00:00:00",
+        }
+        project.tasks.push(created)
+        return route.fulfill({ status: 201, json: created })
+      }
+      const taskId = segs[segs.length - 1]
+      const id = segs[segs.length - 3]
+      const project = projects.find((p) => p.id === id)
+      const idx = project?.tasks.findIndex((t) => t.id === taskId) ?? -1
+      if (!project || idx === -1) return route.fulfill({ status: 404, json: { detail: "任務不存在" } })
+      if (method === "DELETE") {
+        project.tasks.splice(idx, 1)
+        return route.fulfill({ json: { success: true } })
+      }
+      if (method === "PUT") {
+        const body = route.request().postDataJSON() as Partial<TaskFixture>
+        project.tasks[idx] = { ...project.tasks[idx], ...body }
+        return route.fulfill({ json: project.tasks[idx] })
+      }
+      return route.fallback()
+    },
+  )
+
+  // ── 明細／更新／刪除（放最後，只吃 /api/projects/{id}） ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/projects/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/") && rest !== "summary"
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = projects.findIndex((p) => p.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "專案不存在" } })
+      const method = route.request().method()
+      if (method === "DELETE") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        projects.splice(idx, 1)
+        return route.fulfill({ json: { success: true } })
+      }
+      if (method === "PUT") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<ProjectFixture>
+        const owner = users.find((u) => u.id === body.owner_id)
+        projects[idx] = {
+          ...projects[idx],
+          ...body,
+          owner_name: owner ? owner.display_name || owner.username : projects[idx].owner_name,
+        }
+        return route.fulfill({ json: projects[idx] })
+      }
+      return route.fulfill({ json: projects[idx] })
+    },
+  )
+
+  return { projects, users }
 }
