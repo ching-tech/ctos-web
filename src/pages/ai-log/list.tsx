@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Pagination } from "@/components/pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -268,17 +269,7 @@ export default function AiLogListPage() {
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
-              上一頁
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              第 {page}／{totalPages} 頁
-            </span>
-            <Button variant="outline" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
-              下一頁
-            </Button>
-          </div>
+          <Pagination page={page} totalPages={totalPages} onPageChange={goToPage} />
         </>
       )}
     </div>
