@@ -5,6 +5,7 @@ import {
   mockAiLog,
   mockApi,
   mockBot,
+  mockErp,
   mockKb,
   mockProjects,
   seedToken,
@@ -57,6 +58,7 @@ test("admin 看到三張卡與統計數字", async ({ page }) => {
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
 
   const statsReq = page.waitForRequest((r) => r.url().includes("/api/ai/logs/stats"))
@@ -95,6 +97,7 @@ test("沒有 AI Log 權限的使用者看不到今日 AI 用量卡，Bot 概況�
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
 
   await page.goto("/")
@@ -113,6 +116,7 @@ test("沒有 Bot 權限的使用者看不到 Bot 概況卡，今日 AI 用量卡
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
 
   await page.goto("/")
@@ -127,6 +131,7 @@ test("admin 看到進行中專案與逾期里程碑卡", async ({ page }) => {
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
 
   await page.goto("/")
@@ -152,6 +157,7 @@ test("進行中專案卡：六筆迄日打亂，只顯示迄日最早的五筆�
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page, { projects: sixActiveProjects })
+  await mockErp(page)
   await seedToken(page)
 
   const listReq = page.waitForRequest((r) => r.url().includes("/api/projects?") && r.url().includes("status=active"))
@@ -175,6 +181,7 @@ test("沒有專案管理權限的使用者看不到兩張專案卡，也不打 /
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
 
   const requests: string[] = []
@@ -193,6 +200,7 @@ test("專案摘要空時兩張卡顯示空狀態文案", async ({ page }) => {
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
   await mockProjects(page, { projects: [] })
+  await mockErp(page)
   await seedToken(page)
 
   await page.goto("/")

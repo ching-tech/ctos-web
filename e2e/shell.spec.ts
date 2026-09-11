@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockAiLog, mockApi, mockBot, mockKb, mockProjects, seedToken } from "./helpers"
+import { adminFixture, mockAiLog, mockApi, mockBot, mockErp, mockKb, mockProjects, seedToken } from "./helpers"
 
 const MODULES = ["首頁", "AI 助手", "知識庫", "專案", "Bot 管理", "設定"]
 
@@ -15,6 +15,7 @@ test("側邊欄列出模組，一般使用者看不到使用者管理", async ({
   await mockAiLog(page)
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
@@ -30,6 +31,7 @@ test("首頁顯示知識庫最近更新", async ({ page }) => {
   await mockAiLog(page)
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
   await page.goto("/")
   await expect(page.getByRole("heading", { name: "知識庫最近更新" })).toBeVisible()
@@ -42,6 +44,7 @@ test("admin 看得到使用者管理，點模組會切換右欄", async ({ page 
   await mockAiLog(page)
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
@@ -59,6 +62,7 @@ test("登出回到登入頁並清掉 token", async ({ page }, testInfo) => {
   await mockAiLog(page)
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)

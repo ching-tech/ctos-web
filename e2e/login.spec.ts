@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { API, mockAiLog, mockApi, mockBot, mockKb, mockProjects, seedToken } from "./helpers"
+import { API, mockAiLog, mockApi, mockBot, mockErp, mockKb, mockProjects, seedToken } from "./helpers"
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
   await mockAiLog(page)
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
 })
 
 async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {

@@ -1959,11 +1959,11 @@ export const partyFixtures: PartyFixture[] = [
     ],
     purchase_orders: [
       {
-        id: "po-1", po_no: "PO-2026-0001", status: "ordered",
+        id: "po-1", po_no: "PO-202608-001", status: "ordered",
         order_date: "2026-08-01", expected_date: "2026-09-30", total_amount: "128000.00",
       },
       {
-        id: "po-2", po_no: "PO-2026-0007", status: "received",
+        id: "po-2", po_no: "PO-202606-001", status: "received",
         order_date: "2026-06-01", expected_date: "2026-06-20", total_amount: "45500.50",
       },
     ],
@@ -2175,6 +2175,136 @@ export const itemFixtures: ItemFixture[] = [
   },
 ]
 
+// ============================================================
+// 採購單（/purchase-orders）
+//
+// fixture 欄位逐一對 backend/src/ching_tech_os/models/erp.py 的 PurchaseOrder*。
+// qty／received_qty 是 Numeric(18,4)、unit_price 是 Numeric(14,4)，pydantic v2 的
+// JSON 模式把 Decimal 序列化成字串，所以一律給帶四位小數的字串。
+// 單號格式照 services/erp_purchasing.py 的 next_po_no：PO-YYYYMM-NNN。
+// supplier_name／project_name／item_code／item_name 由 mock 依 parties、projects、
+// items 三個陣列補上，跟後端的 LEFT JOIN 同一個來源。
+// 名稱、單號與品名全部是杜撰的，不對應任何真實供應商或單據。
+// ============================================================
+
+export interface PurchaseOrderLineFixture {
+  id: string
+  item_id: string
+  description: string | null
+  qty: string
+  unit_price: string | null
+  received_qty: string
+  sort_order: number
+}
+
+export interface PurchaseOrderFixture {
+  id: string
+  po_no: string
+  supplier_id: string
+  project_id: string | null
+  status: string
+  order_date: string | null
+  expected_date: string | null
+  notes: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+  lines: PurchaseOrderLineFixture[]
+}
+
+export const purchaseOrderFixtures: PurchaseOrderFixture[] = [
+  {
+    // 已下單、掛專案、兩行都還沒收：收貨對話框與「取消」的主要樣本
+    id: "po-1",
+    po_no: "PO-202608-001",
+    supplier_id: "party-1",
+    project_id: "proj-1",
+    status: "ordered",
+    order_date: "2026-08-01",
+    expected_date: "2026-09-30",
+    notes: "第一批配電盤料件。",
+    created_by: 1,
+    // created_at 是 timestamptz，pydantic 會帶偏移送出來；這筆刻意給 UTC，
+    // 畫面要顯示成台北時間 10:00 才算有轉
+    created_at: "2026-08-01T02:00:00+00:00",
+    updated_at: "2026-08-05T06:30:00+00:00",
+    lines: [
+      { id: "line-1", item_id: "item-1", description: "含出廠測試報告", qty: "10.0000", unit_price: "12000.0000", received_qty: "0.0000", sort_order: 0 },
+      { id: "line-2", item_id: "item-3", description: null, qty: "200.0000", unit_price: "40.0000", received_qty: "0.0000", sort_order: 1 },
+    ],
+  },
+  {
+    // 已收貨：明細頁不該出現「編輯」「收貨」「取消」
+    id: "po-2",
+    po_no: "PO-202606-001",
+    supplier_id: "party-1",
+    project_id: null,
+    status: "received",
+    order_date: "2026-06-01",
+    expected_date: "2026-06-20",
+    notes: null,
+    created_by: 1,
+    created_at: "2026-06-01T02:00:00+00:00",
+    updated_at: "2026-06-20T06:00:00+00:00",
+    lines: [
+      { id: "line-3", item_id: "item-2", description: null, qty: "36.0000", unit_price: "1250.0000", received_qty: "36.0000", sort_order: 0 },
+      { id: "line-4", item_id: "item-3", description: null, qty: "10.0000", unit_price: "50.0500", received_qty: "10.0000", sort_order: 1 },
+    ],
+  },
+  {
+    // 部分到貨，而且同一個物料有兩行：收貨的 key 只能是 line_id，不能是 item_id
+    id: "po-3",
+    po_no: "PO-202609-001",
+    supplier_id: "party-3",
+    project_id: "proj-3",
+    status: "partial",
+    order_date: "2026-09-01",
+    expected_date: "2026-09-20",
+    notes: null,
+    created_by: 1,
+    created_at: "2026-09-01T01:00:00+00:00",
+    updated_at: "2026-09-05T01:00:00+00:00",
+    lines: [
+      { id: "line-5", item_id: "item-1", description: "第一批", qty: "6.0000", unit_price: "12000.0000", received_qty: "2.0000", sort_order: 0 },
+      { id: "line-6", item_id: "item-1", description: "第二批", qty: "4.0000", unit_price: "11500.0000", received_qty: "0.0000", sort_order: 1 },
+    ],
+  },
+  {
+    // 草稿、沒有單價、沒有預計到貨：金額 0 與破折號的樣本
+    id: "po-4",
+    po_no: "PO-202609-002",
+    supplier_id: "party-1",
+    project_id: null,
+    status: "draft",
+    order_date: "2026-09-10",
+    expected_date: null,
+    notes: null,
+    created_by: 1,
+    created_at: "2026-09-10T03:00:00+00:00",
+    updated_at: "2026-09-10T03:00:00+00:00",
+    lines: [
+      { id: "line-7", item_id: "item-3", description: null, qty: "100.0000", unit_price: null, received_qty: "0.0000", sort_order: 0 },
+    ],
+  },
+  {
+    // 已取消：再取消一次會拿到後端的「採購單已經取消」
+    id: "po-5",
+    po_no: "PO-202607-001",
+    supplier_id: "party-3",
+    project_id: null,
+    status: "cancelled",
+    order_date: "2026-07-01",
+    expected_date: "2026-07-15",
+    notes: null,
+    created_by: 1,
+    created_at: "2026-07-01T02:00:00+00:00",
+    updated_at: "2026-07-10T02:00:00+00:00",
+    lines: [
+      { id: "line-8", item_id: "item-2", description: null, qty: "5.0000", unit_price: "1250.0000", received_qty: "0.0000", sort_order: 0 },
+    ],
+  },
+]
+
 function cloneParty(p: PartyFixture): PartyFixture {
   return {
     ...p,
@@ -2184,6 +2314,10 @@ function cloneParty(p: PartyFixture): PartyFixture {
     purchase_orders: p.purchase_orders.map((o) => ({ ...o })),
     projects: p.projects.map((j) => ({ ...j })),
   }
+}
+
+function clonePo(po: PurchaseOrderFixture): PurchaseOrderFixture {
+  return { ...po, lines: po.lines.map((l) => ({ ...l })) }
 }
 
 function cloneItem(it: ItemFixture): ItemFixture {
@@ -2219,7 +2353,7 @@ function partyDetailOf(p: PartyFixture, auditId: string | null = null) {
 }
 
 /**
- * 攔 /api/parties、/api/items、/api/warehouses、/api/stock 全部端點。照 mockProjects 的寫法，狀態與錯誤訊息對 api/erp.py：
+ * 攔 /api/parties、/api/items、/api/warehouses、/api/stock、/api/purchase-orders 全部端點。照 mockProjects 的寫法，狀態與錯誤訊息對 api/erp.py：
  * - 清單 query 只有 q／role／page／page_size（後端搜尋名稱、簡稱、統編、別名）
  * - POST /merge 的 keep_id === drop_id 回 400「不能把同一筆往來對象合併到自己」
  * - forbidEdits：寫入端點回 403（require_app_permission("vendor-management") 的樣子）
@@ -2230,6 +2364,9 @@ export async function mockErp(
     parties?: PartyFixture[]
     items?: ItemFixture[]
     warehouses?: WarehouseFixture[]
+    purchaseOrders?: PurchaseOrderFixture[]
+    /** 只用來補採購單的 project_name，不會攔 /api/projects（那是 mockProjects 的事） */
+    projects?: ProjectFixture[]
     forbidEdits?: boolean
   } = {},
 ) {
@@ -2572,6 +2709,7 @@ export async function mockErp(
     delta: number,
     reason: string,
     note: string | null,
+    ref: { type: string; id: string } | null = null,
   ): { error?: string } {
     const current = Number(balanceOf(item, warehouseId)?.qty ?? "0")
     const next = current + delta
@@ -2588,8 +2726,8 @@ export async function mockErp(
       warehouse_id: warehouseId,
       qty_delta: q4(delta),
       reason,
-      ref_type: null,
-      ref_id: null,
+      ref_type: ref?.type ?? null,
+      ref_id: ref?.id ?? null,
       note,
       actor_user_id: 2,
       created_at: "2026-09-12T12:00:00",
@@ -2858,5 +2996,315 @@ export async function mockErp(
     },
   )
 
-  return { parties, items, warehouses }
+  // ── 採購單 ──────────────────────────────────────────────────
+  // 錯誤訊息逐字對 services/erp_purchasing.py；狀態碼對 api/erp.py 的 _http_error
+  // （ErpError → 400、NotFoundError → 404、AmbiguousError → 409）。
+  const purchaseOrders: PurchaseOrderFixture[] = (opts.purchaseOrders ?? purchaseOrderFixtures).map(clonePo)
+  const projects: ProjectFixture[] = (opts.projects ?? projectFixtures).map((p) => ({ ...p }))
+  const poNotFound = { status: 404, json: { detail: "採購單不存在" } }
+  // 後端 _CLOSED_STATUSES：已收貨與已取消的單不給改、也不給收貨
+  const CLOSED_STATUSES = ["received", "cancelled"]
+
+  const lineAmount = (l: PurchaseOrderLineFixture) => Number(l.qty) * Number(l.unit_price ?? "0")
+  const poTotal = (po: PurchaseOrderFixture) => q4(po.lines.reduce((sum, l) => sum + lineAmount(l), 0))
+  const lineRemain = (l: PurchaseOrderLineFixture) => Number(l.qty) - Number(l.received_qty)
+
+  function poListItemOf(po: PurchaseOrderFixture) {
+    return {
+      id: po.id,
+      po_no: po.po_no,
+      supplier_id: po.supplier_id,
+      supplier_name: parties.find((p) => p.id === po.supplier_id)?.name ?? null,
+      project_id: po.project_id,
+      project_name: projects.find((p) => p.id === po.project_id)?.name ?? null,
+      status: po.status,
+      order_date: po.order_date,
+      expected_date: po.expected_date,
+      // 後端是兩支相關子查詢：行項數與 SUM(qty * COALESCE(unit_price, 0))
+      line_count: po.lines.length,
+      total_amount: poTotal(po),
+      created_at: po.created_at,
+      updated_at: po.updated_at,
+    }
+  }
+
+  /** PurchaseOrderDetailResponse：GET 明細的 audit_id 是 null，建立／更新才有值。 */
+  function poDetailOf(po: PurchaseOrderFixture, auditId: string | null = null) {
+    return {
+      id: po.id,
+      audit_id: auditId,
+      po_no: po.po_no,
+      supplier_id: po.supplier_id,
+      supplier_name: parties.find((p) => p.id === po.supplier_id)?.name ?? null,
+      project_id: po.project_id,
+      project_name: projects.find((p) => p.id === po.project_id)?.name ?? null,
+      status: po.status,
+      order_date: po.order_date,
+      expected_date: po.expected_date,
+      notes: po.notes,
+      created_by: po.created_by,
+      created_at: po.created_at,
+      updated_at: po.updated_at,
+      // 後端 ORDER BY l.sort_order, l.id
+      lines: [...po.lines]
+        .sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id))
+        .map((l) => ({
+          id: l.id,
+          po_id: po.id,
+          item_id: l.item_id,
+          item_code: items.find((it) => it.id === l.item_id)?.code ?? null,
+          item_name: items.find((it) => it.id === l.item_id)?.name ?? null,
+          description: l.description,
+          qty: l.qty,
+          unit_price: l.unit_price,
+          received_qty: l.received_qty,
+          sort_order: l.sort_order,
+        })),
+      total_amount: poTotal(po),
+    }
+  }
+
+  /** _refresh_po_status：全收改 received、部分收改 partial，其餘回 ordered。 */
+  function refreshPoStatus(po: PurchaseOrderFixture): string {
+    const total = po.lines.reduce((s, l) => s + Number(l.qty), 0)
+    const received = po.lines.reduce((s, l) => s + Number(l.received_qty), 0)
+    po.status = received >= total ? "received" : received > 0 ? "partial" : "ordered"
+    po.updated_at = "2026-09-12T12:00:00+00:00"
+    return po.status
+  }
+
+  // 採購單明細／更新
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/purchase-orders/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const po = purchaseOrders.find((p) => p.id === id)
+      if (!po) return route.fulfill(poNotFound)
+      if (route.request().method() !== "PUT") return route.fulfill({ json: poDetailOf(po) })
+      if (forbidEdits) return route.fulfill(forbidden)
+      if (CLOSED_STATUSES.includes(po.status)) {
+        return route.fulfill({ status: 400, json: { detail: `採購單狀態為 ${po.status}，不能修改` } })
+      }
+      const body = route.request().postDataJSON() as Partial<PurchaseOrderFixture>
+      // models/erp.py 的 _not_null：supplier_id 與 status 明確送 null 是 422
+      for (const field of ["supplier_id", "status"] as const) {
+        if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+      }
+      // PurchaseOrderUpdate 的 status 只收 draft／ordered（EditablePurchaseOrderStatus）
+      if (body.status && !["draft", "ordered"].includes(body.status)) {
+        return route.fulfill({
+          status: 422,
+          json: { detail: [{ loc: ["body", "status"], msg: "Input should be 'draft' or 'ordered'", type: "literal_error" }] },
+        })
+      }
+      Object.assign(po, body, { updated_at: "2026-09-12T12:00:00+00:00" })
+      seq += 1
+      return route.fulfill({ json: poDetailOf(po, `audit-${seq}`) })
+    },
+  )
+
+  // 收貨與取消（後註冊才比明細那條先比對）
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/purchase-orders/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length).split("/")
+      return rest[1] === "receive" || rest[1] === "cancel"
+    },
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const action = segs[segs.length - 1]
+      const po = purchaseOrders.find((p) => p.id === segs[segs.length - 2])
+      if (!po) return route.fulfill(poNotFound)
+      seq += 1
+
+      if (action === "cancel") {
+        if (po.status === "cancelled") {
+          return route.fulfill({ status: 400, json: { detail: "採購單已經取消" } })
+        }
+        if (po.lines.some((l) => Number(l.received_qty) > 0)) {
+          return route.fulfill({ status: 400, json: { detail: "已收過貨的採購單不能取消，請先做庫存調整" } })
+        }
+        po.status = "cancelled"
+        po.updated_at = "2026-09-12T12:00:00+00:00"
+        return route.fulfill({ json: { success: true, status: "cancelled", audit_id: `audit-${seq}` } })
+      }
+
+      if (CLOSED_STATUSES.includes(po.status)) {
+        return route.fulfill({ status: 400, json: { detail: `採購單狀態為 ${po.status}，不能收貨` } })
+      }
+      const body = route.request().postDataJSON() as {
+        lines?: { line_id?: string; item_id?: string; qty: number | string }[]
+        all?: boolean
+        warehouse_id?: string | null
+        note?: string | null
+      }
+
+      // _resolve_receive_warehouse：沒指定入庫倉時只有一個倉才自動採用
+      let warehouseId = body.warehouse_id ?? null
+      if (warehouseId) {
+        if (!warehouseOf(warehouseId)) {
+          return route.fulfill({ status: 400, json: { detail: "倉庫不存在或已刪除" } })
+        }
+      } else if (warehouses.length === 1) {
+        warehouseId = warehouses[0].id
+      } else {
+        return route.fulfill({ status: 400, json: { detail: "請指定入庫倉別" } })
+      }
+
+      // _receive_plan：行項的 key 是 line_id；同一行在同一個請求裡出現兩次，剩餘量要遞減
+      const remain = new Map(po.lines.map((l) => [l.id, lineRemain(l)]))
+      const plan: { line: PurchaseOrderLineFixture; qty: number }[] = []
+      if (body.all) {
+        for (const l of po.lines) {
+          if (lineRemain(l) > 0) plan.push({ line: l, qty: lineRemain(l) })
+        }
+      } else {
+        for (const entry of body.lines ?? []) {
+          let line: PurchaseOrderLineFixture | undefined
+          if (entry.line_id) {
+            line = po.lines.find((l) => l.id === entry.line_id)
+            if (!line) {
+              return route.fulfill({ status: 400, json: { detail: `採購單沒有這個行項：${entry.line_id}` } })
+            }
+          } else if (entry.item_id) {
+            const matched = po.lines.filter((l) => l.item_id === entry.item_id)
+            if (matched.length === 0) {
+              return route.fulfill({ status: 400, json: { detail: `採購單沒有這個物料的行項：${entry.item_id}` } })
+            }
+            // 同一物料有兩行時後端拋 AmbiguousError → 409，要呼叫端指定 line_id
+            if (matched.length > 1) {
+              return route.fulfill({ status: 409, json: { detail: `採購單行項有多筆符合：${entry.item_id}` } })
+            }
+            line = matched[0]
+          } else {
+            return route.fulfill({ status: 400, json: { detail: "收貨行項要給 line_id 或 item_id" } })
+          }
+          const qty = Number(entry.qty)
+          if (!(qty > 0)) {
+            return route.fulfill({ status: 400, json: { detail: "收貨數量必須大於 0" } })
+          }
+          const left = remain.get(line.id)!
+          if (qty > left) {
+            return route.fulfill({
+              status: 400,
+              json: { detail: `收貨數量超過未收量（未收 ${q4(left)}，要收 ${String(entry.qty)}）` },
+            })
+          }
+          remain.set(line.id, left - qty)
+          plan.push({ line, qty })
+        }
+      }
+      if (plan.length === 0) {
+        return route.fulfill({ status: 400, json: { detail: "沒有可收貨的行項" } })
+      }
+
+      for (const { line, qty } of plan) {
+        line.received_qty = q4(Number(line.received_qty) + qty)
+        const item = items.find((it) => it.id === line.item_id)
+        // 收貨走 erp_inventory.apply_movement，reason=receipt，ref 指回採購單
+        if (item) applyMovement(item, warehouseId, qty, "receipt", body.note ?? null, { type: "purchase_order", id: po.id })
+      }
+      return route.fulfill({ json: { success: true, status: refreshPoStatus(po), audit_id: `audit-${seq}` } })
+    },
+  )
+
+  // 採購單清單／建立
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/purchase-orders`,
+    async (route) => {
+      const method = route.request().method()
+      if (method === "POST") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as {
+          supplier_id?: string
+          project_id?: string | null
+          status?: string
+          order_date?: string | null
+          expected_date?: string | null
+          notes?: string | null
+          lines?: { item_id: string; qty: string; unit_price?: string | null; description?: string | null }[]
+        }
+        const lines = body.lines ?? []
+        if (lines.length === 0) {
+          return route.fulfill({ status: 400, json: { detail: "採購單至少要一個行項" } })
+        }
+        if (!parties.some((p) => p.id === body.supplier_id)) {
+          return route.fulfill({ status: 400, json: { detail: "供應商不存在或已刪除" } })
+        }
+        if (body.project_id && !projects.some((p) => p.id === body.project_id)) {
+          return route.fulfill({ status: 400, json: { detail: "專案不存在" } })
+        }
+        for (const l of lines) {
+          if (!items.some((it) => it.id === l.item_id)) {
+            return route.fulfill({ status: 400, json: { detail: `物料不存在或已刪除：${l.item_id}` } })
+          }
+          if (!(Number(l.qty) > 0)) {
+            return route.fulfill({ status: 400, json: { detail: "行項數量必須大於 0" } })
+          }
+        }
+        seq += 1
+        // next_po_no：PO-YYYYMM-NNN，序號是同月已存在的最大值 +1
+        const orderDate = body.order_date || "2026-09-12"
+        const poPrefix = `PO-${orderDate.slice(0, 4)}${orderDate.slice(5, 7)}-`
+        const maxSeq = purchaseOrders
+          .filter((p) => p.po_no.startsWith(poPrefix))
+          .reduce((m, p) => Math.max(m, Number(p.po_no.slice(poPrefix.length)) || 0), 0)
+        const created: PurchaseOrderFixture = {
+          id: `po-new-${seq}`,
+          po_no: `${poPrefix}${String(maxSeq + 1).padStart(3, "0")}`,
+          supplier_id: body.supplier_id!,
+          project_id: body.project_id ?? null,
+          status: body.status ?? "ordered",
+          order_date: orderDate,
+          expected_date: body.expected_date ?? null,
+          notes: body.notes ?? null,
+          created_by: 1,
+          created_at: "2026-09-12T12:00:00+00:00",
+          updated_at: "2026-09-12T12:00:00+00:00",
+          lines: lines.map((l, i) => ({
+            id: `line-new-${seq}-${i}`,
+            item_id: l.item_id,
+            description: l.description ?? null,
+            qty: q4(Number(l.qty)),
+            unit_price: l.unit_price === null || l.unit_price === undefined ? null : q4(Number(l.unit_price)),
+            received_qty: "0.0000",
+            sort_order: i,
+          })),
+        }
+        purchaseOrders.push(created)
+        return route.fulfill({ status: 201, json: poDetailOf(created, `audit-${seq}`) })
+      }
+
+      const params = new URL(route.request().url()).searchParams
+      let filtered = purchaseOrders
+      const supplierId = params.get("supplier_id")
+      if (supplierId) filtered = filtered.filter((p) => p.supplier_id === supplierId)
+      const status = params.get("status")
+      if (status) filtered = filtered.filter((p) => p.status === status)
+      const projectId = params.get("project_id")
+      if (projectId) filtered = filtered.filter((p) => p.project_id === projectId)
+      const since = params.get("since")
+      // 後端是 COALESCE(po.order_date, po.created_at::date) >= $4
+      if (since) filtered = filtered.filter((p) => (p.order_date ?? p.created_at.slice(0, 10)) >= since)
+      // 後端 ORDER BY po.created_at DESC
+      filtered = [...filtered].sort((a, b) => b.created_at.localeCompare(a.created_at))
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "20")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({
+        json: { items: filtered.slice(start, start + pageSize).map(poListItemOf), total: filtered.length },
+      })
+    },
+  )
+
+  return { parties, items, warehouses, purchaseOrders }
 }

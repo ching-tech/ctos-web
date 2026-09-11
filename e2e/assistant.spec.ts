@@ -6,6 +6,7 @@ import {
   mockApi,
   mockAssistant,
   mockBot,
+  mockErp,
   mockKb,
   mockProjects,
   seedToken,
@@ -223,6 +224,7 @@ test("沒有 ai-assistant 權限：側邊欄沒有項目，直接開會被擋下
   await mockKb(page)
   await mockBot(page)
   await mockProjects(page)
+  await mockErp(page)
   await mockAiLog(page)
   await mockAssistant(page)
   await seedToken(page)
