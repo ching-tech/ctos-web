@@ -882,14 +882,18 @@ export async function mockBot(
     async (route) => {
       if (route.request().method() !== "DELETE") return route.fallback()
       const platform = new URL(route.request().url()).searchParams.get("platform_type")
+      // 後端 services/bot_line/binding.py 的 _platform_status()：未綁定一律回
+      // { is_bound:false, display_name:null, picture_url:null, bound_at:null }，不會是 null。
+      const unbound: BotPlatformBindingFixture = { is_bound: false, display_name: null, picture_url: null, bound_at: null }
       if (platform === "line") {
-        binding.line = null
-        binding.is_bound = false
+        binding.line = unbound
         binding.line_display_name = null
         binding.line_picture_url = null
         binding.bound_at = null
       }
-      if (platform === "telegram") binding.telegram = null
+      if (platform === "telegram") binding.telegram = unbound
+      // 頂層 is_bound = line.is_bound || telegram.is_bound，解綁後要重算而非強制設 false。
+      binding.is_bound = Boolean(binding.line?.is_bound) || Boolean(binding.telegram?.is_bound)
       await route.fulfill({ json: { success: true } })
     },
   )

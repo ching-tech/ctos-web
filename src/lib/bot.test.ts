@@ -30,18 +30,25 @@ describe("listGroups", () => {
 })
 
 describe("listMessages", () => {
-  it("帶 groupId 時附上 group_id，page_size 固定 50", async () => {
+  it("帶 groupId 時附上 group_id，page_size 預設 50", async () => {
     const fn = vi.fn(async () => new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 50 }), { status: 200 }))
     vi.stubGlobal("fetch", fn)
     await listMessages({ page: 1, groupId: "grp-1" })
-    expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/messages?page=1&page_size=50&group_id=grp-1`)
+    expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/messages?group_id=grp-1&page=1&page_size=50`)
   })
 
   it("帶 userId 時附上 user_id", async () => {
     const fn = vi.fn(async () => new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 50 }), { status: 200 }))
     vi.stubGlobal("fetch", fn)
     await listMessages({ page: 3, userId: "usr-1", platform: "telegram" })
-    expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/messages?page=3&page_size=50&platform_type=telegram&user_id=usr-1`)
+    expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/messages?user_id=usr-1&page=3&page_size=50&platform_type=telegram`)
+  })
+
+  it("帶 pageSize 時覆蓋預設 50（群組明細「最近訊息」用 20）", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ items: [], total: 0, page: 1, page_size: 20 }), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    await listMessages({ groupId: "g1", page: 1, pageSize: 20 })
+    expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/messages?group_id=g1&page=1&page_size=20`)
   })
 })
 

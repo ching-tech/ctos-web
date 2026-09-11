@@ -126,6 +126,8 @@ export interface MessageFilter {
   page: number
   groupId?: string
   userId?: string
+  // 預設 50；群組明細的「最近訊息」用 20（GET /api/bot/messages?group_id={id}&page=1&page_size=20）。
+  pageSize?: number
 }
 
 export interface FileFilter {
@@ -213,11 +215,11 @@ export function unblockUser(id: string): Promise<BotUser> {
 
 export function listMessages(f: MessageFilter): Promise<BotMessageListResponse> {
   const params = new URLSearchParams()
-  params.set("page", String(f.page))
-  params.set("page_size", "50")
-  if (f.platform) params.set("platform_type", f.platform)
   if (f.groupId) params.set("group_id", f.groupId)
   if (f.userId) params.set("user_id", f.userId)
+  params.set("page", String(f.page))
+  params.set("page_size", String(f.pageSize ?? 50))
+  if (f.platform) params.set("platform_type", f.platform)
   return apiFetch<BotMessageListResponse>(`/api/bot/messages?${params.toString()}`)
 }
 
