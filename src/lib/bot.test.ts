@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { API_BASE } from "./api"
+import { ApiError, API_BASE } from "./api"
 import { blockUser, listFiles, listGroups, listMessages, PLATFORM_LABEL, platformLabel, unbind } from "./bot"
-import { setToken } from "./token"
+import { getToken, setToken } from "./token"
 
 beforeEach(() => {
   const store = new Map<string, string>()
@@ -66,6 +66,13 @@ describe("listFiles", () => {
     await listFiles({ page: 1, platform: "" })
     expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/files?page=1&page_size=30`)
   })
+
+  it("帶 groupId 時附上 group_id", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ items: [], total: 0 }), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    await listFiles({ page: 1, groupId: "grp-9" })
+    expect((fn.mock.calls[0] as unknown as [string])[0]).toBe(`${API_BASE}/api/bot/files?page=1&page_size=30&group_id=grp-9`)
+  })
 })
 
 describe("blockUser", () => {
@@ -117,5 +124,14 @@ describe("downloadFile", () => {
     expect(url).toBe(`${API_BASE}/api/bot/files/file-1/download`)
     expect((init.headers as Headers).get("Authorization")).toBe("Bearer T")
     expect(blob).toBeInstanceOf(Blob)
+  })
+
+  it("401 時清掉 session 後才拋錯（比照 apiFetch）", async () => {
+    setToken("T")
+    const fn = vi.fn(async () => new Response(JSON.stringify({ detail: "未授權" }), { status: 401, headers: { "content-type": "application/json" } }))
+    vi.stubGlobal("fetch", fn)
+    const { downloadFile } = await import("./bot")
+    await expect(downloadFile("file-1")).rejects.toBeInstanceOf(ApiError)
+    expect(getToken()).toBeNull()
   })
 })

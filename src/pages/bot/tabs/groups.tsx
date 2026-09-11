@@ -15,7 +15,10 @@ function GroupAiSwitch({ group }: { group: BotGroup }) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (allow: boolean) => updateGroup(group.id, { allow_ai_response: allow }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...botKeys.all, "groups"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...botKeys.all, "groups"] })
+      queryClient.invalidateQueries({ queryKey: botKeys.group(group.id) })
+    },
   })
 
   return (
@@ -64,7 +67,7 @@ export default function GroupsTab({ platform }: { platform: Platform | "" }) {
         <p className="text-muted-foreground">沒有群組</p>
       ) : (
         <>
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>

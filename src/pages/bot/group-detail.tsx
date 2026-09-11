@@ -60,6 +60,8 @@ export default function BotGroupDetailPage() {
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: botKeys.group(id) })
       queryClient.invalidateQueries({ queryKey: [...botKeys.all, "groups"] })
+      queryClient.invalidateQueries({ queryKey: [...botKeys.all, "messages"] })
+      queryClient.invalidateQueries({ queryKey: [...botKeys.all, "files"] })
       navigate("/bot?tab=groups")
     },
   })

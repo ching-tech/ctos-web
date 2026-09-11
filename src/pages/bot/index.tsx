@@ -47,6 +47,8 @@ export default function BotPage() {
     if (value === "binding") next.delete("tab")
     else next.set("tab", value)
     next.delete("page")
+    next.delete("fileType")
+    next.delete("group")
     setSearchParams(next, { replace: true })
   }
 

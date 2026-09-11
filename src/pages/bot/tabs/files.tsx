@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Pagination } from "@/components/pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,9 +20,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
 import { botKeys, deleteFile, downloadFile, listFiles, type BotFile, type FileFilter, type Platform } from "@/lib/bot"
+import { GroupFilterSelect } from "../group-filter"
 
 const PAGE_SIZE = 30
-const FILE_TYPES = ["image", "video", "audio", "file"] as const
+const FILE_TYPES = [
+  { value: "image", label: "圖片" },
+  { value: "video", label: "影片" },
+  { value: "audio", label: "音訊" },
+  { value: "file", label: "檔案" },
+] as const
 
 function fileDisplayName(f: BotFile): string {
   return f.file_name || `${f.file_type}_${f.id.slice(0, 8)}`
@@ -103,6 +110,7 @@ export default function FilesTab({ platform }: { platform: Platform | "" }) {
   const rawPage = searchParams.get("page")
   const page = rawPage ? Math.max(1, Number(rawPage) || 1) : 1
   const fileType = searchParams.get("fileType") ?? ""
+  const groupId = searchParams.get("group") ?? ""
 
   function goToPage(p: number) {
     const next = new URLSearchParams(searchParams)
@@ -119,7 +127,15 @@ export default function FilesTab({ platform }: { platform: Platform | "" }) {
     setSearchParams(next)
   }
 
-  const filter: FileFilter = { platform, page, fileType: fileType || undefined }
+  function setGroup(value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (value === "all") next.delete("group")
+    else next.set("group", value)
+    next.delete("page")
+    setSearchParams(next)
+  }
+
+  const filter: FileFilter = { platform, page, fileType: fileType || undefined, groupId: groupId || undefined }
   const query = useQuery({ queryKey: botKeys.files(filter), queryFn: () => listFiles(filter) })
 
   const items = query.data?.items ?? []
@@ -130,19 +146,22 @@ export default function FilesTab({ platform }: { platform: Platform | "" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${total} 個檔案`}</p>
-        <Select value={fileType || "all"} onValueChange={setFileType}>
-          <SelectTrigger className="w-28" aria-label="檔案類型">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部</SelectItem>
-            {FILE_TYPES.map((t) => (
-              <SelectItem key={t} value={t}>
-                {t}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-2">
+          <GroupFilterSelect value={groupId} onValueChange={setGroup} ariaLabel="群組" allLabel="所有群組" />
+          <Select value={fileType || "all"} onValueChange={setFileType}>
+            <SelectTrigger className="w-28" aria-label="檔案類型">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              {FILE_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {query.isError ? (
@@ -173,14 +192,19 @@ export default function FilesTab({ platform }: { platform: Platform | "" }) {
               <TableBody>
                 {items.map((f) => (
                   <TableRow key={f.id}>
-                    <TableCell>{fileDisplayName(f)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{fileDisplayName(f)}</span>
+                        {f.nas_path && <Badge variant="tint">NAS</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell>{f.file_type}</TableCell>
                     <TableCell>{formatSize(f.file_size)}</TableCell>
                     <TableCell>{f.group_name || f.user_display_name || "—"}</TableCell>
                     <TableCell>{new Date(f.created_at).toLocaleString("zh-TW")}</TableCell>
                     <TableCell>
-                      <div className="flex flex-wrap gap-2">
-                        <DownloadAction file={f} />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {f.nas_path ? <DownloadAction file={f} /> : <Badge variant="tint">已過期</Badge>}
                         <DeleteAction file={f} />
                       </div>
                     </TableCell>

@@ -831,10 +831,12 @@ export function makeBotMessages(n: number): BotMessageFixture[] {
   return items
 }
 
-// 兩個檔案：file-1 image、file-2 document，皆帶 file_size。
+// 三個檔案：file-1 image（grp-1，帶 nas_path）、file-2 document（grp-1，帶 nas_path）、
+// file-3 video（grp-2，nas_path 為 null＝已過期，NAS 保留期滿後清掉實體檔但保留資料列）。
 export const botFileFixtures: BotFileFixture[] = [
   { id: "file-1", message_id: "msg-3", file_type: "image", file_name: "現場照片.jpg", file_size: 245678, mime_type: "image/jpeg", nas_path: "/linebot/files/file-1.jpg", thumbnail_path: "/linebot/thumbs/file-1.jpg", duration: null, created_at: "2026-09-02T09:00:00", bot_group_id: "grp-1", bot_user_id: "usr-1", user_display_name: "王小明", group_name: "擎添業務群" },
   { id: "file-2", message_id: "msg-6", file_type: "document", file_name: "保養手冊.pdf", file_size: 1048576, mime_type: "application/pdf", nas_path: "/linebot/files/file-2.pdf", thumbnail_path: null, duration: null, created_at: "2026-09-05T09:00:00", bot_group_id: "grp-1", bot_user_id: "usr-1", user_display_name: "王小明", group_name: "擎添業務群" },
+  { id: "file-3", message_id: null, file_type: "video", file_name: "驗收錄影.mp4", file_size: 5242880, mime_type: "video/mp4", nas_path: null, thumbnail_path: null, duration: 42, created_at: "2026-08-11T09:00:00", bot_group_id: "grp-2", bot_user_id: "usr-2", user_display_name: "陳小華", group_name: "退場測試群" },
 ]
 
 // 綁定狀態：line 已綁定、telegram 未綁定。
@@ -1049,8 +1051,10 @@ export async function mockBot(
       let filtered = files
       const platform = params.get("platform_type")
       const fileType = params.get("file_type")
+      const groupId = params.get("group_id")
       if (platform) filtered = byPlatform(filtered, platform)
       if (fileType) filtered = filtered.filter((f) => f.file_type === fileType)
+      if (groupId) filtered = filtered.filter((f) => f.bot_group_id === groupId)
       const pageNum = Number(params.get("page") ?? "1")
       const pageSize = Number(params.get("page_size") ?? "30")
       const start = (pageNum - 1) * pageSize

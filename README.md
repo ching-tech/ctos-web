@@ -144,12 +144,13 @@ npm run build
 - `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、允許的工具、工具呼叫時間軸）
 - `bot/index.tsx` — Bot 管理殼頁（平台篩選、六個分頁籤）
 - `bot/group-detail.tsx` — Bot 群組明細頁（資訊、最近訊息、刪除）
+- `bot/group-filter.tsx` — 群組篩選下拉共用元件（訊息／檔案分頁共用）
 - `bot/tabs/binding.tsx` — 綁定分頁（Line／Telegram 平台卡）
 - `bot/tabs/groups.tsx` — 群組分頁（群組清單、AI 回覆開關、狀態）
 - `bot/tabs/users.tsx` — 使用者分頁（使用者清單、CTOS 綁定、封鎖）
 - `bot/tabs/blocklist.tsx` — 黑名單分頁（封鎖使用者清單、解除封鎖）
-- `bot/tabs/messages.tsx` — 訊息分頁（群組或使用者訊息清單）
-- `bot/tabs/files.tsx` — 檔案分頁（檔案清單、下載、刪除）
+- `bot/tabs/messages.tsx` — 訊息分頁（群組或使用者訊息清單、對話篩選）
+- `bot/tabs/files.tsx` — 檔案分頁（檔案清單、下載、刪除、群組與類型篩選、NAS／已過期狀態）
 - `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
@@ -224,7 +225,7 @@ Playwright 端對端測試：
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細）
 - **使用者管理** — 路由 `/admin/users`（僅管理員），使用者清單與每人的 app／知識庫權限開關（PATCH 只送變動的鍵，即時生效）
-- **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；專案綁定選單待專案模組
+- **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；專案綁定選單待專案模組；檔案預覽待圖片檢視器
 
 ### 尚未完成
 

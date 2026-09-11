@@ -1,5 +1,5 @@
 import { ApiError, API_BASE, apiFetch } from "./api"
-import { getToken } from "./token"
+import { clearSession, getToken } from "./token"
 
 export type Platform = "line" | "telegram"
 
@@ -134,6 +134,7 @@ export interface FileFilter {
   platform?: Platform | ""
   page: number
   fileType?: string
+  groupId?: string
 }
 
 export interface GroupPatch {
@@ -231,6 +232,7 @@ export function listFiles(f: FileFilter): Promise<BotFileListResponse> {
   params.set("page_size", "30")
   if (f.platform) params.set("platform_type", f.platform)
   if (f.fileType) params.set("file_type", f.fileType)
+  if (f.groupId) params.set("group_id", f.groupId)
   return apiFetch<BotFileListResponse>(`/api/bot/files?${params.toString()}`)
 }
 
@@ -252,6 +254,7 @@ export async function downloadFile(id: string): Promise<Blob> {
       const data = (await res.json()) as { detail?: unknown }
       if (typeof data.detail === "string") detail = data.detail
     } catch { /* 非 JSON 回應 */ }
+    if (res.status === 401) clearSession()
     throw new ApiError(res.status, detail)
   }
   return res.blob()

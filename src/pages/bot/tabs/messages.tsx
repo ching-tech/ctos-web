@@ -6,6 +6,7 @@ import { Pagination } from "@/components/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError } from "@/lib/api"
 import { botKeys, listMessages, type MessageFilter, type Platform } from "@/lib/bot"
+import { GroupFilterSelect } from "../group-filter"
 
 const PAGE_SIZE = 50
 
@@ -13,6 +14,7 @@ export default function MessagesTab({ platform }: { platform: Platform | "" }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const rawPage = searchParams.get("page")
   const page = rawPage ? Math.max(1, Number(rawPage) || 1) : 1
+  const groupId = searchParams.get("group") ?? ""
 
   function goToPage(p: number) {
     const next = new URLSearchParams(searchParams)
@@ -21,7 +23,15 @@ export default function MessagesTab({ platform }: { platform: Platform | "" }) {
     setSearchParams(next)
   }
 
-  const filter: MessageFilter = { platform, page }
+  function setGroup(value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (value === "all") next.delete("group")
+    else next.set("group", value)
+    next.delete("page")
+    setSearchParams(next)
+  }
+
+  const filter: MessageFilter = { platform, page, groupId: groupId || undefined }
   const query = useQuery({ queryKey: botKeys.messages(filter), queryFn: () => listMessages(filter) })
 
   const items = query.data?.items ?? []
@@ -30,7 +40,10 @@ export default function MessagesTab({ platform }: { platform: Platform | "" }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${total} 則`}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${total} 則`}</p>
+        <GroupFilterSelect value={groupId} onValueChange={setGroup} ariaLabel="對話" allLabel="所有個人對話" />
+      </div>
 
       {query.isError ? (
         <Alert variant="destructive" role="alert">
@@ -55,7 +68,6 @@ export default function MessagesTab({ platform }: { platform: Platform | "" }) {
                     ) : (
                       <span className="font-medium">{m.user_display_name || "—"}</span>
                     )}
-                    {m.ai_processed && <Badge variant="tint">AI 已處理</Badge>}
                   </div>
                   <time className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("zh-TW")}</time>
                 </div>
