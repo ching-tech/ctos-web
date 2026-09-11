@@ -817,7 +817,7 @@ export interface BotBindingFixture {
 export const botGroupFixtures: BotGroupFixture[] = [
   {
     id: "grp-1", platform_type: "line", platform_group_id: "C-line-001", name: "擎添業務群",
-    picture_url: null, member_count: 12, project_id: "proj-1", project_name: "台北捷運監控案",
+    picture_url: null, member_count: 12, project_id: "proj-1", project_name: "乙二站區監控案",
     is_active: true, allow_ai_response: true, joined_at: "2026-06-01T09:00:00", left_at: null,
     created_at: "2026-06-01T09:00:00", updated_at: "2026-09-01T09:00:00",
   },
@@ -1272,8 +1272,8 @@ export interface ProjectFixture {
 export const projectFixtures: ProjectFixture[] = [
   {
     id: "proj-1",
-    name: "台北捷運監控案",
-    customer: "捷運公司",
+    name: "乙二站區監控案",
+    customer: "乙二運輸",
     status: "active",
     owner_id: 2,
     owner_name: "亞澤",
@@ -1918,9 +1918,9 @@ export interface PartyFixture {
 export const partyFixtures: PartyFixture[] = [
   {
     id: "party-1",
-    name: "大同機電股份有限公司",
-    short_name: "大同機電",
-    aliases: ["大同", "Datong Electric"],
+    name: "甲一機電股份有限公司",
+    short_name: "甲一機電",
+    aliases: ["甲一", "Jiayi Electric"],
     is_supplier: true,
     is_customer: false,
     tax_id: "12345678",
@@ -1934,7 +1934,7 @@ export const partyFixtures: PartyFixture[] = [
     contacts: [
       {
         id: "contact-1", party_id: "party-1", name: "陳采購", title: "採購課長",
-        phone: "02-2345-6789", mobile: "0912-345-678", email: "chen@datong.example",
+        phone: "02-2345-6789", mobile: "0912-345-678", email: "chen@jiayi.example",
         is_primary: true, notes: null,
         created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
       },
@@ -1947,12 +1947,12 @@ export const partyFixtures: PartyFixture[] = [
     ],
     addresses: [
       {
-        id: "addr-1", party_id: "party-1", label: "總公司", address: "民生東路三段 100 號 5 樓",
+        id: "addr-1", party_id: "party-1", label: "總公司", address: "甲一路三段 100 號 5 樓",
         city: "臺北市", is_primary: true,
         created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
       },
       {
-        id: "addr-2", party_id: "party-1", label: "工廠", address: "中正路 88 號",
+        id: "addr-2", party_id: "party-1", label: "工廠", address: "乙二路 88 號",
         city: "桃園市", is_primary: false,
         created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
       },
@@ -1967,14 +1967,14 @@ export const partyFixtures: PartyFixture[] = [
         order_date: "2026-06-01", expected_date: "2026-06-20", total_amount: "45500.50",
       },
     ],
-    projects: [{ id: "proj-1", name: "台北捷運監控案", status: "active" }],
+    projects: [{ id: "proj-1", name: "乙二站區監控案", status: "active" }],
     knowledge_count: 2,
   },
   {
     id: "party-2",
-    name: "臺北捷運公司",
-    short_name: "北捷",
-    aliases: ["捷運公司"],
+    name: "乙二運輸股份有限公司",
+    short_name: "乙二",
+    aliases: ["乙二運輸"],
     is_supplier: false,
     is_customer: true,
     tax_id: "87654321",
@@ -2000,7 +2000,7 @@ export const partyFixtures: PartyFixture[] = [
   },
   {
     id: "party-3",
-    name: "合信電機",
+    name: "丙三電機",
     short_name: null,
     // 同時是供應商與客戶，用來驗兩個角色 badge 一起出現
     aliases: [],
@@ -2129,7 +2129,7 @@ export const itemFixtures: ItemFixture[] = [
   {
     id: "item-2",
     code: "SNS-0002",
-    name: "光電感測器",
+    name: "丙式感測器",
     spec: "NPN 常開 12–24V",
     unit: "個",
     item_group: "感測器",

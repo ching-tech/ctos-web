@@ -22,11 +22,11 @@ import {
 
 describe("parseAliases", () => {
   it("半形與全形逗號都算分隔", () => {
-    expect(parseAliases("大同, Datong，大同電機")).toEqual(["大同", "Datong", "大同電機"])
+    expect(parseAliases("甲一, Jiayi，甲一電機")).toEqual(["甲一", "Jiayi", "甲一電機"])
   })
 
   it("去掉空白段與重複", () => {
-    expect(parseAliases("大同,, 大同 ,")).toEqual(["大同"])
+    expect(parseAliases("甲一,, 甲一 ,")).toEqual(["甲一"])
   })
 
   it("空字串是空陣列", () => {
@@ -34,7 +34,7 @@ describe("parseAliases", () => {
   })
 
   it("和 formatAliases 對得起來", () => {
-    expect(parseAliases(formatAliases(["大同", "Datong"]))).toEqual(["大同", "Datong"])
+    expect(parseAliases(formatAliases(["甲一", "Jiayi"]))).toEqual(["甲一", "Jiayi"])
   })
 })
 
@@ -67,11 +67,11 @@ describe("formatAmount", () => {
 
 describe("連結", () => {
   it("問 AI 帶往來對象名稱前綴", () => {
-    expect(askAiHref("大同機電")).toBe(`/assistant?q=${encodeURIComponent("關於往來對象「大同機電」：")}`)
+    expect(askAiHref("甲一機電")).toBe(`/assistant?q=${encodeURIComponent("關於往來對象「甲一機電」：")}`)
   })
 
   it("知識庫用名稱當關鍵字", () => {
-    expect(partyKbHref("大同機電")).toBe("/kb?q=%E5%A4%A7%E5%90%8C%E6%A9%9F%E9%9B%BB")
+    expect(partyKbHref("甲一機電")).toBe("/kb?q=%E7%94%B2%E4%B8%80%E6%A9%9F%E9%9B%BB")
   })
 })
 

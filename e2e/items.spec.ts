@@ -25,7 +25,7 @@ test.describe("物料清單", () => {
     await expect(row.getByText("三相 220V 1HP")).toBeVisible()
     await expect(row.getByText("台", { exact: true })).toBeVisible()
     await expect(row.getByText("馬達", { exact: true })).toBeVisible()
-    await expect(row.getByRole("link", { name: "大同機電股份有限公司" })).toHaveAttribute("href", "/parties/party-1")
+    await expect(row.getByRole("link", { name: "甲一機電股份有限公司" })).toHaveAttribute("href", "/parties/party-1")
     // 兩個倉合計 12 + 3；後端送的是 Numeric(18,4) 字串，畫面要收掉尾數
     await expect(row.getByText("15", { exact: true })).toBeVisible()
 
@@ -92,7 +92,7 @@ test.describe("物料明細", () => {
     await expect(info.getByText("三相 220V 1HP")).toBeVisible()
     await expect(info.getByText("台", { exact: true })).toBeVisible()
     await expect(info.getByText("馬達", { exact: true })).toBeVisible()
-    await expect(info.getByRole("link", { name: "大同機電股份有限公司" })).toHaveAttribute("href", "/parties/party-1")
+    await expect(info.getByRole("link", { name: "甲一機電股份有限公司" })).toHaveAttribute("href", "/parties/party-1")
     await expect(info.getByText("8,200.00")).toBeVisible()
     await expect(info.getByText("14 天")).toBeVisible()
     await expect(info.getByText("induction motor")).toBeVisible()
@@ -255,7 +255,7 @@ test.describe("物料新增與編輯", () => {
     await page.getByLabel("單位").fill("顆")
     await page.getByLabel("分類").fill("氣動元件")
     await page.getByRole("combobox", { name: "預設供應商" }).click()
-    await page.getByRole("option", { name: "大同機電股份有限公司" }).click()
+    await page.getByRole("option", { name: "甲一機電股份有限公司" }).click()
     await page.getByLabel("採購價").fill("980")
     await page.getByLabel("交期天數").fill("21")
     await page.getByLabel("別名").fill("solenoid valve, 電磁閥門")

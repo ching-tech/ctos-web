@@ -27,9 +27,9 @@ test.describe("清單", () => {
     await page.goto("/projects")
 
     await expect(page.getByText("共 3 筆")).toBeVisible()
-    const item = projectItem(page, testInfo, "台北捷運監控案")
-    await expect(item.getByRole("link", { name: "台北捷運監控案" })).toBeVisible()
-    await expect(item.getByText("捷運公司")).toBeVisible()
+    const item = projectItem(page, testInfo, "乙二站區監控案")
+    await expect(item.getByRole("link", { name: "乙二站區監控案" })).toBeVisible()
+    await expect(item.getByText("乙二運輸")).toBeVisible()
     await expect(item.getByText("進行中")).toBeVisible()
     await expect(item.getByText("亞澤")).toBeVisible()
     await expect(item.getByText("33%")).toBeVisible()
@@ -53,7 +53,7 @@ test.describe("清單", () => {
     await seedToken(page)
     await page.goto("/projects")
 
-    const overdue = projectItem(page, testInfo, "台北捷運監控案").getByText("2", { exact: true })
+    const overdue = projectItem(page, testInfo, "乙二站區監控案").getByText("2", { exact: true })
     await expect(overdue).toBeVisible()
     await expect(overdue).toHaveClass(/text-destructive/)
 
@@ -105,9 +105,9 @@ test.describe("清單", () => {
     await seedToken(page)
     await page.goto("/projects")
 
-    await page.getByRole("link", { name: "台北捷運監控案" }).click()
+    await page.getByRole("link", { name: "乙二站區監控案" }).click()
     await expect(page).toHaveURL(/\/projects\/proj-1$/)
-    await expect(page.getByRole("heading", { name: "台北捷運監控案" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "乙二站區監控案" })).toBeVisible()
   })
 })
 
@@ -148,9 +148,9 @@ test.describe("明細", () => {
   test("表頭顯示主檔與進度，逾期里程碑數標紅", async ({ page }) => {
     await page.goto("/projects/proj-1")
 
-    await expect(page.getByRole("heading", { name: "台北捷運監控案" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "乙二站區監控案" })).toBeVisible()
     const info = page.getByRole("region", { name: "專案資訊" })
-    await expect(info.getByText("捷運公司")).toBeVisible()
+    await expect(info.getByText("乙二運輸")).toBeVisible()
     await expect(info.getByText("進行中")).toBeVisible()
     await expect(info.getByText("亞澤")).toBeVisible()
     await expect(info.getByText("2026-01-01")).toBeVisible()
@@ -337,11 +337,11 @@ test.describe("新增與編輯", () => {
     await seedToken(page)
     await page.goto("/projects/proj-1/edit")
 
-    await expect(page.getByLabel("名稱")).toHaveValue("台北捷運監控案")
+    await expect(page.getByLabel("名稱")).toHaveValue("乙二站區監控案")
     const req = page.waitForRequest((r) => r.method() === "PUT" && r.url().endsWith("/api/projects/proj-1"))
-    await page.getByLabel("名稱").fill("台北捷運監控案 二期")
+    await page.getByLabel("名稱").fill("乙二站區監控案 二期")
     await page.getByRole("button", { name: "儲存" }).click()
-    expect((await req).postDataJSON()).toMatchObject({ name: "台北捷運監控案 二期" })
+    expect((await req).postDataJSON()).toMatchObject({ name: "乙二站區監控案 二期" })
     await expect(page).toHaveURL(/\/projects\/proj-1$/)
   })
 })
@@ -445,7 +445,7 @@ test.describe("後端錯誤契約", () => {
     )
     await page.goto("/projects/proj-1/edit")
 
-    await page.getByLabel("名稱").fill("台北捷運監控案 三期")
+    await page.getByLabel("名稱").fill("乙二站區監控案 三期")
     await page.getByRole("button", { name: "儲存" }).click()
 
     await expect(page.getByRole("alert")).toContainText("此欄位不可為 null")
