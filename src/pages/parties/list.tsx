@@ -128,8 +128,8 @@ export default function PartyListPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Input
           aria-label="搜尋"
-          // 後端 list_parties 的模糊搜尋只打這四個欄位
-          placeholder="搜尋名稱、簡稱、別名與統一編號"
+          // 後端 list_parties：名稱／簡稱／別名／統編／聯絡人姓名走模糊，電話與手機走等值
+          placeholder="搜尋名稱、別名、聯絡人、電話、統編"
           className="min-w-48 flex-1"
           value={draftQ}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -138,7 +138,7 @@ export default function PartyListPage() {
           }}
         />
         <Select value={filters.role || "all"} onValueChange={(v) => updateParam("role", v === "all" ? "" : v)}>
-          <SelectTrigger className="w-28" aria-label="角色篩選">
+          <SelectTrigger className="w-36" aria-label="角色篩選">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

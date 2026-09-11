@@ -125,7 +125,7 @@ export default function PartyDetailPage() {
             <MergePartyDialog party={party} />
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">刪除</Button>
+                <Button variant="destructive">刪除往來對象</Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>

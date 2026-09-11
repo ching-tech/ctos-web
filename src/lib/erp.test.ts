@@ -42,9 +42,10 @@ describe("partyRoles", () => {
 })
 
 describe("formatAmount", () => {
-  it("後端送的 Decimal 字串轉千分位", () => {
-    expect(formatAmount("128000.00")).toBe("128,000")
-    expect(formatAmount("45500.50")).toBe("45,500.5")
+  it("後端送的 Decimal 字串轉千分位，固定兩位小數", () => {
+    expect(formatAmount("128000.00")).toBe("128,000.00")
+    expect(formatAmount("45500.50")).toBe("45,500.50")
+    expect(formatAmount("0")).toBe("0.00")
   })
 
   it("null 與空字串顯示破折號", () => {
@@ -70,6 +71,8 @@ describe("連結", () => {
 describe("對照表", () => {
   it("角色與採購單狀態都有中文", () => {
     expect(erpLabel(PARTY_ROLE_LABEL, "supplier")).toBe("供應商")
+    // both 只是清單的篩選值，不是掛在某一筆身上的角色
+    expect(erpLabel(PARTY_ROLE_LABEL, "both")).toBe("供應商且客戶")
     expect(erpLabel(PO_STATUS_LABEL, "received")).toBe("已收貨")
   })
 

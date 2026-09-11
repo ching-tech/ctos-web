@@ -49,10 +49,39 @@ test.describe("清單", () => {
 
     const req = page.waitForRequest((r) => r.url().includes("/api/parties?") && r.url().includes("role=customer"))
     await page.getByRole("combobox", { name: "角色篩選" }).click()
-    await page.getByRole("option", { name: "客戶" }).click()
+    await page.getByRole("option", { name: "客戶", exact: true }).click()
     await req
     await expect(page).toHaveURL(/role=customer/)
     await expect(page.getByText("共 2 筆")).toBeVisible()
+  })
+
+  test("角色篩選「供應商且客戶」送 role=both", async ({ page }) => {
+    await page.goto("/parties")
+
+    const req = page.waitForRequest((r) => r.url().includes("/api/parties?") && r.url().includes("role=both"))
+    await page.getByRole("combobox", { name: "角色篩選" }).click()
+    await page.getByRole("option", { name: "供應商且客戶" }).click()
+    await req
+    await expect(page).toHaveURL(/role=both/)
+    // 三筆裡只有合信電機兩個角色都成立
+    await expect(page.getByText("共 1 筆")).toBeVisible()
+  })
+
+  test("搜尋打得到聯絡人姓名，電話走等值比對", async ({ page }, testInfo) => {
+    await page.goto("/parties")
+
+    await page.getByLabel("搜尋").fill("陳采購")
+    await expect(page.getByText("共 1 筆")).toBeVisible()
+    await expect(partyItem(page, testInfo, "大同機電股份有限公司")).toBeVisible()
+
+    // 後端電話走等值：整組號碼找得到
+    await page.getByLabel("搜尋").fill("02-1234-5678")
+    await expect(page.getByText("共 1 筆")).toBeVisible()
+    await expect(partyItem(page, testInfo, "臺北捷運公司")).toBeVisible()
+
+    // 片段號碼不算命中（"02-1234" 不會出現在統編裡，確定是電話這條路徑在判斷）
+    await page.getByLabel("搜尋").fill("02-1234")
+    await expect(page.getByText("共 0 筆")).toBeVisible()
   })
 
   test("搜尋 debounce 後送 q 並寫進網址", async ({ page }) => {
@@ -207,6 +236,85 @@ test.describe("明細", () => {
     await expect(page.getByText("工業路 12 號")).toBeVisible()
   })
 
+  test("聯絡人分頁：編輯送 PUT、設為主要送 PUT、刪除送 DELETE", async ({ page }) => {
+    await page.goto("/parties/party-1")
+
+    const second = page.getByRole("listitem").filter({ hasText: "林工程" })
+
+    // 設為主要：只送 is_primary，原本的主要要降級
+    const primaryReq = page.waitForRequest(
+      (r) => r.method() === "PUT" && r.url().endsWith("/api/parties/party-1/contacts/contact-2"),
+    )
+    await second.getByRole("button", { name: "設為主要" }).click()
+    expect((await primaryReq).postDataJSON()).toEqual({ is_primary: true })
+    await expect(page.getByRole("listitem").filter({ hasText: "林工程" }).getByText("主要", { exact: true })).toBeVisible()
+    await expect(page.getByRole("listitem").filter({ hasText: "陳采購" }).getByText("主要", { exact: true })).toHaveCount(0)
+
+    // 編輯：對話框帶既有值，送 PUT
+    await page.getByRole("listitem").filter({ hasText: "陳采購" }).getByRole("button", { name: "編輯" }).click()
+    await expect(page.getByLabel("姓名")).toHaveValue("陳采購")
+    await expect(page.getByLabel("職稱")).toHaveValue("採購課長")
+    const editReq = page.waitForRequest(
+      (r) => r.method() === "PUT" && r.url().endsWith("/api/parties/party-1/contacts/contact-1"),
+    )
+    await page.getByLabel("職稱").fill("採購經理")
+    await page.getByRole("button", { name: "儲存" }).click()
+    expect((await editReq).postDataJSON()).toMatchObject({ name: "陳采購", title: "採購經理" })
+    await expect(page.getByText("採購經理")).toBeVisible()
+
+    // 刪除：確認後送 DELETE
+    await page.getByRole("listitem").filter({ hasText: "陳采購" }).getByRole("button", { name: "刪除" }).click()
+    await expect(page.getByText("確定刪除這位聯絡人？")).toBeVisible()
+    const deleteReq = page.waitForRequest(
+      (r) => r.method() === "DELETE" && r.url().endsWith("/api/parties/party-1/contacts/contact-1"),
+    )
+    await page.getByRole("button", { name: "確定" }).click()
+    await deleteReq
+    await expect(page.getByText("陳采購")).toHaveCount(0)
+    await expect(page.getByText("共 1 位聯絡人")).toBeVisible()
+  })
+
+  test("地址分頁：編輯送 PUT、設為主要送 PUT、刪除送 DELETE", async ({ page }) => {
+    await page.goto("/parties/party-1?tab=addresses")
+
+    const factory = page.getByRole("listitem").filter({ hasText: "工廠" })
+    const primaryReq = page.waitForRequest(
+      (r) => r.method() === "PUT" && r.url().endsWith("/api/parties/party-1/addresses/addr-2"),
+    )
+    await factory.getByRole("button", { name: "設為主要" }).click()
+    expect((await primaryReq).postDataJSON()).toEqual({ is_primary: true })
+    await expect(page.getByRole("listitem").filter({ hasText: "工廠" }).getByText("主要", { exact: true })).toBeVisible()
+
+    await page.getByRole("listitem").filter({ hasText: "總公司" }).getByRole("button", { name: "編輯" }).click()
+    await expect(page.getByRole("textbox", { name: "地址", exact: true })).toHaveValue("民生東路三段 100 號 5 樓")
+    const editReq = page.waitForRequest(
+      (r) => r.method() === "PUT" && r.url().endsWith("/api/parties/party-1/addresses/addr-1"),
+    )
+    await page.getByLabel("城市").fill("新北市")
+    await page.getByRole("button", { name: "儲存" }).click()
+    expect((await editReq).postDataJSON()).toMatchObject({ address: "民生東路三段 100 號 5 樓", city: "新北市" })
+
+    await page.getByRole("listitem").filter({ hasText: "總公司" }).getByRole("button", { name: "刪除" }).click()
+    await expect(page.getByText("確定刪除這筆地址？")).toBeVisible()
+    const deleteReq = page.waitForRequest(
+      (r) => r.method() === "DELETE" && r.url().endsWith("/api/parties/party-1/addresses/addr-1"),
+    )
+    await page.getByRole("button", { name: "確定" }).click()
+    await deleteReq
+    await expect(page.getByText("共 1 筆地址")).toBeVisible()
+  })
+
+  test("子資源的 404 detail 原樣顯示", async ({ page }) => {
+    await page.goto("/parties/party-1")
+
+    // 另一個 session 先刪掉了，這邊再按「設為主要」
+    await page.route("**/api/parties/party-1/contacts/contact-2", (route) =>
+      route.fulfill({ status: 404, json: { detail: "聯絡人不存在" } }),
+    )
+    await page.getByRole("listitem").filter({ hasText: "林工程" }).getByRole("button", { name: "設為主要" }).click()
+    await expect(page.getByRole("alert")).toContainText("聯絡人不存在")
+  })
+
   test("空分頁顯示空狀態", async ({ page }) => {
     await page.goto("/parties/party-3")
     await expect(page.getByText("還沒有聯絡人")).toBeVisible()
@@ -233,7 +341,7 @@ test.describe("明細", () => {
   test("刪除後回清單", async ({ page }) => {
     await page.goto("/parties/party-1")
 
-    await page.getByRole("button", { name: "刪除" }).click()
+    await page.getByRole("button", { name: "刪除往來對象" }).click()
     await expect(page.getByText("確定刪除這筆往來對象？")).toBeVisible()
     const req = page.waitForRequest((r) => r.method() === "DELETE" && r.url().endsWith("/api/parties/party-1"))
     await page.getByRole("button", { name: "確定" }).click()
@@ -246,7 +354,7 @@ test.describe("明細", () => {
     await mockErp(page, { forbidEdits: true })
     await page.goto("/parties/party-1")
 
-    await page.getByRole("button", { name: "刪除" }).click()
+    await page.getByRole("button", { name: "刪除往來對象" }).click()
     await page.getByRole("button", { name: "確定" }).click()
     await expect(page.getByRole("alert")).toContainText("沒有權限使用此功能")
   })
@@ -278,8 +386,12 @@ test.describe("合併", () => {
     await page.getByRole("button", { name: "合併", exact: true }).last().click()
     expect((await req).postDataJSON()).toEqual({ keep_id: "party-1", drop_id: "party-3" })
     await expect(page).toHaveURL(/\/parties\/party-1$/)
+    const info = page.getByRole("region", { name: "往來對象資訊" })
     // drop 的名稱併進 keep 的別名，之後用舊名字也找得到
-    await expect(page.getByRole("region", { name: "往來對象資訊" }).getByText("合信電機")).toBeVisible()
+    await expect(info.getByText("合信電機")).toBeVisible()
+    // 角色取 OR：keep 原本只是供應商，drop 兩者皆是，合併後兩個 badge 都在
+    await expect(info.getByText("供應商", { exact: true })).toBeVisible()
+    await expect(info.getByText("客戶", { exact: true })).toBeVisible()
   })
 
   test("改成保留選到的那筆：導到那一筆", async ({ page }) => {

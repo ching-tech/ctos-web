@@ -6,9 +6,14 @@ import { apiFetch } from "./api"
 // 兩個後端契約細節值得記著：
 // 1. Decimal 欄位在 pydantic v2 的 JSON 模式序列化成字串（"128000.00"），不是數字。
 // 2. POST /{id}/contacts、/{id}/addresses 回的是 {success, contact_id|address_id,
-//    audit_id}，不是建好的那筆，所以寫完要重抓明細。
+//    audit_id}，不是建好的那筆；PUT 那兩支才回整筆加 audit_id，DELETE 回
+//    {success, audit_id}。子資源的寫入一律重抓明細，不拿回應塞快取。
 
-export type PartyRole = "supplier" | "customer"
+/** 後端 models/erp.py 的 PartyRole Literal，是清單篩選吃的值。 */
+export type PartyRole = "supplier" | "customer" | "both"
+
+/** 掛在一筆往來對象身上的角色，只有兩個（`both` 是篩選條件不是身分）。 */
+export type PartyBadgeRole = "supplier" | "customer"
 
 export interface PartyContact {
   id: string
@@ -94,6 +99,27 @@ export interface PartyDetail {
   knowledge_count: number
 }
 
+export interface PartyContactUpdate {
+  name?: string
+  title?: string | null
+  phone?: string | null
+  mobile?: string | null
+  email?: string | null
+  is_primary?: boolean
+  notes?: string | null
+}
+
+export interface PartyAddressUpdate {
+  address?: string
+  label?: string | null
+  city?: string | null
+  is_primary?: boolean
+}
+
+/** PUT 子端點回的是整筆加 `audit_id`（PartyContactUpdateResponse／PartyAddressUpdateResponse）。 */
+export type PartyContactUpdated = PartyContact & { audit_id: string | null }
+export type PartyAddressUpdated = PartyAddress & { audit_id: string | null }
+
 export interface PartyContactCreate {
   name: string
   title?: string | null
@@ -147,9 +173,10 @@ export interface PartyChildCreated {
 export const PARTY_ROLE_LABEL = {
   supplier: "供應商",
   customer: "客戶",
+  both: "供應商且客戶",
 } as const satisfies Record<PartyRole, string>
 
-export const PARTY_ROLE_OPTIONS: PartyRole[] = ["supplier", "customer"]
+export const PARTY_ROLE_OPTIONS: PartyRole[] = ["supplier", "customer", "both"]
 
 /** 採購單狀態，對 models/erp.py 的 PurchaseOrderStatus。 */
 export type PurchaseOrderStatus = "draft" | "ordered" | "partial" | "received" | "cancelled"
@@ -185,8 +212,8 @@ export function erpTint(dict: Record<string, string>, key: string): string {
 }
 
 /** 一筆往來對象身上掛著的角色（可以同時兩個，也可以一個都沒有）。 */
-export function partyRoles(p: Pick<PartyListItem, "is_supplier" | "is_customer">): PartyRole[] {
-  const roles: PartyRole[] = []
+export function partyRoles(p: Pick<PartyListItem, "is_supplier" | "is_customer">): PartyBadgeRole[] {
+  const roles: PartyBadgeRole[] = []
   if (p.is_supplier) roles.push("supplier")
   if (p.is_customer) roles.push("customer")
   return roles
@@ -212,7 +239,8 @@ export function formatAmount(value: string | null): string {
   if (value === null || value === "") return "—"
   const n = Number(value)
   if (!Number.isFinite(n)) return value
-  return n.toLocaleString("zh-TW", { maximumFractionDigits: 2 })
+  // 金額一律兩位小數，免得同一欄有的對齊有的不對齊
+  return n.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 /** 「問 AI」帶過去的前綴文字。 */
@@ -272,11 +300,41 @@ export function addPartyContact(partyId: string, data: PartyContactCreate): Prom
   })
 }
 
+export function updatePartyContact(
+  partyId: string,
+  contactId: string,
+  data: PartyContactUpdate,
+): Promise<PartyContactUpdated> {
+  return apiFetch<PartyContactUpdated>(`/api/parties/${partyId}/contacts/${contactId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deletePartyContact(partyId: string, contactId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/parties/${partyId}/contacts/${contactId}`, { method: "DELETE" })
+}
+
 export function addPartyAddress(partyId: string, data: PartyAddressCreate): Promise<PartyChildCreated> {
   return apiFetch<PartyChildCreated>(`/api/parties/${partyId}/addresses`, {
     method: "POST",
     body: JSON.stringify(data),
   })
+}
+
+export function updatePartyAddress(
+  partyId: string,
+  addressId: string,
+  data: PartyAddressUpdate,
+): Promise<PartyAddressUpdated> {
+  return apiFetch<PartyAddressUpdated>(`/api/parties/${partyId}/addresses/${addressId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deletePartyAddress(partyId: string, addressId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/parties/${partyId}/addresses/${addressId}`, { method: "DELETE" })
 }
 
 export const erpKeys = {

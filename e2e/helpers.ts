@@ -665,7 +665,7 @@ export const defaultAppNames: Record<string, string> = {
   linebot: "Bot 管理",
   settings: "設定",
   "project-management": "專案管理",
-  "vendor-management": "往來對象",
+  "vendor-management": "廠商管理",
 }
 
 export const adminUserFixtures: AdminUserFixture[] = [
@@ -2074,6 +2074,12 @@ export async function mockErp(
   const sameOrigin = (url: URL) => url.origin === base.origin
   const forbidden = { status: 403, json: { detail: "沒有權限使用此功能" } }
   const notFound = { status: 404, json: { detail: "往來對象不存在" } }
+  // models/erp.py 的 _not_null：更新請求對 NOT NULL 欄位明確送 null 是 422，
+  // 而且 FastAPI 的 detail 是驗證錯誤陣列不是字串
+  const nullRejected = (field: string) => ({
+    status: 422,
+    json: { detail: [{ loc: ["body", field], msg: "Value error, 此欄位不可為 null", type: "value_error" }] },
+  })
 
   // ── 明細／更新／刪除（先註冊；Playwright 後註冊的先比對，所以 merge 放後面才吃得到） ──
   await page.route(
@@ -2106,7 +2112,7 @@ export async function mockErp(
     },
   )
 
-  // ── 聯絡人／地址：POST /{id}/contacts、POST /{id}/addresses ──
+  // ── 聯絡人／地址：POST /{id}/{kind}、PUT／DELETE /{id}/{kind}/{cid} ──
   await page.route(
     (url) => {
       if (!sameOrigin(url)) return false
@@ -2118,6 +2124,54 @@ export async function mockErp(
     async (route) => {
       if (forbidEdits) return route.fulfill(forbidden)
       const segs = new URL(route.request().url()).pathname.split("/")
+      const method = route.request().method()
+
+      // PUT／DELETE /{id}/{kind}/{childId}：不屬於該 party 或不存在都是 404
+      if (method === "PUT" || method === "DELETE") {
+        const childId = segs[segs.length - 1]
+        const childKind = segs[segs.length - 2]
+        const partyId = segs[segs.length - 3]
+        const party = parties.find((p) => p.id === partyId)
+        const isContact = childKind === "contacts"
+        const childNotFound = {
+          status: 404,
+          json: { detail: isContact ? "聯絡人不存在" : "地址不存在" },
+        }
+        if (!party) return route.fulfill(childNotFound)
+        seq += 1
+        if (isContact) {
+          const idx = party.contacts.findIndex((c) => c.id === childId)
+          if (idx === -1) return route.fulfill(childNotFound)
+          if (method === "DELETE") {
+            // 後端是硬刪除，刪掉主要那筆不自動指派新主要
+            party.contacts.splice(idx, 1)
+            return route.fulfill({ json: { success: true, audit_id: `audit-${seq}` } })
+          }
+          const body = route.request().postDataJSON() as Partial<PartyContactFixture>
+          for (const field of ["name", "is_primary"] as const) {
+            if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+          }
+          if (body.is_primary) party.contacts.forEach((c) => (c.is_primary = false))
+          party.contacts[idx] = { ...party.contacts[idx], ...body, updated_at: "2026-09-12T00:00:00" }
+          party.contacts.sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+          return route.fulfill({ json: { ...party.contacts[idx], audit_id: `audit-${seq}` } })
+        }
+        const idx = party.addresses.findIndex((a) => a.id === childId)
+        if (idx === -1) return route.fulfill(childNotFound)
+        if (method === "DELETE") {
+          party.addresses.splice(idx, 1)
+          return route.fulfill({ json: { success: true, audit_id: `audit-${seq}` } })
+        }
+        const body = route.request().postDataJSON() as Partial<PartyAddressFixture>
+        for (const field of ["address", "is_primary"] as const) {
+          if (field in body && body[field] === null) return route.fulfill(nullRejected(field))
+        }
+        if (body.is_primary) party.addresses.forEach((a) => (a.is_primary = false))
+        party.addresses[idx] = { ...party.addresses[idx], ...body, updated_at: "2026-09-12T00:00:00" }
+        party.addresses.sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+        return route.fulfill({ json: { ...party.addresses[idx], audit_id: `audit-${seq}` } })
+      }
+
       const kind = segs[segs.length - 1]
       const id = segs[segs.length - 2]
       const party = parties.find((p) => p.id === id)
@@ -2179,10 +2233,15 @@ export async function mockErp(
         ...drop.addresses.map((a) => ({ ...a, party_id: keep.id, is_primary: keepHasPrimaryAddress ? false : a.is_primary })),
       )
       keep.purchase_orders.push(...drop.purchase_orders.map((o) => ({ ...o })))
-      // drop 的名稱與別名併進 keep 的 aliases，之後用舊名字也找得到
-      for (const alias of [drop.name, ...drop.aliases]) {
-        if (!keep.aliases.includes(alias) && alias !== keep.name) keep.aliases.push(alias)
+      // _merge_aliases：keep 的別名 ＋ drop 的名稱／簡稱／別名，去重且保持順序
+      for (const alias of [drop.name, drop.short_name, ...drop.aliases]) {
+        if (alias && alias !== keep.name && !keep.aliases.includes(alias)) keep.aliases.push(alias)
       }
+      // 主檔欄位：角色取 OR、統編取 COALESCE（keep 沒有才吃 drop 的）
+      keep.is_supplier = keep.is_supplier || drop.is_supplier
+      keep.is_customer = keep.is_customer || drop.is_customer
+      keep.tax_id = keep.tax_id ?? drop.tax_id
+      keep.updated_at = "2026-09-12T00:00:00"
       parties.splice(dropIdx, 1)
       seq += 1
       return route.fulfill({ json: partyDetailOf(keep, `audit-${seq}`) })
@@ -2236,16 +2295,24 @@ export async function mockErp(
       const role = params.get("role")
       if (role === "supplier") filtered = filtered.filter((p) => p.is_supplier)
       if (role === "customer") filtered = filtered.filter((p) => p.is_customer)
+      if (role === "both") filtered = filtered.filter((p) => p.is_supplier && p.is_customer)
       const q = params.get("q")
       if (q) {
+        // 後端是 ILIKE：名稱／簡稱／統編／別名／聯絡人姓名都不分大小寫，
+        // 但電話與手機走等值比對（避免片段號碼誤中）
+        const needle = q.toLowerCase()
+        const has = (v: string | null) => (v ?? "").toLowerCase().includes(needle)
         filtered = filtered.filter(
           (p) =>
-            p.name.includes(q) ||
-            (p.short_name ?? "").includes(q) ||
-            (p.tax_id ?? "").includes(q) ||
-            p.aliases.some((a) => a.includes(q)),
+            has(p.name) ||
+            has(p.short_name) ||
+            has(p.tax_id) ||
+            p.aliases.some(has) ||
+            p.contacts.some((c) => has(c.name) || c.phone === q || c.mobile === q),
         )
       }
+      // 後端 ORDER BY p.updated_at DESC
+      filtered = [...filtered].sort((a, b) => b.updated_at.localeCompare(a.updated_at))
       const pageNum = Number(params.get("page") ?? "1")
       const pageSize = Number(params.get("page_size") ?? "20")
       const start = (pageNum - 1) * pageSize
