@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockApi, mockKb, seedToken } from "./helpers"
+import { adminFixture, mockAiLog, mockApi, mockBot, mockKb, seedToken } from "./helpers"
 
 const MODULES = ["首頁", "知識庫", "專案", "Bot 管理", "設定"]
 
@@ -12,6 +12,8 @@ async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
 test("側邊欄列出模組，一般使用者看不到使用者管理", async ({ page }, testInfo) => {
   await mockApi(page)
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
@@ -24,6 +26,8 @@ test("側邊欄列出模組，一般使用者看不到使用者管理", async ({
 test("首頁顯示知識庫最近更新", async ({ page }) => {
   await mockApi(page)
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await seedToken(page)
   await page.goto("/")
   await expect(page.getByRole("heading", { name: "知識庫最近更新" })).toBeVisible()
@@ -33,6 +37,8 @@ test("首頁顯示知識庫最近更新", async ({ page }) => {
 test("admin 看得到使用者管理，點模組會切換右欄", async ({ page }, testInfo) => {
   await mockApi(page, { user: adminFixture })
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
@@ -47,6 +53,8 @@ test("admin 看得到使用者管理，點模組會切換右欄", async ({ page 
 test("登出回到登入頁並清掉 token", async ({ page }, testInfo) => {
   await mockApi(page)
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
