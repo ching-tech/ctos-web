@@ -4,7 +4,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { titleForPath } from "@/lib/nav"
 import type { Platform } from "@/lib/bot"
 import BindingTab from "./tabs/binding"
+import BlocklistTab from "./tabs/blocklist"
 import GroupsTab from "./tabs/groups"
+import UsersTab from "./tabs/users"
 
 const TAB_VALUES = ["binding", "groups", "users", "blocklist", "messages", "files"] as const
 type TabValue = (typeof TAB_VALUES)[number]
@@ -90,10 +92,10 @@ export default function BotPage() {
           <GroupsTab platform={platform} />
         </TabsContent>
         <TabsContent value="users">
-          <p className="text-muted-foreground">建置中</p>
+          <UsersTab platform={platform} />
         </TabsContent>
         <TabsContent value="blocklist">
-          <p className="text-muted-foreground">建置中</p>
+          <BlocklistTab platform={platform} />
         </TabsContent>
         <TabsContent value="messages">
           <p className="text-muted-foreground">建置中</p>
