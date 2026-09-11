@@ -19,7 +19,7 @@ export interface UserInfo {
   auth_type: string
   has_password: boolean
   nas_username: string | null
-  permissions: Record<string, boolean> | null
+  permissions: { apps: Record<string, boolean>; knowledge: Record<string, boolean> } | null
 }
 
 export interface NasBindingResponse {

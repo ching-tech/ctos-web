@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test"
-import { makeAiLogs, mockAiLog, mockApi, mockKb, seedToken } from "./helpers"
+import { adminFixture, makeAiLogs, mockAiLog, mockApi, mockKb, seedToken } from "./helpers"
 
 test.beforeEach(async ({ page }) => {
-  await mockApi(page)
+  // fixture 一般使用者 ai-log 權限預設關閉，這支測試的是 AI Log 頁面本身；用 adminFixture（全權限）避免被 RequireApp 擋下。
+  await mockApi(page, { user: adminFixture })
   await mockKb(page)
   await mockAiLog(page)
   await seedToken(page)

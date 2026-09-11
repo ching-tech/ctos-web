@@ -121,6 +121,10 @@ npm run build
 - `kb.ts` — 知識庫 API 客戶端（清單／詳情／建立／編輯／刪除／附件／分享／版本歷史）
 - `kb.test.ts` — 知識庫 API 單元測試
 - `ai-log.ts` — AI Log API 客戶端（清單／統計／詳情／篩選轉換／query key）
+- `permissions.ts` — `canAccessApp`（依 `is_admin` 與 `permissions.apps` 判斷是否有權限使用某 app）
+- `permissions.test.ts` — 權限判斷單元測試
+- `admin.ts` — 管理員 API 客戶端（使用者清單、預設權限、更新使用者權限、query key）
+- `admin.test.ts` — 管理員 API 單元測試
 
 ### `src/pages/`
 
@@ -136,6 +140,7 @@ npm run build
 - `kb/home-recent.tsx` — 首頁「知識庫最近更新」卡片
 - `ai-log/list.tsx` — AI Log 清單頁（統計卡、篩選、表格、分頁）
 - `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、允許的工具、工具呼叫時間軸）
+- `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
 
@@ -145,6 +150,7 @@ UI 元件與版面：
 - `app-sidebar.tsx` — 側邊欄（導航列表）
 - `nav-user.tsx` — 使用者選單（使用者資訊、主題切換與登出）
 - `require-auth.tsx` — 驗證防護（檢查登入狀態）
+- `require-app.tsx` — 權限防護（`RequireApp` 依 app 權限、`RequireAdmin` 僅管理員；無權時渲染擋下頁而非導頁）
 - `theme-provider.tsx` — 主題提供者（深色／淺色切換）
 - `ui/` — shadcn/ui 元件（按鈕、卡片、輸入框、模態框等）
 - `kb/attachments.tsx` — 附件清單（上傳、下載、刪除）
@@ -164,6 +170,7 @@ Playwright 端對端測試：
 - `kb-editor.spec.ts` — 知識庫新增／編輯測試
 - `kb-share-history.spec.ts` — 分享連結與版本歷史測試
 - `ai-log.spec.ts` — AI Log 清單與明細頁測試
+- `permissions.spec.ts` — 依 app 權限顯示側邊欄／擋下受限路由、使用者管理頁切換權限
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -187,6 +194,10 @@ Playwright 端對端測試：
 
 任何 API 回傳 401 Unauthorized 都會清除 session（NAS 綁定密碼錯誤除外）；下一次路由渲染時 `RequireAuth` 判斷沒有 token 或使用者，才導向 `/login`。
 
+### 依 app 權限顯示
+
+`GET /api/user/me` 回傳的 `permissions.apps`（與 `is_admin`）決定側邊欄與路由：`is_admin` 一律放行；否則依 `permissions.apps[app]`（`lib/permissions.ts` 的 `canAccessApp`）。側邊欄（`app-sidebar.tsx`）依此過濾掉沒有權限的模組；路由（`routes.tsx`）用 `RequireApp`（一般 app）與 `RequireAdmin`（僅管理員）包住對應頁面，沒有權限時直接渲染一頁「此功能需要管理員開放」或「此頁只有管理員能使用」＋「回首頁」連結，不是導頁，避免與 `RequireAuth` 互相導頁。管理員可在「使用者管理」（`/admin/users`）頁調整每個使用者的 app 與知識庫權限。
+
 ## 模組現況
 
 ### 已完成
@@ -197,6 +208,7 @@ Playwright 端對端測試：
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細）
+- **使用者管理** — 路由 `/admin/users`（僅管理員），使用者清單與每人的 app／知識庫權限開關（PATCH 只送變動的鍵，即時生效）
 
 ### 尚未完成
 
@@ -204,7 +216,6 @@ Playwright 端對端測試：
 
 - **專案** — 路由 `/projects`
 - **Bot 管理** — 路由 `/bot`
-- **使用者管理** — 路由 `/admin/users`
 
 ## 相關文件
 
