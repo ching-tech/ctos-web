@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { adminFixture, mockAiLog, mockApi, mockBot, mockKb, mockProjects, seedToken } from "./helpers"
 
-const MODULES = ["首頁", "知識庫", "專案", "Bot 管理", "設定"]
+const MODULES = ["首頁", "AI 助手", "知識庫", "專案", "Bot 管理", "設定"]
 
 async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
   if (testInfo.project.name === "mobile") {
