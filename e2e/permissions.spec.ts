@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockAdmin, mockApi, mockKb, seedToken, userFixture } from "./helpers"
+import { adminFixture, mockAdmin, mockAiLog, mockApi, mockBot, mockKb, seedToken, userFixture } from "./helpers"
 
 async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
   if (testInfo.project.name === "mobile") {
@@ -10,6 +10,8 @@ async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
 test("一般使用者：側邊欄沒有 AI Log，直接開受限路由看到擋下頁", async ({ page }, testInfo) => {
   await mockApi(page) // userFixture：ai-log=false、非 admin
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await mockAdmin(page)
   await seedToken(page)
 
@@ -28,6 +30,8 @@ test("一般使用者：側邊欄沒有 AI Log，直接開受限路由看到擋�
 test("admin：側邊欄看得到 AI Log 與使用者管理，使用者管理頁可切換權限", async ({ page }, testInfo) => {
   await mockApi(page, { user: adminFixture })
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await mockAdmin(page)
   await seedToken(page)
 
@@ -77,6 +81,8 @@ test("首頁依知識庫權限顯示「知識庫最近更新」卡片", async ({
   }
   await mockApi(page, { user: noKbUser })
   await mockKb(page)
+  await mockAiLog(page)
+  await mockBot(page)
   await seedToken(page)
 
   await page.goto("/")
