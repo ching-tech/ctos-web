@@ -17,26 +17,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<UserInfo | null>(() => (getToken() ? getCachedUser() : null))
   const [loading, setLoading] = React.useState<boolean>(() => Boolean(getToken()))
 
+  // 用 .then/.catch/.finally 串接而非 async/await + try/catch：
+  // react-hooks/set-state-in-effect 的靜態分析不會追蹤 await 之後才落地的
+  // setState，只要函式本體（含 catch）掛著 setState 呼叫就會判定為「在 effect
+  // 內同步 setState」而誤判；改成 Promise chaining 能讓它正確辨識為非同步回呼。
+  const load = React.useCallback(() => {
+    return fetchMe()
+      .then((me) => {
+        setCachedUser(me)
+        setUser(me)
+      })
+      .catch(() => {
+        setUser(null)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [])
+
   const refresh = React.useCallback(async () => {
     if (!getToken()) { setUser(null); setLoading(false); return }
     setLoading(true)
-    try {
-      const me = await fetchMe()
-      setCachedUser(me)
-      setUser(me)
-    } catch {
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    await load()
+  }, [load])
 
   const signOut = React.useCallback(async () => {
     await logout()
     setUser(null)
   }, [])
 
-  React.useEffect(() => { void refresh() }, [refresh])
+  React.useEffect(() => {
+    if (getToken()) void load()
+  }, [load])
 
   return <AuthContext.Provider value={{ user, loading, refresh, signOut }}>{children}</AuthContext.Provider>
 }

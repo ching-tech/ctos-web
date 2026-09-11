@@ -19,4 +19,11 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  // shadcn/ui 產生的元件檔會同時匯出 variants 與 hook，這是它的固定寫法，關掉 fast-refresh 純元件檔限制。
+  {
+    files: ['src/components/ui/**'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
