@@ -8,6 +8,9 @@ import AiLogListPage from "@/pages/ai-log/list"
 import BotPage from "@/pages/bot"
 import BotGroupDetailPage from "@/pages/bot/group-detail"
 import HomePage from "@/pages/home"
+import ItemDetailPage from "@/pages/items/detail"
+import ItemEditorPage from "@/pages/items/editor"
+import ItemListPage from "@/pages/items/list"
 import KbDetailPage from "@/pages/kb/detail"
 import KbEditorPage from "@/pages/kb/editor"
 import KbListPage from "@/pages/kb/list"
@@ -19,6 +22,7 @@ import ProjectDetailPage from "@/pages/projects/detail"
 import ProjectEditorPage from "@/pages/projects/editor"
 import ProjectListPage from "@/pages/projects/list"
 import SettingsPage from "@/pages/settings"
+import WarehouseListPage from "@/pages/warehouses/list"
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -50,6 +54,11 @@ export const router = createBrowserRouter([
           { path: "parties/new", element: <RequireApp app="vendor-management"><PartyEditorPage /></RequireApp> },
           { path: "parties/:id", element: <RequireApp app="vendor-management"><PartyDetailPage /></RequireApp> },
           { path: "parties/:id/edit", element: <RequireApp app="vendor-management"><PartyEditorPage /></RequireApp> },
+          { path: "items", element: <RequireApp app="inventory-management"><ItemListPage /></RequireApp> },
+          { path: "items/new", element: <RequireApp app="inventory-management"><ItemEditorPage /></RequireApp> },
+          { path: "items/:id", element: <RequireApp app="inventory-management"><ItemDetailPage /></RequireApp> },
+          { path: "items/:id/edit", element: <RequireApp app="inventory-management"><ItemEditorPage /></RequireApp> },
+          { path: "warehouses", element: <RequireApp app="inventory-management"><WarehouseListPage /></RequireApp> },
           { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
           { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
