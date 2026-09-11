@@ -5,6 +5,7 @@ import { RequireAuth } from "@/components/require-auth"
 import AdminUsersPage from "@/pages/admin/users"
 import AiLogDetailPage from "@/pages/ai-log/detail"
 import AiLogListPage from "@/pages/ai-log/list"
+import AssistantPage from "@/pages/assistant"
 import BotPage from "@/pages/bot"
 import BotGroupDetailPage from "@/pages/bot/group-detail"
 import HomePage from "@/pages/home"
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { index: true, element: <HomePage /> },
+          { path: "assistant", element: <RequireApp app="ai-assistant"><AssistantPage /></RequireApp> },
           { path: "kb", element: <RequireApp app="knowledge-base"><KbListPage /></RequireApp> },
           { path: "kb/new", element: <RequireApp app="knowledge-base"><KbEditorPage /></RequireApp> },
           { path: "kb/:id", element: <RequireApp app="knowledge-base"><KbDetailPage /></RequireApp> },
