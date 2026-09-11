@@ -64,6 +64,8 @@ export interface KnowledgeCreate {
   author: string
   tags?: Partial<KnowledgeTags>
   is_public?: boolean
+  /** scope = "project" 時必須帶，後端 KnowledgeCreate.project_id。 */
+  project_id?: string
 }
 
 export type KnowledgeUpdate = Partial<Pick<KnowledgeCreate, "title" | "content" | "type" | "category" | "scope" | "is_public">> & {
@@ -92,6 +94,8 @@ export interface ListFilters {
   type?: string
   category?: string
   project?: string
+  /** scope = "project" 時帶專案 UUID（後端 GET /api/knowledge?scope=project&project_id=…）。 */
+  project_id?: string
 }
 
 export const SCOPE_LABEL = { global: "全域", personal: "個人", project: "專案" } as const satisfies Record<Scope, string>
