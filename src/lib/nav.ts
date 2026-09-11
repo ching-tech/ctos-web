@@ -5,7 +5,7 @@ export interface NavItem { title: string; path: string; icon: LucideIcon; adminO
 export const NAV_ITEMS: NavItem[] = [
   { title: "首頁", path: "/", icon: Home },
   { title: "知識庫", path: "/kb", icon: BookOpen, app: "knowledge-base" },
-  { title: "專案", path: "/projects", icon: FolderKanban },
+  { title: "專案", path: "/projects", icon: FolderKanban, app: "project-management" },
   { title: "Bot 管理", path: "/bot", icon: Bot, app: "linebot" },
   { title: "AI Log", path: "/ai-log", icon: ScrollText, app: "ai-log" },
   { title: "使用者管理", path: "/admin/users", icon: Users, adminOnly: true },
