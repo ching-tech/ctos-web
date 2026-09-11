@@ -30,7 +30,7 @@ test.describe("清單", () => {
     await expect(page.getByText("共 3 筆")).toBeVisible()
     const item = partyItem(page, testInfo, "大同機電股份有限公司")
     await expect(item.getByRole("link", { name: "大同機電股份有限公司" })).toBeVisible()
-    await expect(item.getByText("大同機電")).toBeVisible()
+    await expect(item.getByText("大同機電", { exact: true })).toBeVisible()
     await expect(item.getByText("供應商")).toBeVisible()
     await expect(item.getByText("陳采購")).toBeVisible()
     await expect(item.getByText("02-2345-6789")).toBeVisible()
@@ -119,8 +119,9 @@ test.describe("明細", () => {
 
     await expect(page.getByRole("heading", { name: "大同機電股份有限公司" })).toBeVisible()
     const info = page.getByRole("region", { name: "往來對象資訊" })
-    await expect(info.getByText("大同機電")).toBeVisible()
-    await expect(info.getByText("供應商")).toBeVisible()
+    await expect(info.getByText("大同機電", { exact: true })).toBeVisible()
+    // 備註裡也有「供應商」三個字，角色 badge 要用 exact 挑出來
+    await expect(info.getByText("供應商", { exact: true })).toBeVisible()
     await expect(info.getByText("12345678")).toBeVisible()
     await expect(info.getByText("機電工程")).toBeVisible()
     await expect(info.getByText("月結 30 天")).toBeVisible()
@@ -194,7 +195,7 @@ test.describe("明細", () => {
     await page.getByRole("button", { name: "新增地址" }).click()
     const req = page.waitForRequest((r) => r.method() === "POST" && r.url().endsWith("/api/parties/party-1/addresses"))
     await page.getByLabel("標籤").fill("倉庫")
-    await page.getByLabel("地址", { exact: true }).fill("工業路 12 號")
+    await page.getByRole("textbox", { name: "地址", exact: true }).fill("工業路 12 號")
     await page.getByLabel("城市").fill("新北市")
     await page.getByRole("button", { name: "新增", exact: true }).click()
     expect((await req).postDataJSON()).toMatchObject({
@@ -332,7 +333,7 @@ test.describe("新增與編輯", () => {
     await page.getByLabel("付款條件").fill("月結 60 天")
     await page.getByLabel("聯絡人姓名").fill("李經理")
     await page.getByLabel("聯絡人電話").fill("03-111-2222")
-    await page.getByLabel("地址", { exact: true }).fill("和平路 1 號")
+    await page.getByRole("textbox", { name: "地址", exact: true }).fill("和平路 1 號")
     await page.getByRole("button", { name: "儲存" }).click()
 
     expect((await req).postDataJSON()).toMatchObject({

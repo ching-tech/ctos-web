@@ -12,6 +12,9 @@ import KbDetailPage from "@/pages/kb/detail"
 import KbEditorPage from "@/pages/kb/editor"
 import KbListPage from "@/pages/kb/list"
 import LoginPage from "@/pages/login"
+import PartyDetailPage from "@/pages/parties/detail"
+import PartyEditorPage from "@/pages/parties/editor"
+import PartyListPage from "@/pages/parties/list"
 import ProjectDetailPage from "@/pages/projects/detail"
 import ProjectEditorPage from "@/pages/projects/editor"
 import ProjectListPage from "@/pages/projects/list"
@@ -43,6 +46,10 @@ export const router = createBrowserRouter([
           { path: "projects/new", element: <RequireApp app="project-management"><ProjectEditorPage /></RequireApp> },
           { path: "projects/:id", element: <RequireApp app="project-management"><ProjectDetailPage /></RequireApp> },
           { path: "projects/:id/edit", element: <RequireApp app="project-management"><ProjectEditorPage /></RequireApp> },
+          { path: "parties", element: <RequireApp app="vendor-management"><PartyListPage /></RequireApp> },
+          { path: "parties/new", element: <RequireApp app="vendor-management"><PartyEditorPage /></RequireApp> },
+          { path: "parties/:id", element: <RequireApp app="vendor-management"><PartyDetailPage /></RequireApp> },
+          { path: "parties/:id/edit", element: <RequireApp app="vendor-management"><PartyEditorPage /></RequireApp> },
           { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
           { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
