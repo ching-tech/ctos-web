@@ -39,7 +39,7 @@ function ToolCalls({ calls }: { calls: ToolCallEntry[] }) {
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user"
-  const isSummary = message.role === "system"
+  const isSummary = message.is_summary === true
   const label = isUser ? "使用者訊息" : isSummary ? "對話摘要" : "助手訊息"
   return (
     <article aria-label={label} className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>

@@ -76,6 +76,23 @@ export const assistantKeys = {
   agents: ["assistant", "agents"] as const,
 }
 
+/**
+ * 對話詳情的 query 設定。
+ *
+ * `refetchOnWindowFocus` 一定要關：送出訊息後使用者那則是樂觀塞進快取的，
+ * 後端要等 AI 跑完才會把它寫進 DB。這段期間視窗重新取得焦點若重抓，
+ * 回來的是還沒有那則訊息的舊資料，畫面上剛打的字就不見了。
+ */
+export function chatQueryOptions(id: string | null) {
+  return {
+    queryKey: assistantKeys.chat(id ?? ""),
+    queryFn: () => getChat(id!),
+    enabled: !!id,
+    retry: false,
+    refetchOnWindowFocus: false,
+  }
+}
+
 // ============================================================
 // Socket.IO 事件（對照 backend/src/ching_tech_os/api/ai.py）
 // ============================================================

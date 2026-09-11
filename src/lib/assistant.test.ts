@@ -3,7 +3,7 @@ process.env.TZ = "Asia/Taipei"
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { API_BASE } from "./api"
-import { chatTimeLabel, createChat, deleteChat, isForChat, listChats, toolCallsOf, updateChat, visibleMessages } from "./assistant"
+import { chatQueryOptions, chatTimeLabel, createChat, deleteChat, isForChat, listChats, toolCallsOf, updateChat, visibleMessages } from "./assistant"
 import type { ChatMessage } from "./assistant"
 import { socketTarget } from "./socket"
 
@@ -50,6 +50,19 @@ describe("REST 客戶端", () => {
 
     await deleteChat("c-1")
     expect(fetchMock.mock.calls[1][1]!.method).toBe("DELETE")
+  })
+})
+
+describe("chatQueryOptions", () => {
+  // 送出後使用者那則是樂觀塞進快取的，後端要等 AI 跑完才寫進 DB；
+  // 這段期間視窗重新取得焦點若重抓，剛打的字會被洗掉。
+  it("關掉視窗聚焦重抓", () => {
+    expect(chatQueryOptions("c-1").refetchOnWindowFocus).toBe(false)
+  })
+
+  it("沒有選對話時不發請求", () => {
+    expect(chatQueryOptions(null).enabled).toBe(false)
+    expect(chatQueryOptions("c-1").enabled).toBe(true)
   })
 })
 

@@ -179,6 +179,25 @@ test("刪除對話要先確認，確認後送 DELETE 並移出清單", async ({ 
   await expect(page.getByRole("button", { name: "報價單格式", exact: true })).toHaveCount(0)
 })
 
+test("刪掉作用中的對話：網址換到下一筆，刪光了就清掉 chat", async ({ page }, testInfo) => {
+  await gotoAssistant(page)
+  await expect(page).toHaveURL(new RegExp(`chat=${CHAT_A}`))
+
+  await openChatListIfMobile(page, testInfo)
+  await page.getByRole("button", { name: "刪除「上週出貨進度」" }).click()
+  await page.getByRole("button", { name: "確定" }).click()
+
+  await expect(page).toHaveURL(new RegExp(`chat=${CHAT_B}`))
+  await expect(page.getByText("還沒有訊息，從下面開始問吧。")).toBeVisible()
+
+  await openChatListIfMobile(page, testInfo)
+  await page.getByRole("button", { name: "刪除「報價單格式」" }).click()
+  await page.getByRole("button", { name: "確定" }).click()
+
+  await expect(page).not.toHaveURL(/chat=/)
+  await expect(page.getByText("選一個對話，或開一個新對話。")).toBeVisible()
+})
+
 test("?q= 預填輸入框，?chat= 指定開哪一串", async ({ page }) => {
   await gotoAssistant(page, `/assistant?chat=${CHAT_B}&q=${encodeURIComponent("幫我查這個客戶")}`)
 

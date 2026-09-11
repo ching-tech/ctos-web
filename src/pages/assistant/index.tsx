@@ -24,11 +24,11 @@ import { listAgents } from "@/lib/ai-log"
 import { ApiError } from "@/lib/api"
 import {
   assistantKeys,
+  chatQueryOptions,
   createChat,
   deleteChat,
   DEFAULT_AGENT,
   DEFAULT_MODEL,
-  getChat,
   isForChat,
   listChats,
   toolCallsOf,
@@ -47,18 +47,27 @@ import { cn } from "@/lib/utils"
 import { ChatList } from "./chat-list"
 import { MessageList } from "./message-list"
 
-type ConnectionStatus = "connecting" | "connected" | "disconnected"
+type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected"
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
-  connecting: "重連中",
+  connecting: "連線中",
   connected: "已連線",
+  reconnecting: "重連中",
   disconnected: "已斷線",
 }
 
 const STATUS_DOT: Record<ConnectionStatus, string> = {
   connecting: "bg-amber-500",
   connected: "bg-emerald-500",
+  reconnecting: "bg-amber-500",
   disconnected: "bg-destructive",
+}
+
+const STATUS_HINT: Record<ConnectionStatus, string> = {
+  connecting: "正在連線，稍等一下。",
+  connected: "",
+  reconnecting: "連線中斷了，正在重新連線。",
+  disconnected: "連線已中斷，請重新整理頁面。",
 }
 
 function nowSeconds(): number {
@@ -82,6 +91,8 @@ export default function AssistantPage() {
   const [deleting, setDeleting] = React.useState<Chat | null>(null)
 
   const socketRef = React.useRef<ChatSocket | null>(null)
+  // 「重連中」只在連上過又掉線之後才顯示；第一次連線失敗還是講「連線中」。
+  const everConnected = React.useRef(false)
   // socket 的處理函式只掛一次，要看得到最新的 activeId，用 ref 帶過去。
   const activeIdRef = React.useRef<string | null>(activeId)
   React.useEffect(() => {
@@ -99,12 +110,7 @@ export default function AssistantPage() {
 
   const chatsQuery = useQuery({ queryKey: assistantKeys.chats, queryFn: listChats })
   const agentsQuery = useQuery({ queryKey: assistantKeys.agents, queryFn: listAgents })
-  const chatQuery = useQuery({
-    queryKey: assistantKeys.chat(activeId ?? ""),
-    queryFn: () => getChat(activeId!),
-    enabled: !!activeId,
-    retry: false,
-  })
+  const chatQuery = useQuery(chatQueryOptions(activeId))
 
   const chats = React.useMemo(() => chatsQuery.data ?? [], [chatsQuery.data])
   const activeChat = chatQuery.data ?? null
@@ -124,8 +130,12 @@ export default function AssistantPage() {
     setStatus(socket.isConnected() ? "connected" : "connecting")
 
     const offs = [
-      socket.on("connect", () => setStatus("connected")),
-      socket.on("reconnect_attempt", () => setStatus("connecting")),
+      socket.on("connect", () => {
+        everConnected.current = true
+        setStatus("connected")
+      }),
+      socket.on("reconnect_attempt", () => setStatus(everConnected.current ? "reconnecting" : "connecting")),
+      socket.on("connect_error", () => setStatus(everConnected.current ? "reconnecting" : "connecting")),
       socket.on("disconnect", () => {
         setStatus("disconnected")
         setTyping(false)
@@ -155,7 +165,10 @@ export default function AssistantPage() {
         setTyping(false)
         setError(data.error || "AI 回覆失敗，請稍後再試")
       }),
-      socket.on("compress_started", () => setCompressing(true)),
+      socket.on("compress_started", (payload) => {
+        if (!isForChat(payload as CompressCompletePayload, activeIdRef.current)) return
+        setCompressing(true)
+      }),
       socket.on("compress_complete", (payload) => {
         const data = payload as CompressCompletePayload
         setCompressing(false)
@@ -245,11 +258,16 @@ export default function AssistantPage() {
     mutationFn: (id: string) => deleteChat(id),
     onSuccess: (_data, id) => {
       queryClient.removeQueries({ queryKey: assistantKeys.chat(id) })
+      // 先把它從清單快取拿掉再改網址：不然「沒指定就開最近一筆」那段會拿到還沒重抓的
+      // 舊清單，把網址指回剛剛刪掉的 id。
+      const remaining = (queryClient.getQueryData<Chat[]>(assistantKeys.chats) ?? []).filter((c) => c.id !== id)
+      queryClient.setQueryData<Chat[]>(assistantKeys.chats, remaining)
       queryClient.invalidateQueries({ queryKey: assistantKeys.chats })
       setDeleting(null)
       if (id === activeId) {
         const next = new URLSearchParams(searchParams)
-        next.delete("chat")
+        if (remaining.length > 0) next.set("chat", remaining[0].id)
+        else next.delete("chat")
         setSearchParams(next, { replace: true })
       }
     },
@@ -329,11 +347,7 @@ export default function AssistantPage() {
           </span>
         </div>
 
-        {!connected && (
-          <p className="text-xs text-muted-foreground">
-            {status === "disconnected" ? "連線已中斷，請重新整理頁面。" : "正在連線，稍等一下。"}
-          </p>
-        )}
+        {!connected && <p className="text-xs text-muted-foreground">{STATUS_HINT[status]}</p>}
 
         {error && (
           <Alert variant="destructive" role="alert">
