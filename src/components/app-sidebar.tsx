@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router"
 import { NavUser } from "@/components/nav-user"
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from "@/components/ui/sidebar"
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from "@/components/ui/sidebar"
 import { useAuth } from "@/lib/auth-context"
 import { NAV_ITEMS } from "@/lib/nav"
 
@@ -14,6 +14,7 @@ export function AppSidebar() {
       <SidebarHeader className="px-3 py-2 text-base font-semibold group-data-[collapsible=icon]:hidden">ChingTech OS</SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel>工作區</SidebarGroupLabel>
           <nav aria-label="主選單">
             <SidebarMenu>
               {items.map((item) => {
