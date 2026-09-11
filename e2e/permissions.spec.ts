@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockAdmin, mockApi, mockKb, seedToken } from "./helpers"
+import { adminFixture, mockAdmin, mockApi, mockKb, seedToken, userFixture } from "./helpers"
 
 async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
   if (testInfo.project.name === "mobile") {
@@ -47,6 +47,7 @@ test("admin：側邊欄看得到 AI Log 與使用者管理，使用者管理頁�
 
   const sheet = page.getByRole("dialog")
   await expect(sheet.getByText("權限設定")).toBeVisible()
+  await expect(sheet.getByText("需重新登入")).toBeVisible() // 後端把權限快取進 session，變更後要重新登入才生效
   const aiLogSwitch = sheet.getByRole("switch", { name: "AI Log" })
   await expect(aiLogSwitch).not.toBeChecked()
 
@@ -67,4 +68,17 @@ test("admin：側邊欄看得到 AI Log 與使用者管理，使用者管理頁�
   const adminAiLogSwitch = sheet.getByRole("switch", { name: "AI Log" })
   await expect(adminAiLogSwitch).toBeChecked()
   await expect(adminAiLogSwitch).toBeDisabled()
+})
+
+test("首頁依知識庫權限顯示「知識庫最近更新」卡片", async ({ page }) => {
+  const noKbUser = {
+    ...userFixture,
+    permissions: { ...userFixture.permissions, apps: { ...userFixture.permissions.apps, "knowledge-base": false } },
+  }
+  await mockApi(page, { user: noKbUser })
+  await mockKb(page)
+  await seedToken(page)
+
+  await page.goto("/")
+  await expect(page.getByRole("heading", { name: "知識庫最近更新" })).toHaveCount(0)
 })
