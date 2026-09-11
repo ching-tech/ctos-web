@@ -12,14 +12,14 @@ export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true },
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true },
     knowledge: { global_write: false, global_delete: false },
   },
 }
 export const adminFixture = {
   ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true },
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true },
     knowledge: { global_write: true, global_delete: true },
   },
 }
@@ -665,6 +665,7 @@ export const defaultAppNames: Record<string, string> = {
   linebot: "Bot 管理",
   settings: "設定",
   "project-management": "專案管理",
+  "vendor-management": "往來對象",
 }
 
 export const adminUserFixtures: AdminUserFixture[] = [
@@ -700,7 +701,7 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
     async (route) =>
       route.fulfill({
         json: {
-          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true },
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true },
           knowledge: { global_write: false, global_delete: false },
           app_names: defaultAppNames,
         },
@@ -1840,4 +1841,419 @@ export async function socketAuthToken(page: Page): Promise<string | null> {
   return page.evaluate(
     () => (window as unknown as { __CTOS_SOCKET_MOCK__?: { token: string | null } }).__CTOS_SOCKET_MOCK__?.token ?? null,
   )
+}
+
+// ============================================================
+// 往來對象（/parties）
+//
+// fixture 欄位逐一對 backend/src/ching_tech_os/models/erp.py 的 Party* 模型：
+// PartyListItem／PartyDetailResponse／PartyContactResponse／PartyAddressResponse／
+// PartyPurchaseOrderItem／PartyProjectItem。Decimal 欄位（total_amount）在
+// pydantic v2 的 JSON 模式序列化成字串，不是數字，fixture 照樣給字串。
+// ============================================================
+
+export interface PartyContactFixture {
+  id: string
+  party_id: string
+  name: string
+  title: string | null
+  phone: string | null
+  mobile: string | null
+  email: string | null
+  is_primary: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PartyAddressFixture {
+  id: string
+  party_id: string
+  label: string | null
+  address: string
+  city: string | null
+  is_primary: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface PartyPurchaseOrderFixture {
+  id: string
+  po_no: string
+  status: string
+  order_date: string | null
+  expected_date: string | null
+  total_amount: string | null
+}
+
+export interface PartyProjectFixture {
+  id: string
+  name: string
+  status: string
+}
+
+export interface PartyFixture {
+  id: string
+  name: string
+  short_name: string | null
+  aliases: string[]
+  is_supplier: boolean
+  is_customer: boolean
+  tax_id: string | null
+  industry: string | null
+  payment_terms: string | null
+  notes: string | null
+  source_ref: string | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+  contacts: PartyContactFixture[]
+  addresses: PartyAddressFixture[]
+  purchase_orders: PartyPurchaseOrderFixture[]
+  projects: PartyProjectFixture[]
+  knowledge_count: number
+}
+
+export const partyFixtures: PartyFixture[] = [
+  {
+    id: "party-1",
+    name: "大同機電股份有限公司",
+    short_name: "大同機電",
+    aliases: ["大同", "Datong Electric"],
+    is_supplier: true,
+    is_customer: false,
+    tax_id: "12345678",
+    industry: "機電工程",
+    payment_terms: "月結 30 天",
+    notes: "配電盤主力供應商。",
+    source_ref: null,
+    created_by: 1,
+    created_at: "2026-01-01T00:00:00",
+    updated_at: "2026-09-10T08:00:00",
+    contacts: [
+      {
+        id: "contact-1", party_id: "party-1", name: "陳采購", title: "採購課長",
+        phone: "02-2345-6789", mobile: "0912-345-678", email: "chen@datong.example",
+        is_primary: true, notes: null,
+        created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+      },
+      {
+        id: "contact-2", party_id: "party-1", name: "林工程", title: "工程師",
+        phone: null, mobile: "0922-111-222", email: null,
+        is_primary: false, notes: null,
+        created_at: "2026-02-01T00:00:00", updated_at: "2026-02-01T00:00:00",
+      },
+    ],
+    addresses: [
+      {
+        id: "addr-1", party_id: "party-1", label: "總公司", address: "民生東路三段 100 號 5 樓",
+        city: "臺北市", is_primary: true,
+        created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+      },
+      {
+        id: "addr-2", party_id: "party-1", label: "工廠", address: "中正路 88 號",
+        city: "桃園市", is_primary: false,
+        created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+      },
+    ],
+    purchase_orders: [
+      {
+        id: "po-1", po_no: "PO-2026-0001", status: "ordered",
+        order_date: "2026-08-01", expected_date: "2026-09-30", total_amount: "128000.00",
+      },
+      {
+        id: "po-2", po_no: "PO-2026-0007", status: "received",
+        order_date: "2026-06-01", expected_date: "2026-06-20", total_amount: "45500.50",
+      },
+    ],
+    projects: [{ id: "proj-1", name: "台北捷運監控案", status: "active" }],
+    knowledge_count: 2,
+  },
+  {
+    id: "party-2",
+    name: "臺北捷運公司",
+    short_name: "北捷",
+    aliases: ["捷運公司"],
+    is_supplier: false,
+    is_customer: true,
+    tax_id: "87654321",
+    industry: "軌道運輸",
+    payment_terms: null,
+    notes: null,
+    source_ref: "erpnext:CUST-0002",
+    created_by: 1,
+    created_at: "2026-02-01T00:00:00",
+    updated_at: "2026-09-01T00:00:00",
+    contacts: [
+      {
+        id: "contact-9", party_id: "party-2", name: "王主任", title: null,
+        phone: "02-1234-5678", mobile: null, email: null,
+        is_primary: true, notes: null,
+        created_at: "2026-02-01T00:00:00", updated_at: "2026-02-01T00:00:00",
+      },
+    ],
+    addresses: [],
+    purchase_orders: [],
+    projects: [],
+    knowledge_count: 0,
+  },
+  {
+    id: "party-3",
+    name: "合信電機",
+    short_name: null,
+    // 同時是供應商與客戶，用來驗兩個角色 badge 一起出現
+    aliases: [],
+    is_supplier: true,
+    is_customer: true,
+    tax_id: null,
+    industry: null,
+    payment_terms: null,
+    notes: null,
+    source_ref: null,
+    created_by: 1,
+    created_at: "2026-03-01T00:00:00",
+    updated_at: "2026-08-01T00:00:00",
+    contacts: [],
+    addresses: [],
+    purchase_orders: [],
+    projects: [],
+    knowledge_count: 0,
+  },
+]
+
+function cloneParty(p: PartyFixture): PartyFixture {
+  return {
+    ...p,
+    aliases: [...p.aliases],
+    contacts: p.contacts.map((c) => ({ ...c })),
+    addresses: p.addresses.map((a) => ({ ...a })),
+    purchase_orders: p.purchase_orders.map((o) => ({ ...o })),
+    projects: p.projects.map((j) => ({ ...j })),
+  }
+}
+
+/** PartyListItem：明細沒有的 primary_contact／primary_phone 照後端 SQL（主要優先、phone 優先 mobile）算。 */
+function partyListItemOf(p: PartyFixture) {
+  const primary = [...p.contacts].sort((a, b) => Number(b.is_primary) - Number(a.is_primary))[0]
+  return {
+    id: p.id,
+    name: p.name,
+    short_name: p.short_name,
+    is_supplier: p.is_supplier,
+    is_customer: p.is_customer,
+    tax_id: p.tax_id,
+    industry: p.industry,
+    primary_contact: primary?.name ?? null,
+    primary_phone: primary ? (primary.phone ?? primary.mobile) : null,
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+  }
+}
+
+/** PartyDetailResponse：GET 明細的 audit_id 是 null，建立／更新／合併才有值。 */
+function partyDetailOf(p: PartyFixture, auditId: string | null = null) {
+  return { ...cloneParty(p), audit_id: auditId }
+}
+
+/**
+ * 攔 /api/parties 全部端點。照 mockProjects 的寫法，狀態與錯誤訊息對 api/erp.py：
+ * - 清單 query 只有 q／role／page／page_size（後端搜尋名稱、簡稱、統編、別名）
+ * - POST /merge 的 keep_id === drop_id 回 400「不能把同一筆往來對象合併到自己」
+ * - forbidEdits：寫入端點回 403（require_app_permission("vendor-management") 的樣子）
+ */
+export async function mockErp(
+  page: Page,
+  opts: { parties?: PartyFixture[]; forbidEdits?: boolean } = {},
+) {
+  const parties: PartyFixture[] = (opts.parties ?? partyFixtures).map(cloneParty)
+  const forbidEdits = opts.forbidEdits ?? false
+  let seq = 0
+
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  const forbidden = { status: 403, json: { detail: "沒有權限使用此功能" } }
+  const notFound = { status: 404, json: { detail: "往來對象不存在" } }
+
+  // ── 明細／更新／刪除（先註冊；Playwright 後註冊的先比對，所以 merge 放後面才吃得到） ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/parties/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = parties.findIndex((p) => p.id === id)
+      if (idx === -1) return route.fulfill(notFound)
+      const method = route.request().method()
+      if (method === "DELETE") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        parties.splice(idx, 1)
+        seq += 1
+        return route.fulfill({ json: { success: true, audit_id: `audit-${seq}` } })
+      }
+      if (method === "PUT") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<PartyFixture>
+        parties[idx] = { ...parties[idx], ...body }
+        seq += 1
+        return route.fulfill({ json: partyDetailOf(parties[idx], `audit-${seq}`) })
+      }
+      return route.fulfill({ json: partyDetailOf(parties[idx]) })
+    },
+  )
+
+  // ── 聯絡人／地址：POST /{id}/contacts、POST /{id}/addresses ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/parties/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length).split("/")
+      return rest[1] === "contacts" || rest[1] === "addresses"
+    },
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const kind = segs[segs.length - 1]
+      const id = segs[segs.length - 2]
+      const party = parties.find((p) => p.id === id)
+      if (!party) return route.fulfill(notFound)
+      seq += 1
+      if (kind === "contacts") {
+        const body = route.request().postDataJSON() as Partial<PartyContactFixture>
+        // 後端 _insert_contact：設 is_primary 會把同一家原本的主要聯絡人取消
+        if (body.is_primary) party.contacts.forEach((c) => (c.is_primary = false))
+        party.contacts.push({
+          id: `contact-new-${seq}`, party_id: party.id, name: body.name ?? "",
+          title: body.title ?? null, phone: body.phone ?? null, mobile: body.mobile ?? null,
+          email: body.email ?? null, is_primary: Boolean(body.is_primary), notes: body.notes ?? null,
+          created_at: "2026-09-12T00:00:00", updated_at: "2026-09-12T00:00:00",
+        })
+        party.contacts.sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+        return route.fulfill({
+          status: 201,
+          json: { success: true, contact_id: `contact-new-${seq}`, audit_id: `audit-${seq}` },
+        })
+      }
+      const body = route.request().postDataJSON() as Partial<PartyAddressFixture>
+      if (body.is_primary) party.addresses.forEach((a) => (a.is_primary = false))
+      party.addresses.push({
+        id: `addr-new-${seq}`, party_id: party.id, label: body.label ?? null,
+        address: body.address ?? "", city: body.city ?? null, is_primary: Boolean(body.is_primary),
+        created_at: "2026-09-12T00:00:00", updated_at: "2026-09-12T00:00:00",
+      })
+      party.addresses.sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
+      return route.fulfill({
+        status: 201,
+        json: { success: true, address_id: `addr-new-${seq}`, audit_id: `audit-${seq}` },
+      })
+    },
+  )
+
+  // ── 合併（後註冊才比明細那條先比對） ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/parties/merge`,
+    async (route) => {
+      if (forbidEdits) return route.fulfill(forbidden)
+      const body = route.request().postDataJSON() as { keep_id: string; drop_id: string }
+      if (body.keep_id === body.drop_id) {
+        return route.fulfill({ status: 400, json: { detail: "不能把同一筆往來對象合併到自己" } })
+      }
+      const keepIdx = parties.findIndex((p) => p.id === body.keep_id)
+      const dropIdx = parties.findIndex((p) => p.id === body.drop_id)
+      if (keepIdx === -1 || dropIdx === -1) {
+        return route.fulfill({ status: 400, json: { detail: "要合併的往來對象不存在或已刪除" } })
+      }
+      const keep = parties[keepIdx]
+      const drop = parties[dropIdx]
+      const keepHasPrimaryContact = keep.contacts.some((c) => c.is_primary)
+      const keepHasPrimaryAddress = keep.addresses.some((a) => a.is_primary)
+      keep.contacts.push(
+        ...drop.contacts.map((c) => ({ ...c, party_id: keep.id, is_primary: keepHasPrimaryContact ? false : c.is_primary })),
+      )
+      keep.addresses.push(
+        ...drop.addresses.map((a) => ({ ...a, party_id: keep.id, is_primary: keepHasPrimaryAddress ? false : a.is_primary })),
+      )
+      keep.purchase_orders.push(...drop.purchase_orders.map((o) => ({ ...o })))
+      // drop 的名稱與別名併進 keep 的 aliases，之後用舊名字也找得到
+      for (const alias of [drop.name, ...drop.aliases]) {
+        if (!keep.aliases.includes(alias) && alias !== keep.name) keep.aliases.push(alias)
+      }
+      parties.splice(dropIdx, 1)
+      seq += 1
+      return route.fulfill({ json: partyDetailOf(keep, `audit-${seq}`) })
+    },
+  )
+
+  // ── 清單與建立 ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/parties`,
+    async (route) => {
+      const method = route.request().method()
+      if (method === "POST") {
+        if (forbidEdits) return route.fulfill(forbidden)
+        const body = route.request().postDataJSON() as Partial<PartyFixture>
+        seq += 1
+        const created: PartyFixture = {
+          id: `party-new-${seq}`,
+          name: body.name ?? "",
+          short_name: body.short_name ?? null,
+          aliases: body.aliases ?? [],
+          is_supplier: Boolean(body.is_supplier),
+          is_customer: Boolean(body.is_customer),
+          tax_id: body.tax_id ?? null,
+          industry: body.industry ?? null,
+          payment_terms: body.payment_terms ?? null,
+          notes: body.notes ?? null,
+          source_ref: body.source_ref ?? null,
+          created_by: 1,
+          created_at: "2026-09-12T00:00:00",
+          updated_at: "2026-09-12T00:00:00",
+          contacts: (body.contacts ?? []).map((c, i) => ({
+            id: `contact-new-${seq}-${i}`, party_id: `party-new-${seq}`, name: c.name ?? "",
+            title: c.title ?? null, phone: c.phone ?? null, mobile: c.mobile ?? null,
+            email: c.email ?? null, is_primary: Boolean(c.is_primary), notes: c.notes ?? null,
+            created_at: "2026-09-12T00:00:00", updated_at: "2026-09-12T00:00:00",
+          })),
+          addresses: (body.addresses ?? []).map((a, i) => ({
+            id: `addr-new-${seq}-${i}`, party_id: `party-new-${seq}`, label: a.label ?? null,
+            address: a.address ?? "", city: a.city ?? null, is_primary: Boolean(a.is_primary),
+            created_at: "2026-09-12T00:00:00", updated_at: "2026-09-12T00:00:00",
+          })),
+          purchase_orders: [],
+          projects: [],
+          knowledge_count: 0,
+        }
+        parties.push(created)
+        return route.fulfill({ status: 201, json: partyDetailOf(created, `audit-${seq}`) })
+      }
+      const params = new URL(route.request().url()).searchParams
+      let filtered = parties
+      const role = params.get("role")
+      if (role === "supplier") filtered = filtered.filter((p) => p.is_supplier)
+      if (role === "customer") filtered = filtered.filter((p) => p.is_customer)
+      const q = params.get("q")
+      if (q) {
+        filtered = filtered.filter(
+          (p) =>
+            p.name.includes(q) ||
+            (p.short_name ?? "").includes(q) ||
+            (p.tax_id ?? "").includes(q) ||
+            p.aliases.some((a) => a.includes(q)),
+        )
+      }
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "20")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({
+        json: { items: filtered.slice(start, start + pageSize).map(partyListItemOf), total: filtered.length },
+      })
+    },
+  )
+
+  return { parties }
 }
