@@ -6,6 +6,7 @@ import {
   mockApi,
   mockBot,
   mockKb,
+  mockProjects,
   seedToken,
   userFixture,
   type AiLogFixture,
@@ -31,6 +32,7 @@ test("admin 看到三張卡與統計數字", async ({ page }) => {
   await mockKb(page)
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
+  await mockProjects(page)
   await seedToken(page)
 
   const statsReq = page.waitForRequest((r) => r.url().includes("/api/ai/logs/stats"))
@@ -68,6 +70,7 @@ test("沒有 AI Log 權限的使用者看不到今日 AI 用量卡，Bot 概況�
   await mockKb(page)
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
+  await mockProjects(page)
   await seedToken(page)
 
   await page.goto("/")
@@ -85,10 +88,71 @@ test("沒有 Bot 權限的使用者看不到 Bot 概況卡，今日 AI 用量卡
   await mockKb(page)
   await mockAiLog(page, { logs: logsForToday() })
   await mockBot(page)
+  await mockProjects(page)
   await seedToken(page)
 
   await page.goto("/")
 
   await expect(page.getByRole("heading", { name: "今日 AI 用量" })).toBeVisible()
   await expect(page.getByRole("heading", { name: "Bot 概況" })).toHaveCount(0)
+})
+
+test("admin 看到進行中專案與逾期里程碑卡", async ({ page }) => {
+  await mockApi(page, { user: adminFixture })
+  await mockKb(page)
+  await mockAiLog(page, { logs: logsForToday() })
+  await mockBot(page)
+  await mockProjects(page)
+  await seedToken(page)
+
+  await page.goto("/")
+
+  await expect(page.getByRole("heading", { name: "進行中專案" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "逾期里程碑" })).toBeVisible()
+
+  // fixture 只有 proj-1 是 active，active_count = 1。
+  const projectsCard = page.getByRole("heading", { name: "進行中專案" }).locator("..").locator("..")
+  await expect(projectsCard.getByText("1", { exact: true })).toBeVisible()
+  await expect(projectsCard.getByRole("link", { name: "台北捷運監控案" })).toHaveAttribute("href", "/projects/proj-1")
+  await expect(projectsCard.getByRole("link", { name: "查看全部專案" })).toHaveAttribute("href", "/projects?status=active")
+
+  // fixture 的 proj-1 有 ms-1／ms-2 兩筆逾期里程碑，mock 固定回 days_overdue: 30。
+  const milestonesCard = page.getByRole("heading", { name: "逾期里程碑" }).locator("..").locator("..")
+  await expect(milestonesCard.getByText("逾期 30 天")).toHaveCount(2)
+  await expect(milestonesCard.getByRole("link", { name: "台北捷運監控案" }).first()).toHaveAttribute("href", "/projects/proj-1?tab=overview")
+})
+
+test("沒有專案管理權限的使用者看不到兩張專案卡，也不打 /api/projects", async ({ page }) => {
+  const user = { ...userFixture, permissions: { ...userFixture.permissions, apps: { ...userFixture.permissions.apps, "project-management": false } } }
+  await mockApi(page, { user })
+  await mockKb(page)
+  await mockAiLog(page, { logs: logsForToday() })
+  await mockBot(page)
+  await mockProjects(page)
+  await seedToken(page)
+
+  const requests: string[] = []
+  page.on("request", (r) => requests.push(r.url()))
+
+  await page.goto("/")
+
+  await expect(page.getByRole("heading", { name: "進行中專案" })).toHaveCount(0)
+  await expect(page.getByRole("heading", { name: "逾期里程碑" })).toHaveCount(0)
+  expect(requests.some((u) => u.includes("/api/projects"))).toBe(false)
+})
+
+test("專案摘要空時兩張卡顯示空狀態文案", async ({ page }) => {
+  await mockApi(page, { user: adminFixture })
+  await mockKb(page)
+  await mockAiLog(page, { logs: logsForToday() })
+  await mockBot(page)
+  await mockProjects(page, { projects: [] })
+  await seedToken(page)
+
+  await page.goto("/")
+
+  await expect(page.getByRole("heading", { name: "進行中專案" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "逾期里程碑" })).toBeVisible()
+  await expect(page.getByText("目前沒有進行中的專案")).toBeVisible()
+  await expect(page.getByText("沒有逾期的里程碑")).toBeVisible()
 })
