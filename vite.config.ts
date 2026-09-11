@@ -11,5 +11,5 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  test: { environment: "node", globals: false, exclude: [...configDefaults.exclude, "e2e/**"] },
+  test: { environment: "node", globals: false, exclude: [...configDefaults.exclude, "e2e/**", ".shots/**"] },
 })

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { Link, useNavigate, useSearchParams } from "react-router"
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { titleForPath } from "@/lib/nav"
 import {
   aiLogKeys,
   CONTEXT_LABEL,
@@ -44,6 +45,7 @@ function fmtNumber(n: number | null | undefined): string {
 }
 
 export default function AiLogListPage() {
+  const { pathname } = useLocation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = filtersFromParams(searchParams)
@@ -90,7 +92,10 @@ export default function AiLogListPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">AI Log</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="sr-only">{titleForPath(pathname)}</h1>
+        <p className="text-sm text-muted-foreground">{listQuery.isLoading ? "" : `共 ${total.toLocaleString("zh-TW")} 筆`}</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card>
@@ -206,60 +211,61 @@ export default function AiLogListPage() {
         </div>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">共 {total.toLocaleString("zh-TW")} 筆</p>
           {items.length === 0 ? (
             <p className="text-muted-foreground">沒有符合的紀錄</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>時間</TableHead>
-                  <TableHead>Agent</TableHead>
-                  <TableHead>情境</TableHead>
-                  <TableHead>模型</TableHead>
-                  <TableHead>結果</TableHead>
-                  <TableHead>耗時</TableHead>
-                  <TableHead>Token</TableHead>
-                  <TableHead>工具</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => {
-                  const time = new Date(item.created_at).toLocaleString("zh-TW")
-                  return (
-                    <TableRow
-                      key={item.id}
-                      className="cursor-pointer"
-                      onClick={() => navigate(`/ai-log/${item.id}`)}
-                    >
-                      <TableCell>
-                        <Link
-                          to={`/ai-log/${item.id}`}
-                          aria-label={`${time} ${item.agent_name ?? item.id}`}
-                          className="text-primary underline-offset-4 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {time}
-                        </Link>
-                      </TableCell>
-                      <TableCell>{agentLabel(item)}</TableCell>
-                      <TableCell>{contextLabel(item.context_type)}</TableCell>
-                      <TableCell>{item.model || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={item.success ? "secondary" : "destructive"}>
-                          {item.success ? "成功" : "失敗"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{item.duration_ms != null ? `${item.duration_ms.toLocaleString("zh-TW")}ms` : "—"}</TableCell>
-                      <TableCell>
-                        {fmtNumber(item.input_tokens)}/{fmtNumber(item.output_tokens)}
-                      </TableCell>
-                      <TableCell>{item.used_tools?.length ?? 0}</TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <div className="overflow-hidden rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>時間</TableHead>
+                    <TableHead>Agent</TableHead>
+                    <TableHead>情境</TableHead>
+                    <TableHead>模型</TableHead>
+                    <TableHead>結果</TableHead>
+                    <TableHead>耗時</TableHead>
+                    <TableHead>Token</TableHead>
+                    <TableHead>工具</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => {
+                    const time = new Date(item.created_at).toLocaleString("zh-TW")
+                    return (
+                      <TableRow
+                        key={item.id}
+                        className="cursor-pointer"
+                        onClick={() => navigate(`/ai-log/${item.id}`)}
+                      >
+                        <TableCell>
+                          <Link
+                            to={`/ai-log/${item.id}`}
+                            aria-label={`${time} ${item.agent_name ?? item.id}`}
+                            className="text-primary underline-offset-4 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {time}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{agentLabel(item)}</TableCell>
+                        <TableCell>{contextLabel(item.context_type)}</TableCell>
+                        <TableCell>{item.model || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={item.success ? "tint" : "destructive"} className={item.success ? "text-emerald-600 dark:text-emerald-400" : undefined}>
+                            {item.success ? "成功" : "失敗"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{item.duration_ms != null ? `${item.duration_ms.toLocaleString("zh-TW")}ms` : "—"}</TableCell>
+                        <TableCell>
+                          {fmtNumber(item.input_tokens)}/{fmtNumber(item.output_tokens)}
+                        </TableCell>
+                        <TableCell>{item.used_tools?.length ?? 0}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
           <div className="flex items-center justify-end gap-2">

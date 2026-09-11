@@ -21,7 +21,7 @@ import { HistorySheet } from "@/components/kb/history-sheet"
 import { Markdown } from "@/components/kb/markdown"
 import { ShareDialog } from "@/components/kb/share-dialog"
 import { ApiError } from "@/lib/api"
-import { CATEGORY_LABEL, deleteKnowledge, getKnowledge, kbKeys, label, SCOPE_LABEL, TYPE_LABEL } from "@/lib/kb"
+import { CATEGORY_LABEL, categoryColor, deleteKnowledge, getKnowledge, kbKeys, label, SCOPE_LABEL, TYPE_LABEL } from "@/lib/kb"
 import { Skeleton } from "@/components/ui/skeleton"
 
 function MetaRow({ term, value }: { term: string; value: string | null | undefined }) {
@@ -90,8 +90,10 @@ export default function KbDetailPage() {
           <h1 className="text-2xl font-semibold">{kb.title}</h1>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{label(TYPE_LABEL, kb.type)}</Badge>
-            <Badge variant="outline">{label(CATEGORY_LABEL, kb.category)}</Badge>
-            <Badge variant="secondary">{kb.is_public ? "公開" : "不公開"}</Badge>
+            <Badge variant="tint" className={categoryColor(kb.category)}>{label(CATEGORY_LABEL, kb.category)}</Badge>
+            <Badge variant="tint" className={kb.is_public ? "text-emerald-600 dark:text-emerald-400" : undefined}>
+              {kb.is_public ? "公開" : "不公開"}
+            </Badge>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

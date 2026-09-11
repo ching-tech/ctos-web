@@ -145,7 +145,11 @@ export default function AiLogDetailPage() {
           <SummaryRow term="模型" value={log.model ?? "—"} />
           <SummaryRow
             term="結果"
-            value={<Badge variant={log.success ? "secondary" : "destructive"}>{log.success ? "成功" : "失敗"}</Badge>}
+            value={
+              <Badge variant={log.success ? "tint" : "destructive"} className={log.success ? "text-emerald-600 dark:text-emerald-400" : undefined}>
+                {log.success ? "成功" : "失敗"}
+              </Badge>
+            }
           />
           <SummaryRow term="耗時" value={log.duration_ms != null ? `${log.duration_ms.toLocaleString("zh-TW")}ms` : "—"} />
           {usedTools.length > 0 && (

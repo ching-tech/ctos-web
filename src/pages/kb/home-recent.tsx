@@ -3,6 +3,7 @@ import { Link } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { KbCard } from "@/components/kb/kb-card"
 import { ApiError } from "@/lib/api"
 import { kbKeys, listKnowledge, type KnowledgeListItem } from "@/lib/kb"
 
@@ -39,16 +40,11 @@ export function HomeRecentKb() {
         ) : recent.length === 0 ? (
           <p className="text-muted-foreground">還沒有知識</p>
         ) : (
-          <ul className="space-y-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {recent.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                <Link to={`/kb/${item.id}`} className="min-w-0 truncate text-primary underline-offset-4 hover:underline">
-                  {item.title}
-                </Link>
-                <span className="shrink-0 text-sm text-muted-foreground">{item.updated_at}</span>
-              </li>
+              <KbCard key={item.id} item={item} />
             ))}
-          </ul>
+          </div>
         )}
       </CardContent>
     </Card>

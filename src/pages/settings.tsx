@@ -58,7 +58,7 @@ export default function SettingsPage() {
   if (!user) return null
   return (
     <div className="grid max-w-3xl gap-6">
-      <h1 className="text-2xl font-semibold">設定</h1>
+      <h1 className="text-sm font-medium text-muted-foreground">設定</h1>
       <Card>
         <CardHeader><CardTitle>帳號</CardTitle></CardHeader>
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
