@@ -2,6 +2,12 @@ import type { Page } from "@playwright/test"
 
 export const API = "https://ching-tech.ddns.net/ctos"
 
+// 1×1 透明 PNG，供圖片預覽 e2e 用（檔案下載 mock 回傳給 image 類型的檔案）。
+export const ONE_PX_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+)
+
 export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
@@ -1089,6 +1095,9 @@ export async function mockBot(
       const id = segs[segs.length - 2]
       const found = files.find((f) => f.id === id)
       if (!found) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      if (found.file_type === "image") {
+        return route.fulfill({ contentType: "image/png", body: ONE_PX_PNG })
+      }
       await route.fulfill({ contentType: found.mime_type ?? "application/octet-stream", body: Buffer.from("fixture-file-content") })
     },
   )

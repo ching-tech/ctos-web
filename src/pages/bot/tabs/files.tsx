@@ -1,3 +1,4 @@
+import * as React from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ImagePreviewDialog } from "@/components/bot/image-preview-dialog"
 import { Pagination } from "@/components/pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,8 +32,14 @@ const FILE_TYPES = [
   { value: "file", label: "檔案" },
 ] as const
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp)$/i
+
 function fileDisplayName(f: BotFile): string {
   return f.file_name || `${f.file_type}_${f.id.slice(0, 8)}`
+}
+
+function isImageFile(f: BotFile): boolean {
+  return f.file_type === "image" || (!!f.file_name && IMAGE_EXT.test(f.file_name))
 }
 
 function formatSize(bytes: number | null): string {
@@ -67,6 +75,19 @@ function DownloadAction({ file }: { file: BotFile }) {
         </Alert>
       )}
     </div>
+  )
+}
+
+function PreviewAction({ file }: { file: BotFile }) {
+  const [open, setOpen] = React.useState(false)
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        預覽
+      </Button>
+      <ImagePreviewDialog file={file} open={open} onOpenChange={setOpen} />
+    </>
   )
 }
 
@@ -204,7 +225,14 @@ export default function FilesTab({ platform }: { platform: Platform | "" }) {
                     <TableCell>{new Date(f.created_at).toLocaleString("zh-TW")}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
-                        {f.nas_path ? <DownloadAction file={f} /> : <Badge variant="tint">已過期</Badge>}
+                        {f.nas_path ? (
+                          <>
+                            {isImageFile(f) && <PreviewAction file={f} />}
+                            <DownloadAction file={f} />
+                          </>
+                        ) : (
+                          <Badge variant="tint">已過期</Badge>
+                        )}
                         <DeleteAction file={f} />
                       </div>
                     </TableCell>
