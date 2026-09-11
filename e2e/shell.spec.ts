@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, mockAiLog, mockApi, mockBot, mockKb, seedToken } from "./helpers"
+import { adminFixture, mockAiLog, mockApi, mockBot, mockKb, mockProjects, seedToken } from "./helpers"
 
 const MODULES = ["首頁", "知識庫", "專案", "Bot 管理", "設定"]
 
@@ -39,6 +39,7 @@ test("admin 看得到使用者管理，點模組會切換右欄", async ({ page 
   await mockKb(page)
   await mockAiLog(page)
   await mockBot(page)
+  await mockProjects(page)
   await seedToken(page)
   await page.goto("/")
   await openSidebarIfMobile(page, testInfo)
@@ -47,7 +48,7 @@ test("admin 看得到使用者管理，點模組會切換右欄", async ({ page 
   await nav.getByRole("link", { name: "專案" }).click()
   await expect(page).toHaveURL(/\/projects$/)
   await expect(page.getByRole("heading", { name: "專案" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "開啟舊桌面" })).toHaveAttribute("href", "https://ching-tech.ddns.net/ctos/")
+  await expect(page.getByRole("link", { name: "台北捷運監控案" })).toBeVisible()
 })
 
 test("登出回到登入頁並清掉 token", async ({ page }, testInfo) => {

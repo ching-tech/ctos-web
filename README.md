@@ -127,6 +127,9 @@ npm run build
 - `permissions.test.ts` — 權限判斷單元測試
 - `admin.ts` — 管理員 API 客戶端（使用者清單、預設權限、更新使用者權限、query key）
 - `admin.test.ts` — 管理員 API 單元測試
+- `projects.ts` — 專案 API 客戶端（清單／明細／主檔／成員／里程碑／任務／dashboard 摘要；狀態中文與 tint 對照、`canEditProject`、query key）
+- `projects.test.ts` — 專案權限與對照表單元測試
+- `users.ts` — 使用者選單（`GET /api/user/list`，登入即可讀，供負責人與成員下拉用）
 
 ### `src/pages/`
 
@@ -137,7 +140,6 @@ npm run build
 - `home/ai-usage-card.tsx` — 首頁「今日 AI 用量」卡片（依本地今天日期查 stats：呼叫次數／成功率／平均耗時／Token 進出）
 - `home/bot-summary-card.tsx` — 首頁「Bot 概況」卡片（群組數／黑名單數／我的 Line／Telegram 綁定狀態）
 - `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁）
-- `placeholder.tsx` — 未完成模組佔位元件（顯示空頁並連回舊桌面）
 - `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
@@ -153,6 +155,14 @@ npm run build
 - `bot/tabs/blocklist.tsx` — 黑名單分頁（封鎖使用者清單、解除封鎖）
 - `bot/tabs/messages.tsx` — 訊息分頁（群組或使用者訊息清單、對話篩選）
 - `bot/tabs/files.tsx` — 檔案分頁（檔案清單、下載、刪除、群組與類型篩選、NAS／已過期狀態）
+- `projects/list.tsx` — 專案清單頁（狀態篩選、搜尋、分頁；桌面表格、手機卡片；逾期里程碑數標紅；admin 才有新增）
+- `projects/editor.tsx` — 專案新增／編輯頁（名稱、客戶、狀態、負責人選單、起迄日、描述；新增限 admin，編輯限 admin 或成員）
+- `projects/detail.tsx` — 專案明細頁（主檔與進度表頭、刪除、五個分頁籤，tab 寫進網址）
+- `projects/tabs/overview.tsx` — 總覽分頁（里程碑清單、逾期標紅、一鍵完成、新增里程碑對話框、描述全文）
+- `projects/tabs/tasks.tsx` — 任務分頁（待辦／進行中／已完成三欄、行內改狀態、刪除、新增任務對話框）
+- `projects/tabs/members.tsx` — 成員分頁（成員清單與角色、加入成員選單、移除；負責人不給移除）
+- `projects/tabs/knowledge.tsx` — 知識庫分頁（`scope=project` 的條目清單、新增條目帶 `project_id`）
+- `projects/tabs/groups.tsx` — 群組分頁（綁定的 Bot 群組，連到群組明細）
 - `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
@@ -190,6 +200,7 @@ Playwright 端對端測試：
 - `bot-group-detail.spec.ts` — Bot 群組明細測試
 - `bot-users-blocklist.spec.ts` — Bot 使用者與黑名單分頁測試
 - `bot-messages-files.spec.ts` — Bot 訊息與檔案分頁測試
+- `projects.spec.ts` — 專案清單／明細五分頁／新增編輯／權限擋下／知識庫編輯器專案入口測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -229,12 +240,7 @@ Playwright 端對端測試：
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細）
 - **使用者管理** — 路由 `/admin/users`（僅管理員），使用者清單與每人的 app／知識庫權限開關（PATCH 只送變動的鍵，即時生效）
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；專案綁定選單待專案模組；圖片預覽已補；其他類型只下載
-
-### 尚未完成
-
-以下模組顯示空頁並提供連結回舊桌面（https://ching-tech.ddns.net/ctos/）：
-
-- **專案** — 路由 `/projects`
+- **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 與 Bot 的專案綁定選單不在本階段
 
 ## 相關文件
 
