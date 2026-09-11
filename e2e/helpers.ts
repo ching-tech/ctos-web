@@ -671,3 +671,427 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
 
   return { users }
 }
+
+export type BotPlatform = "line" | "telegram"
+
+export interface BotGroupFixture {
+  id: string
+  platform_type: BotPlatform
+  platform_group_id: string
+  name: string | null
+  picture_url: string | null
+  member_count: number | null
+  project_id: string | null
+  project_name: string | null
+  is_active: boolean
+  allow_ai_response: boolean
+  joined_at: string | null
+  left_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BotUserFixture {
+  id: string
+  platform_type: BotPlatform
+  platform_user_id: string
+  display_name: string | null
+  picture_url: string | null
+  status_message: string | null
+  language: string | null
+  user_id: number | null
+  is_friend: boolean
+  created_at: string
+  updated_at: string
+  bound_username: string | null
+  bound_display_name: string | null
+  is_blocked: boolean
+  blocked_at: string | null
+  blocked_reason: string | null
+}
+
+export interface BotMessageFixture {
+  id: string
+  message_id: string
+  bot_user_id: string | null
+  user_display_name: string | null
+  user_picture_url: string | null
+  bot_group_id: string | null
+  message_type: string
+  content: string | null
+  file_id: string | null
+  file_info: Record<string, unknown> | null
+  is_from_bot: boolean
+  ai_processed: boolean
+  created_at: string
+}
+
+export interface BotFileFixture {
+  id: string
+  message_id: string | null
+  file_type: string
+  file_name: string | null
+  file_size: number | null
+  mime_type: string | null
+  nas_path: string | null
+  thumbnail_path: string | null
+  duration: number | null
+  created_at: string
+  bot_group_id: string | null
+  bot_user_id: string | null
+  user_display_name: string | null
+  group_name: string | null
+}
+
+export interface BotPlatformBindingFixture {
+  is_bound: boolean
+  display_name: string | null
+  picture_url: string | null
+  bound_at: string | null
+}
+
+export interface BotBindingFixture {
+  is_bound: boolean
+  line_display_name: string | null
+  line_picture_url: string | null
+  bound_at: string | null
+  line: BotPlatformBindingFixture | null
+  telegram: BotPlatformBindingFixture | null
+}
+
+// 兩個群組：grp-1（line、allow_ai_response 開）、grp-2（telegram、is_active 關且有 left_at）。
+export const botGroupFixtures: BotGroupFixture[] = [
+  {
+    id: "grp-1", platform_type: "line", platform_group_id: "C-line-001", name: "擎添業務群",
+    picture_url: null, member_count: 12, project_id: null, project_name: "展望 HIS 案",
+    is_active: true, allow_ai_response: true, joined_at: "2026-06-01T09:00:00", left_at: null,
+    created_at: "2026-06-01T09:00:00", updated_at: "2026-09-01T09:00:00",
+  },
+  {
+    id: "grp-2", platform_type: "telegram", platform_group_id: "tg-group-002", name: "退場測試群",
+    picture_url: null, member_count: 5, project_id: null, project_name: null,
+    is_active: false, allow_ai_response: false, joined_at: "2026-05-01T09:00:00", left_at: "2026-08-15T09:00:00",
+    created_at: "2026-05-01T09:00:00", updated_at: "2026-08-15T09:00:00",
+  },
+]
+
+// 三個使用者：usr-1 已綁定 CTOS 帳號、usr-2 未綁定、usr-3 已封鎖（理由「洗版」）。
+export const botUserFixtures: BotUserFixture[] = [
+  {
+    id: "usr-1", platform_type: "line", platform_user_id: "U-line-001", display_name: "王小明",
+    picture_url: null, status_message: null, language: "zh-TW", user_id: 2, is_friend: true,
+    created_at: "2026-06-01T09:00:00", updated_at: "2026-09-01T09:00:00",
+    bound_username: "yazelin", bound_display_name: "亞澤", is_blocked: false, blocked_at: null, blocked_reason: null,
+  },
+  {
+    id: "usr-2", platform_type: "telegram", platform_user_id: "tg-user-002", display_name: "陳小華",
+    picture_url: null, status_message: null, language: "zh-TW", user_id: null, is_friend: true,
+    created_at: "2026-06-05T09:00:00", updated_at: "2026-09-01T09:00:00",
+    bound_username: null, bound_display_name: null, is_blocked: false, blocked_at: null, blocked_reason: null,
+  },
+  {
+    id: "usr-3", platform_type: "line", platform_user_id: "U-line-003", display_name: "訪客 003",
+    picture_url: null, status_message: null, language: null, user_id: null, is_friend: false,
+    created_at: "2026-07-01T09:00:00", updated_at: "2026-08-20T09:00:00",
+    bound_username: null, bound_display_name: null, is_blocked: true, blocked_at: "2026-08-20T09:00:00", blocked_reason: "洗版",
+  },
+]
+
+// 六則訊息：msg-2 是 is_from_bot，msg-3／msg-6 是非 text 類型（image／document）。
+export const botMessageFixtures: BotMessageFixture[] = [
+  { id: "msg-1", message_id: "m-line-001", bot_user_id: "usr-1", user_display_name: "王小明", user_picture_url: null, bot_group_id: "grp-1", message_type: "text", content: "早安", file_id: null, file_info: null, is_from_bot: false, ai_processed: true, created_at: "2026-09-01T09:00:00" },
+  { id: "msg-2", message_id: "m-line-002", bot_user_id: null, user_display_name: "AI 助理", user_picture_url: null, bot_group_id: "grp-1", message_type: "text", content: "已為您查詢完成", file_id: null, file_info: null, is_from_bot: true, ai_processed: true, created_at: "2026-09-01T09:01:00" },
+  { id: "msg-3", message_id: "m-line-003", bot_user_id: "usr-1", user_display_name: "王小明", user_picture_url: null, bot_group_id: "grp-1", message_type: "image", content: null, file_id: "file-1", file_info: { file_type: "image" }, is_from_bot: false, ai_processed: false, created_at: "2026-09-02T09:00:00" },
+  { id: "msg-4", message_id: "m-tg-001", bot_user_id: "usr-2", user_display_name: "陳小華", user_picture_url: null, bot_group_id: "grp-2", message_type: "text", content: "測試訊息", file_id: null, file_info: null, is_from_bot: false, ai_processed: false, created_at: "2026-08-10T09:00:00" },
+  { id: "msg-5", message_id: "m-line-005", bot_user_id: "usr-3", user_display_name: "訪客 003", user_picture_url: null, bot_group_id: null, message_type: "text", content: "廣告連結", file_id: null, file_info: null, is_from_bot: false, ai_processed: false, created_at: "2026-08-19T09:00:00" },
+  { id: "msg-6", message_id: "m-line-006", bot_user_id: "usr-1", user_display_name: "王小明", user_picture_url: null, bot_group_id: "grp-1", message_type: "document", content: null, file_id: "file-2", file_info: { file_type: "document" }, is_from_bot: false, ai_processed: false, created_at: "2026-09-05T09:00:00" },
+]
+
+/** 供訊息分頁測試用：產生 n 筆遞減時間的文字訊息。 */
+export function makeBotMessages(n: number): BotMessageFixture[] {
+  const base = new Date("2026-09-10T09:00:00Z").getTime()
+  const items: BotMessageFixture[] = []
+  for (let i = 0; i < n; i++) {
+    items.push({
+      id: `msg-gen-${String(i + 1).padStart(3, "0")}`,
+      message_id: `m-gen-${String(i + 1).padStart(3, "0")}`,
+      bot_user_id: "usr-1",
+      user_display_name: "王小明",
+      user_picture_url: null,
+      bot_group_id: "grp-1",
+      message_type: "text",
+      content: `訊息 ${i + 1}`,
+      file_id: null,
+      file_info: null,
+      is_from_bot: false,
+      ai_processed: false,
+      created_at: new Date(base - i * 60_000).toISOString().replace(/\.\d{3}Z$/, ""),
+    })
+  }
+  return items
+}
+
+// 三個檔案：file-1 image（grp-1，帶 nas_path）、file-2 document（grp-1，帶 nas_path）、
+// file-3 video（grp-2，nas_path 為 null＝已過期，NAS 保留期滿後清掉實體檔但保留資料列）。
+export const botFileFixtures: BotFileFixture[] = [
+  { id: "file-1", message_id: "msg-3", file_type: "image", file_name: "現場照片.jpg", file_size: 245678, mime_type: "image/jpeg", nas_path: "/linebot/files/file-1.jpg", thumbnail_path: "/linebot/thumbs/file-1.jpg", duration: null, created_at: "2026-09-02T09:00:00", bot_group_id: "grp-1", bot_user_id: "usr-1", user_display_name: "王小明", group_name: "擎添業務群" },
+  { id: "file-2", message_id: "msg-6", file_type: "document", file_name: "保養手冊.pdf", file_size: 1048576, mime_type: "application/pdf", nas_path: "/linebot/files/file-2.pdf", thumbnail_path: null, duration: null, created_at: "2026-09-05T09:00:00", bot_group_id: "grp-1", bot_user_id: "usr-1", user_display_name: "王小明", group_name: "擎添業務群" },
+  { id: "file-3", message_id: null, file_type: "video", file_name: "驗收錄影.mp4", file_size: 5242880, mime_type: "video/mp4", nas_path: null, thumbnail_path: null, duration: 42, created_at: "2026-08-11T09:00:00", bot_group_id: "grp-2", bot_user_id: "usr-2", user_display_name: "陳小華", group_name: "退場測試群" },
+]
+
+// 綁定狀態：line 已綁定、telegram 未綁定。
+export const botBindingFixture: BotBindingFixture = {
+  is_bound: true,
+  line_display_name: "亞澤",
+  line_picture_url: null,
+  bound_at: "2026-06-01T09:00:00",
+  line: { is_bound: true, display_name: "亞澤", picture_url: null, bound_at: "2026-06-01T09:00:00" },
+  telegram: { is_bound: false, display_name: null, picture_url: null, bound_at: null },
+}
+
+/** 彙整匯出，供後續 task 直接比對固定資料。 */
+export const botFixtures = {
+  groups: botGroupFixtures,
+  users: botUserFixtures,
+  messages: botMessageFixtures,
+  files: botFileFixtures,
+  binding: botBindingFixture,
+}
+
+function cloneBinding(b: BotBindingFixture): BotBindingFixture {
+  return { ...b, line: b.line ? { ...b.line } : null, telegram: b.telegram ? { ...b.telegram } : null }
+}
+
+/** 攔 /api/bot/*：binding／groups／users(-with-binding)／messages／files，含刪除/封鎖/解封/allow_ai/unbind/generate-code 的 mutation。 */
+export async function mockBot(
+  page: Page,
+  opts: {
+    groups?: BotGroupFixture[]
+    users?: BotUserFixture[]
+    messages?: BotMessageFixture[]
+    files?: BotFileFixture[]
+    binding?: BotBindingFixture
+  } = {},
+) {
+  const groups: BotGroupFixture[] = (opts.groups ?? botGroupFixtures).map((g) => ({ ...g }))
+  const users: BotUserFixture[] = (opts.users ?? botUserFixtures).map((u) => ({ ...u }))
+  const messages: BotMessageFixture[] = (opts.messages ?? botMessageFixtures).map((m) => ({ ...m }))
+  const files: BotFileFixture[] = (opts.files ?? botFileFixtures).map((f) => ({ ...f }))
+  const binding: BotBindingFixture = cloneBinding(opts.binding ?? botBindingFixture)
+
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  const byPlatform = <T extends { bot_group_id?: string | null; bot_user_id?: string | null }>(list: T[], platform: string): T[] =>
+    list.filter((item) => {
+      const g = groups.find((gr) => gr.id === item.bot_group_id)
+      const u = users.find((us) => us.id === item.bot_user_id)
+      return g?.platform_type === platform || u?.platform_type === platform
+    })
+
+  // ── 綁定 ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/binding/status`,
+    async (route) => route.fulfill({ json: binding }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/binding/generate-code`,
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      await route.fulfill({ json: { code: "123456", expires_at: "2026-09-11T10:10:00" } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/binding`,
+    async (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback()
+      const platform = new URL(route.request().url()).searchParams.get("platform_type")
+      // 後端 services/bot_line/binding.py 的 _platform_status()：未綁定一律回
+      // { is_bound:false, display_name:null, picture_url:null, bound_at:null }，不會是 null。
+      const unbound: BotPlatformBindingFixture = { is_bound: false, display_name: null, picture_url: null, bound_at: null }
+      if (platform === "line") {
+        binding.line = unbound
+        binding.line_display_name = null
+        binding.line_picture_url = null
+        binding.bound_at = null
+      }
+      if (platform === "telegram") binding.telegram = unbound
+      // 頂層 is_bound = line.is_bound || telegram.is_bound，解綁後要重算而非強制設 false。
+      binding.is_bound = Boolean(binding.line?.is_bound) || Boolean(binding.telegram?.is_bound)
+      await route.fulfill({ json: { success: true } })
+    },
+  )
+
+  // ── 群組列表（exact pathname，避免吃掉 /groups/{id}） ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/groups`,
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback()
+      const params = new URL(route.request().url()).searchParams
+      let filtered = groups
+      const platform = params.get("platform_type")
+      if (platform) filtered = filtered.filter((g) => g.platform_type === platform)
+      const limit = Number(params.get("limit") ?? "20")
+      const offset = Number(params.get("offset") ?? "0")
+      await route.fulfill({ json: { items: filtered.slice(offset, offset + limit), total: filtered.length } })
+    },
+  )
+
+  // ── 群組明細／PATCH／DELETE（連同訊息一起刪） ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/bot/groups/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = groups.findIndex((g) => g.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      const method = route.request().method()
+      if (method === "DELETE") {
+        groups.splice(idx, 1)
+        for (let i = messages.length - 1; i >= 0; i--) if (messages[i].bot_group_id === id) messages.splice(i, 1)
+        return route.fulfill({ json: { status: "ok", message: "群組已刪除" } })
+      }
+      if (method === "PATCH") {
+        const body = route.request().postDataJSON() as Partial<BotGroupFixture>
+        groups[idx] = { ...groups[idx], ...body }
+        return route.fulfill({ json: groups[idx] })
+      }
+      return route.fulfill({ json: groups[idx] })
+    },
+  )
+
+  // ── 已綁定使用者列表（與 /users 不同路徑，不互吃） ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/users-with-binding`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      let filtered = users
+      const platform = params.get("platform_type")
+      if (platform) filtered = filtered.filter((u) => u.platform_type === platform)
+      const limit = Number(params.get("limit") ?? "20")
+      const offset = Number(params.get("offset") ?? "0")
+      await route.fulfill({ json: { items: filtered.slice(offset, offset + limit), total: filtered.length } })
+    },
+  )
+
+  // ── 封鎖名單（?blocked=true） ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/users`,
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback()
+      const params = new URL(route.request().url()).searchParams
+      let filtered = users
+      if (params.get("blocked") === "true") filtered = filtered.filter((u) => u.is_blocked)
+      const platform = params.get("platform_type")
+      if (platform) filtered = filtered.filter((u) => u.platform_type === platform)
+      const limit = Number(params.get("limit") ?? "20")
+      const offset = Number(params.get("offset") ?? "0")
+      await route.fulfill({ json: { items: filtered.slice(offset, offset + limit), total: filtered.length } })
+    },
+  )
+
+  // ── 封鎖／解封 ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/bot/users/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length).split("/")
+      return rest.length === 2 && (rest[1] === "block" || rest[1] === "unblock")
+    },
+    async (route) => {
+      if (route.request().method() !== "PATCH") return route.fallback()
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const action = segs[segs.length - 1]
+      const id = segs[segs.length - 2]
+      const idx = users.findIndex((u) => u.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      if (action === "block") {
+        const body = route.request().postDataJSON() as { reason: string | null }
+        users[idx] = { ...users[idx], is_blocked: true, blocked_at: "2026-09-11T12:00:00", blocked_reason: body.reason }
+      } else {
+        users[idx] = { ...users[idx], is_blocked: false, blocked_at: null, blocked_reason: null }
+      }
+      await route.fulfill({ json: users[idx] })
+    },
+  )
+
+  // ── 訊息 ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/messages`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      let filtered = messages
+      const platform = params.get("platform_type")
+      const groupId = params.get("group_id")
+      const userId = params.get("user_id")
+      if (platform) filtered = byPlatform(filtered, platform)
+      if (groupId) filtered = filtered.filter((m) => m.bot_group_id === groupId)
+      if (userId) filtered = filtered.filter((m) => m.bot_user_id === userId)
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "50")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({ json: { items: filtered.slice(start, start + pageSize), total: filtered.length, page: pageNum, page_size: pageSize } })
+    },
+  )
+
+  // ── 檔案列表 ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/files`,
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback()
+      const params = new URL(route.request().url()).searchParams
+      let filtered = files
+      const platform = params.get("platform_type")
+      const fileType = params.get("file_type")
+      const groupId = params.get("group_id")
+      if (platform) filtered = byPlatform(filtered, platform)
+      if (fileType) filtered = filtered.filter((f) => f.file_type === fileType)
+      if (groupId) filtered = filtered.filter((f) => f.bot_group_id === groupId)
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "30")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({ json: { items: filtered.slice(start, start + pageSize), total: filtered.length } })
+    },
+  )
+
+  // ── 刪除檔案（exact，不吃 /download） ──
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/bot/files/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback()
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const idx = files.findIndex((f) => f.id === id)
+      if (idx === -1) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      files.splice(idx, 1)
+      await route.fulfill({ json: { status: "ok", message: "檔案已刪除" } })
+    },
+  )
+
+  // ── 下載（帶 Authorization header，回傳二進位內容而非 JSON） ──
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname.startsWith(`${prefix}/api/bot/files/`) && url.pathname.endsWith("/download"),
+    async (route) => {
+      const segs = new URL(route.request().url()).pathname.split("/")
+      const id = segs[segs.length - 2]
+      const found = files.find((f) => f.id === id)
+      if (!found) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      await route.fulfill({ contentType: found.mime_type ?? "application/octet-stream", body: Buffer.from("fixture-file-content") })
+    },
+  )
+
+  return { groups, users, messages, files, binding }
+}

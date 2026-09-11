@@ -5,6 +5,8 @@ import { RequireAuth } from "@/components/require-auth"
 import AdminUsersPage from "@/pages/admin/users"
 import AiLogDetailPage from "@/pages/ai-log/detail"
 import AiLogListPage from "@/pages/ai-log/list"
+import BotPage from "@/pages/bot"
+import BotGroupDetailPage from "@/pages/bot/group-detail"
 import HomePage from "@/pages/home"
 import KbDetailPage from "@/pages/kb/detail"
 import KbEditorPage from "@/pages/kb/editor"
@@ -28,7 +30,8 @@ export const router = createBrowserRouter([
           { path: "kb/:id", element: <RequireApp app="knowledge-base"><KbDetailPage /></RequireApp> },
           { path: "kb/:id/edit", element: <RequireApp app="knowledge-base"><KbEditorPage /></RequireApp> },
           { path: "projects", element: <PlaceholderPage title="專案" /> },
-          { path: "bot", element: <PlaceholderPage title="Bot 管理" /> },
+          { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
+          { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
           { path: "ai-log/:id", element: <RequireApp app="ai-log"><AiLogDetailPage /></RequireApp> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
