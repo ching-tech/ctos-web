@@ -121,6 +121,8 @@ npm run build
 - `kb.ts` — 知識庫 API 客戶端（清單／詳情／建立／編輯／刪除／附件／分享／版本歷史）
 - `kb.test.ts` — 知識庫 API 單元測試
 - `ai-log.ts` — AI Log API 客戶端（清單／統計／詳情／篩選轉換／query key）
+- `bot.ts` — Bot 管理 API 客戶端（綁定狀態、群組、使用者、黑名單、訊息、檔案；分頁與檔案下載 Helper）
+- `bot.test.ts` — Bot API 單元測試
 - `permissions.ts` — `canAccessApp`（依 `is_admin` 與 `permissions.apps` 判斷是否有權限使用某 app）
 - `permissions.test.ts` — 權限判斷單元測試
 - `admin.ts` — 管理員 API 客戶端（使用者清單、預設權限、更新使用者權限、query key）
@@ -140,6 +142,14 @@ npm run build
 - `kb/home-recent.tsx` — 首頁「知識庫最近更新」卡片
 - `ai-log/list.tsx` — AI Log 清單頁（統計卡、篩選、表格、分頁）
 - `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、允許的工具、工具呼叫時間軸）
+- `bot/index.tsx` — Bot 管理殼頁（平台篩選、六個分頁籤）
+- `bot/group-detail.tsx` — Bot 群組明細頁（資訊、最近訊息、刪除）
+- `bot/tabs/binding.tsx` — 綁定分頁（Line／Telegram 平台卡）
+- `bot/tabs/groups.tsx` — 群組分頁（群組清單、AI 回覆開關、狀態）
+- `bot/tabs/users.tsx` — 使用者分頁（使用者清單、CTOS 綁定、封鎖）
+- `bot/tabs/blocklist.tsx` — 黑名單分頁（封鎖使用者清單、解除封鎖）
+- `bot/tabs/messages.tsx` — 訊息分頁（群組或使用者訊息清單）
+- `bot/tabs/files.tsx` — 檔案分頁（檔案清單、下載、刪除）
 - `admin/users.tsx` — 使用者管理頁（使用者表格；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH）
 
 ### `src/components/`
@@ -153,6 +163,7 @@ UI 元件與版面：
 - `require-app.tsx` — 權限防護（`RequireApp` 依 app 權限、`RequireAdmin` 僅管理員；無權時渲染擋下頁而非導頁）
 - `theme-provider.tsx` — 主題提供者（深色／淺色切換）
 - `ui/` — shadcn/ui 元件（按鈕、卡片、輸入框、模態框等）
+- `pagination.tsx` — 分頁元件（上一頁／第 p／P 頁／下一頁，供清單頁重用）
 - `kb/attachments.tsx` — 附件清單（上傳、下載、刪除）
 - `kb/history-sheet.tsx` — 版本歷史側欄（歷史清單、舊版內容檢視）
 - `kb/markdown.tsx` — Markdown 渲染（含圖片路徑改寫）
@@ -171,6 +182,10 @@ Playwright 端對端測試：
 - `kb-share-history.spec.ts` — 分享連結與版本歷史測試
 - `ai-log.spec.ts` — AI Log 清單與明細頁測試
 - `permissions.spec.ts` — 依 app 權限顯示側邊欄／擋下受限路由、使用者管理頁切換權限
+- `bot-binding-groups.spec.ts` — Bot 綁定與群組清單測試
+- `bot-group-detail.spec.ts` — Bot 群組明細測試
+- `bot-users-blocklist.spec.ts` — Bot 使用者與黑名單分頁測試
+- `bot-messages-files.spec.ts` — Bot 訊息與檔案分頁測試
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -209,13 +224,13 @@ Playwright 端對端測試：
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細）
 - **使用者管理** — 路由 `/admin/users`（僅管理員），使用者清單與每人的 app／知識庫權限開關（PATCH 只送變動的鍵，即時生效）
+- **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；專案綁定選單待專案模組
 
 ### 尚未完成
 
 以下模組顯示空頁並提供連結回舊桌面（https://ching-tech.ddns.net/ctos/）：
 
 - **專案** — 路由 `/projects`
-- **Bot 管理** — 路由 `/bot`
 
 ## 相關文件
 
