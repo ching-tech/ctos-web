@@ -147,7 +147,7 @@ export default function FilesTab({ platform }: { platform: Platform | "" }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${total} 個檔案`}</p>
         <div className="flex flex-wrap items-center gap-2">
-          <GroupFilterSelect value={groupId} onValueChange={setGroup} ariaLabel="群組" allLabel="所有群組" />
+          <GroupFilterSelect platform={platform} value={groupId} onValueChange={setGroup} ariaLabel="群組" allLabel="所有群組" />
           <Select value={fileType || "all"} onValueChange={setFileType}>
             <SelectTrigger className="w-28" aria-label="檔案類型">
               <SelectValue />

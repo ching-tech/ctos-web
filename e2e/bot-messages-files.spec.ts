@@ -39,6 +39,16 @@ test("訊息分頁：選擇對話篩選送 group_id，只剩該群組的訊息",
   await expect(page.getByText("早安")).toHaveCount(0)
 })
 
+test("訊息分頁：平台設 Telegram 時，對話篩選只列出該平台的群組", async ({ page }) => {
+  const req = page.waitForRequest((r) => r.url().includes("/api/bot/groups?") && r.url().includes("platform_type=telegram"))
+  await page.goto("/bot?tab=messages&platform=telegram")
+  await req
+
+  await page.getByLabel("對話").click()
+  await expect(page.getByRole("option", { name: "退場測試群" })).toBeVisible()
+  await expect(page.getByRole("option", { name: "擎添業務群" })).toHaveCount(0)
+})
+
 test("訊息分頁：60 筆時可翻頁，送出 page=2", async ({ page }) => {
   await mockBot(page, { messages: makeBotMessages(60) })
   await page.goto("/bot?tab=messages")

@@ -57,6 +57,7 @@ export default function BotPage() {
     if (value === "all") next.delete("platform")
     else next.set("platform", value)
     next.delete("page")
+    next.delete("group")
     setSearchParams(next, { replace: true })
   }
 

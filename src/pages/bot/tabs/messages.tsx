@@ -42,7 +42,7 @@ export default function MessagesTab({ platform }: { platform: Platform | "" }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${total} 則`}</p>
-        <GroupFilterSelect value={groupId} onValueChange={setGroup} ariaLabel="對話" allLabel="所有個人對話" />
+        <GroupFilterSelect platform={platform} value={groupId} onValueChange={setGroup} ariaLabel="對話" allLabel="所有個人對話" />
       </div>
 
       {query.isError ? (
