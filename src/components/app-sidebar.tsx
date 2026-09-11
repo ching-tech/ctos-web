@@ -3,12 +3,13 @@ import { NavUser } from "@/components/nav-user"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar } from "@/components/ui/sidebar"
 import { useAuth } from "@/lib/auth-context"
 import { NAV_ITEMS } from "@/lib/nav"
+import { canAccessApp } from "@/lib/permissions"
 
 export function AppSidebar() {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const { isMobile, setOpenMobile } = useSidebar()
-  const items = NAV_ITEMS.filter((i) => !i.adminOnly || user?.is_admin)
+  const items = NAV_ITEMS.filter((i) => (!i.adminOnly || user?.is_admin) && (!i.app || canAccessApp(user, i.app)))
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-2 text-base font-semibold group-data-[collapsible=icon]:hidden">ChingTech OS</SidebarHeader>
