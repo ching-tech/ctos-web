@@ -50,11 +50,19 @@ function tabFromParams(params: URLSearchParams): TabValue {
   return (TAB_VALUES as readonly string[]).includes(raw ?? "") ? (raw as TabValue) : "overview"
 }
 
-function InfoRow({ term, value }: { term: string; value: React.ReactNode }) {
+function InfoRow({
+  term,
+  value,
+  valueClassName,
+}: {
+  term: string
+  value: React.ReactNode
+  valueClassName?: string
+}) {
   return (
     <div className="flex items-start justify-between gap-3 border-b py-2 text-sm last:border-b-0">
       <dt className="shrink-0 text-muted-foreground">{term}</dt>
-      <dd className="min-w-0 text-right break-words">{value}</dd>
+      <dd className={`min-w-0 text-right break-words${valueClassName ? ` ${valueClassName}` : ""}`}>{value}</dd>
     </div>
   )
 }
@@ -185,16 +193,12 @@ export default function ProjectDetailPage() {
               </span>
             }
           />
-          <InfoRow term="成員數" value={<span aria-label="成員數" className="tabular-nums">{project.member_count}</span>} />
+          <InfoRow term="成員" value={`${project.member_count} 位`} valueClassName="tabular-nums" />
           <InfoRow
             term="逾期里程碑"
-            value={
-              <span
-                aria-label="逾期里程碑數"
-                className={project.overdue_milestones > 0 ? "font-medium text-destructive tabular-nums" : "tabular-nums"}
-              >
-                {project.overdue_milestones}
-              </span>
+            value={`${project.overdue_milestones} 項`}
+            valueClassName={
+              project.overdue_milestones > 0 ? "font-medium text-destructive tabular-nums" : "tabular-nums"
             }
           />
         </dl>
@@ -207,6 +211,8 @@ export default function ProjectDetailPage() {
             {TAB_VALUES.map((v) => (
               <TabsTrigger key={v} value={v}>
                 {TAB_LABEL[v]}
+                {/* 知識條目數用後端給的 knowledge_count，不在前端另外數一次 */}
+                {v === "knowledge" && <span className="ml-1 tabular-nums">{project.knowledge_count}</span>}
               </TabsTrigger>
             ))}
           </TabsList>

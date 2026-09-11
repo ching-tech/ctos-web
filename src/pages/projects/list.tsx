@@ -55,13 +55,9 @@ function ProgressBar({ value }: { value: number }) {
   )
 }
 
-/** 逾期里程碑數；大於 0 標紅（後端只在專案 active 時才算逾期）。 */
-function OverdueCount({ value }: { value: number }) {
-  return (
-    <span aria-label="逾期里程碑數" className={value > 0 ? "font-medium text-destructive tabular-nums" : "tabular-nums"}>
-      {value}
-    </span>
-  )
+/** 逾期里程碑數的樣式；大於 0 標紅（後端只在專案 active 時才算逾期）。 */
+function overdueClass(value: number): string {
+  return value > 0 ? "font-medium text-destructive tabular-nums" : "tabular-nums"
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -102,9 +98,7 @@ function ProjectCard({ item }: { item: ProjectListItem }) {
         </div>
         <div className="flex items-center justify-between gap-2">
           <dt className="text-muted-foreground">逾期里程碑</dt>
-          <dd>
-            <OverdueCount value={item.overdue_milestones} />
-          </dd>
+          <dd className={overdueClass(item.overdue_milestones)}>{item.overdue_milestones}</dd>
         </div>
       </dl>
     </li>
@@ -155,7 +149,7 @@ export default function ProjectListPage() {
   const query = useQuery({ queryKey: projectKeys.list(filters), queryFn: () => listProjects(filters) })
   const items = query.data?.items ?? []
   const total = query.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PROJECT_PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / (filters.pageSize ?? PROJECT_PAGE_SIZE)))
 
   return (
     <div className="space-y-4">
@@ -239,9 +233,7 @@ export default function ProjectListPage() {
                       <ProgressBar value={p.progress} />
                     </TableCell>
                     <TableCell>{p.end_date || "—"}</TableCell>
-                    <TableCell>
-                      <OverdueCount value={p.overdue_milestones} />
-                    </TableCell>
+                    <TableCell className={overdueClass(p.overdue_milestones)}>{p.overdue_milestones}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

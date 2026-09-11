@@ -19,6 +19,7 @@ import {
   createTask,
   deleteTask,
   projectKeys,
+  projectLabel,
   TASK_STATUS_LABEL,
   TASK_STATUS_OPTIONS,
   updateTask,
@@ -195,7 +196,7 @@ function TaskRow({
               </SelectContent>
             </Select>
           ) : (
-            <span className="text-muted-foreground">{TASK_STATUS_LABEL[task.status as TaskStatus] ?? task.status}</span>
+            <span className="text-muted-foreground">{projectLabel(TASK_STATUS_LABEL, task.status)}</span>
           )}
           {canEdit && (
             <Button variant="ghost" size="sm" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>

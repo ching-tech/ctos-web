@@ -50,6 +50,23 @@ export async function mockApi(page: Page, opts: { user?: typeof userFixture | nu
   })
 }
 
+/**
+ * 攔住所有沒被其他 mock* 接走的後端請求，記下來並回 599，讓漏 mock 的測試失敗，
+ * 而不是安靜地打到正式機。必須在其他 mock* 之前呼叫：Playwright 由後註冊的
+ * handler 先比對，先註冊的這支只會在沒人接手時才輪到。
+ *
+ * 用 route 而不是 page.on("request")：被 route 攔下的請求一樣會觸發 request 事件，
+ * 光看事件分不出「已 mock」與「真的打出去」。
+ */
+export async function trapUnmockedApi(page: Page): Promise<string[]> {
+  const unmocked: string[] = []
+  await page.route(`${API}/**`, async (route) => {
+    unmocked.push(new URL(route.request().url()).pathname)
+    await route.fulfill({ status: 599, json: { detail: "這支端點沒有 mock" } })
+  })
+  return unmocked
+}
+
 export async function seedToken(page: Page, token = "tok-seeded") {
   await page.addInitScript((t) => localStorage.setItem("ctos-web.token", t), token)
 }

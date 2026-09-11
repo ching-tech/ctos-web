@@ -13,11 +13,12 @@ export default function KnowledgeTab({ project }: { project: ProjectDetail }) {
   const query = useQuery({ queryKey: kbKeys.list(filters), queryFn: () => listKnowledge(filters) })
 
   const items = query.data?.items ?? []
+  const total = query.data?.total ?? 0
 
   return (
     <div className="space-y-4 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${items.length} 筆`}</p>
+        <p className="text-sm text-muted-foreground">{query.isLoading ? "" : `共 ${total} 筆`}</p>
         <Button asChild variant="outline" size="sm">
           <Link to={`/kb/new?scope=project&project_id=${project.id}`}>新增條目</Link>
         </Button>

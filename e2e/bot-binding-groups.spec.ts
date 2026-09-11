@@ -10,7 +10,8 @@ test.beforeEach(async ({ page }) => {
 
 test("綁定分頁：Line 已綁定顯示名稱，Telegram 未綁定顯示產生驗證碼", async ({ page }) => {
   await page.goto("/bot")
-  await expect(page.getByText("亞澤")).toBeVisible()
+  // 側邊欄頁尾的使用者選單也叫「亞澤」，桌面寬度下兩個都在，必須限定在綁定分頁裡。
+  await expect(page.getByRole("tabpanel", { name: "綁定" }).getByText("亞澤")).toBeVisible()
   await expect(page.getByRole("button", { name: "解除綁定" })).toBeVisible()
   await expect(page.getByRole("button", { name: "產生驗證碼" })).toBeVisible()
 })

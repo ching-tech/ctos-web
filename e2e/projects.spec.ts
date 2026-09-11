@@ -1,5 +1,17 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
-import { adminFixture, API, mockApi, mockKb, mockProjects, projectFixtures, seedToken, simpleUserFixtures, userFixture } from "./helpers"
+import {
+  adminFixture,
+  API,
+  mockApi,
+  mockBot,
+  mockKb,
+  mockProjects,
+  projectFixtures,
+  seedToken,
+  simpleUserFixtures,
+  trapUnmockedApi,
+  userFixture,
+} from "./helpers"
 
 /** 清單在 md 以下換成卡片；表格列與卡片各自只有一種會進可及性樹，用 role 分流。 */
 function projectItem(page: Page, testInfo: TestInfo, name: string) {
@@ -41,12 +53,12 @@ test.describe("清單", () => {
     await seedToken(page)
     await page.goto("/projects")
 
-    const overdue = projectItem(page, testInfo, "台北捷運監控案").getByLabel("逾期里程碑數")
-    await expect(overdue).toHaveText("2")
+    const overdue = projectItem(page, testInfo, "台北捷運監控案").getByText("2", { exact: true })
+    await expect(overdue).toBeVisible()
     await expect(overdue).toHaveClass(/text-destructive/)
 
-    const none = projectItem(page, testInfo, "廠務空調更新").getByLabel("逾期里程碑數")
-    await expect(none).toHaveText("0")
+    const none = projectItem(page, testInfo, "廠務空調更新").getByText("0", { exact: true })
+    await expect(none).toBeVisible()
     await expect(none).not.toHaveClass(/text-destructive/)
   })
 
@@ -105,8 +117,11 @@ test.describe("權限", () => {
       ...userFixture,
       permissions: { ...userFixture.permissions, apps: { ...userFixture.permissions.apps, "project-management": false } },
     }
+    // trap 必須最先註冊：後註冊的 mock 會先比對，漏掉的才會掉到它手上。
+    const unmocked = await trapUnmockedApi(page)
     await mockApi(page, { user: noProjectUser })
     await mockKb(page)
+    await mockBot(page) // 這個 fixture 有 linebot 權限，首頁會掛「Bot 概況」卡
     await mockProjects(page)
     await seedToken(page)
 
@@ -116,6 +131,9 @@ test.describe("權限", () => {
 
     await page.goto("/projects")
     await expect(page.getByRole("heading", { name: "此功能需要管理員開放" })).toBeVisible()
+
+    // 沒有任何後端請求是靠真的連出去完成的
+    expect(unmocked).toEqual([])
   })
 })
 
@@ -138,9 +156,9 @@ test.describe("明細", () => {
     await expect(info.getByText("2026-01-01")).toBeVisible()
     await expect(info.getByText("2026-12-31")).toBeVisible()
     await expect(info.getByText("33%")).toBeVisible()
-    await expect(info.getByLabel("成員數")).toHaveText("2")
-    const overdue = info.getByLabel("逾期里程碑數")
-    await expect(overdue).toHaveText("2")
+    await expect(info.getByText("2 位", { exact: true })).toBeVisible()
+    const overdue = info.getByText("2 項", { exact: true })
+    await expect(overdue).toBeVisible()
     await expect(overdue).toHaveClass(/text-destructive/)
   })
 
@@ -158,6 +176,9 @@ test.describe("明細", () => {
 
     await page.getByRole("tab", { name: "知識庫" }).click()
     await expect(page).toHaveURL(/tab=knowledge/)
+    // 分頁標籤的數字來自明細的 knowledge_count，分頁內的筆數來自清單回應的 total
+    await expect(page.getByRole("tab", { name: "知識庫" })).toHaveText("知識庫1")
+    await expect(page.getByText("共 1 筆")).toBeVisible()
     await expect(page.getByRole("link", { name: "案場巡檢清單" })).toBeVisible()
 
     await page.getByRole("tab", { name: "群組" }).click()
