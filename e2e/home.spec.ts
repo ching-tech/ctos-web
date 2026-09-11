@@ -10,6 +10,7 @@ import {
   seedToken,
   userFixture,
   type AiLogFixture,
+  type ProjectFixture,
 } from "./helpers"
 
 function todayStr(): string {
@@ -26,6 +27,29 @@ function logsForToday(): AiLogFixture[] {
   const today = todayStr()
   return aiLogFixtures.map((l) => ({ ...l, created_at: `${today}T${l.created_at.split("T")[1]}` }))
 }
+
+/** 造一個最簡化的進行中專案 fixture，供「六筆打亂迄日取前五」測試用。 */
+function makeActiveProject(id: string, name: string, end_date: string | null): ProjectFixture {
+  return {
+    id, name, customer: null, status: "active", owner_id: 2, owner_name: "亞澤",
+    start_date: "2026-01-01", end_date, description: null, created_by: 1,
+    created_at: "2026-01-01T00:00:00", updated_at: "2026-01-01T00:00:00",
+    progress: 0, member_count: 1, overdue_milestones: 0,
+    members: [{ user_id: 2, username: "yazelin", display_name: "亞澤", role: "owner" }],
+    milestones: [], tasks: [], bot_groups: [], knowledge_count: 0,
+  }
+}
+
+// 六筆進行中專案，迄日刻意打亂（含一筆 null，排序上該排最後）；
+// 依迄日升冪排序後的前五應為 案-01～案-05，最晚的 案-none（null）被排除在畫面外。
+const sixActiveProjects: ProjectFixture[] = [
+  makeActiveProject("proj-x5", "案-05", "2026-05-15"),
+  makeActiveProject("proj-x1", "案-01", "2026-01-10"),
+  makeActiveProject("proj-xn", "案-none", null),
+  makeActiveProject("proj-x3", "案-03", "2026-03-20"),
+  makeActiveProject("proj-x2", "案-02", "2026-02-05"),
+  makeActiveProject("proj-x4", "案-04", "2026-04-01"),
+]
 
 test("admin 看到三張卡與統計數字", async ({ page }) => {
   await mockApi(page, { user: adminFixture })
@@ -120,6 +144,28 @@ test("admin 看到進行中專案與逾期里程碑卡", async ({ page }) => {
   const milestonesCard = page.getByRole("heading", { name: "逾期里程碑" }).locator("..").locator("..")
   await expect(milestonesCard.getByText("逾期 30 天")).toHaveCount(2)
   await expect(milestonesCard.getByRole("link", { name: "台北捷運監控案" }).first()).toHaveAttribute("href", "/projects/proj-1?tab=overview")
+})
+
+test("進行中專案卡：六筆迄日打亂，只顯示迄日最早的五筆且依序排列", async ({ page }) => {
+  await mockApi(page, { user: adminFixture })
+  await mockKb(page)
+  await mockAiLog(page, { logs: logsForToday() })
+  await mockBot(page)
+  await mockProjects(page, { projects: sixActiveProjects })
+  await seedToken(page)
+
+  const listReq = page.waitForRequest((r) => r.url().includes("/api/projects?") && r.url().includes("status=active"))
+
+  await page.goto("/")
+
+  const url = (await listReq).url()
+  expect(url).toContain("page_size=100")
+
+  const projectsCard = page.getByRole("heading", { name: "進行中專案" }).locator("..").locator("..")
+  await expect(projectsCard.getByRole("link", { name: "案-01" })).toBeVisible()
+  const names = await projectsCard.locator("ul li a").allTextContents()
+  expect(names).toEqual(["案-01", "案-02", "案-03", "案-04", "案-05"])
+  await expect(projectsCard.getByText("案-none")).toHaveCount(0)
 })
 
 test("沒有專案管理權限的使用者看不到兩張專案卡，也不打 /api/projects", async ({ page }) => {

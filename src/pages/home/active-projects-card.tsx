@@ -6,7 +6,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError } from "@/lib/api"
 import { getProjectSummary, listProjects, projectKeys, type ProjectListItem } from "@/lib/projects"
 
-const ACTIVE_PROJECTS_LIMIT = 5
+const ACTIVE_PROJECTS_DISPLAY_LIMIT = 5
+// 後端清單依 updated_at DESC 排序，不是 end_date，所以撈後端允許的最大 page_size（100），
+// 在前端依迄日排序後再截取前五，才不會漏掉迄日真正最早的專案。
+const ACTIVE_PROJECTS_FETCH_PAGE_SIZE = 100
 
 /** 進度條：與 pages/projects/list.tsx 的 ProgressBar 同樣式，沒有共用 Progress 元件。 */
 function ProgressBar({ value }: { value: number }) {
@@ -21,11 +24,7 @@ function ProgressBar({ value }: { value: number }) {
   )
 }
 
-/**
- * 依迄日升冪排序，null 排最後。
- * 後端 /api/projects 清單依 updated_at DESC 排序，不是 end_date，所以取回的最多 5 筆
- * 在前端再依迄日排一次（詳見 brief 契約說明）。
- */
+/** 依迄日升冪排序，null 排最後。 */
 function sortByEndDate(items: ProjectListItem[]): ProjectListItem[] {
   return [...items].sort((a, b) => {
     if (a.end_date === b.end_date) return 0
@@ -38,14 +37,14 @@ function sortByEndDate(items: ProjectListItem[]): ProjectListItem[] {
 export function HomeActiveProjects() {
   const summaryQuery = useQuery({ queryKey: projectKeys.summary, queryFn: getProjectSummary })
   const listQuery = useQuery({
-    queryKey: projectKeys.list({ status: "active", page: 1, pageSize: ACTIVE_PROJECTS_LIMIT }),
-    queryFn: () => listProjects({ status: "active", page: 1, pageSize: ACTIVE_PROJECTS_LIMIT }),
+    queryKey: projectKeys.list({ status: "active", page: 1, pageSize: ACTIVE_PROJECTS_FETCH_PAGE_SIZE }),
+    queryFn: () => listProjects({ status: "active", page: 1, pageSize: ACTIVE_PROJECTS_FETCH_PAGE_SIZE }),
   })
 
   const isLoading = summaryQuery.isLoading || listQuery.isLoading
   const firstError = summaryQuery.error ?? listQuery.error
   const isError = summaryQuery.isError || listQuery.isError
-  const projects = listQuery.data ? sortByEndDate(listQuery.data.items).slice(0, ACTIVE_PROJECTS_LIMIT) : []
+  const projects = listQuery.data ? sortByEndDate(listQuery.data.items).slice(0, ACTIVE_PROJECTS_DISPLAY_LIMIT) : []
 
   return (
     <Card>
