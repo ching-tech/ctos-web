@@ -9,9 +9,12 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ApiError } from "@/lib/api"
-import { erpKeys, listParties, mergeParties, type PartyDetail } from "@/lib/erp"
+import { erpKeys, listParties, mergeParties, PARTY_PAGE_SIZE, type PartyDetail } from "@/lib/erp"
 
 type KeepSide = "this" | "other"
+
+// 與 pages/parties/list.tsx 同一個節奏，打字時不要每個鍵都打一次後端
+const SEARCH_DEBOUNCE_MS = 300
 
 /**
  * 合併：把 drop 的聯絡人、地址、採購單搬到 keep，drop 軟刪除，drop 的名稱與別名
@@ -21,9 +24,24 @@ export function MergePartyDialog({ party }: { party: PartyDetail }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [open, setOpen] = React.useState(false)
+  const [draftQ, setDraftQ] = React.useState("")
   const [q, setQ] = React.useState("")
   const [otherId, setOtherId] = React.useState("")
   const [keep, setKeep] = React.useState<KeepSide>("this")
+  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 卸載時清掉還沒觸發的 timer，免得對話框關了才送出一次查詢
+  React.useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  function onSearchChange(value: string) {
+    setDraftQ(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setQ(value), SEARCH_DEBOUNCE_MS)
+  }
 
   const filters = { q: q.trim() || undefined, page: 1 }
   const listQuery = useQuery({
@@ -33,6 +51,8 @@ export function MergePartyDialog({ party }: { party: PartyDetail }) {
   })
   const candidates = (listQuery.data?.items ?? []).filter((p) => p.id !== party.id)
   const other = candidates.find((p) => p.id === otherId)
+  // 選單只吃第一頁，超過一頁要講清楚，不然使用者會以為那家不存在
+  const truncated = (listQuery.data?.total ?? 0) > PARTY_PAGE_SIZE
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -52,7 +72,9 @@ export function MergePartyDialog({ party }: { party: PartyDetail }) {
       onOpenChange={(v) => {
         setOpen(v)
         if (!v) {
+          if (debounceRef.current) clearTimeout(debounceRef.current)
           mutation.reset()
+          setDraftQ("")
           setQ("")
           setOtherId("")
           setKeep("this")
@@ -82,9 +104,9 @@ export function MergePartyDialog({ party }: { party: PartyDetail }) {
             <Label htmlFor="merge-search">搜尋往來對象</Label>
             <Input
               id="merge-search"
-              placeholder="搜尋名稱、簡稱、別名與統一編號"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
+              placeholder="搜尋名稱、別名、聯絡人、電話、統編"
+              value={draftQ}
+              onChange={(e) => onSearchChange(e.target.value)}
             />
           </div>
 
@@ -103,11 +125,14 @@ export function MergePartyDialog({ party }: { party: PartyDetail }) {
               </SelectContent>
             </Select>
             {listQuery.data && candidates.length === 0 && <p className="text-sm text-muted-foreground">沒有其他往來對象</p>}
+            {truncated && <p className="text-sm text-muted-foreground">只列前 {PARTY_PAGE_SIZE} 筆，請用搜尋縮小</p>}
           </div>
 
           <div className="space-y-2">
-            <span className="text-sm font-medium">保留哪一筆</span>
-            <RadioGroup value={keep} onValueChange={(v) => setKeep(v as KeepSide)}>
+            <span className="text-sm font-medium" id="merge-keep-label">
+              保留哪一筆
+            </span>
+            <RadioGroup aria-labelledby="merge-keep-label" value={keep} onValueChange={(v) => setKeep(v as KeepSide)}>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="this" id="merge-keep-this" />
                 <Label htmlFor="merge-keep-this">保留這筆「{party.name}」</Label>

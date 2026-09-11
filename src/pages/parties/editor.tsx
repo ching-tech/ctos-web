@@ -18,6 +18,7 @@ import {
   updateParty,
   type PartyCreate,
   type PartyDetail,
+  type PartyUpdate,
 } from "@/lib/erp"
 
 interface FormState {
@@ -116,7 +117,7 @@ function EditorForm({ id, isEdit, initial }: { id: string | undefined; isEdit: b
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: PartyCreate) => updateParty(id!, data),
+    mutationFn: (data: PartyUpdate) => updateParty(id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: erpKeys.parties })
       navigate(`/parties/${id}`)
