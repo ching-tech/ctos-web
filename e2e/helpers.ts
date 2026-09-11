@@ -4,9 +4,19 @@ export const API = "https://ching-tech.ddns.net/ctos"
 
 export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
-  account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin", permissions: {},
+  account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
+  permissions: {
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true },
+    knowledge: { global_write: false, global_delete: false },
+  },
 }
-export const adminFixture = { ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin" }
+export const adminFixture = {
+  ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
+  permissions: {
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true },
+    knowledge: { global_write: true, global_delete: true },
+  },
+}
 
 export async function mockApi(page: Page, opts: { user?: typeof userFixture | null; loginOk?: boolean } = {}) {
   const user = opts.user === undefined ? { ...userFixture } : opts.user
@@ -584,4 +594,80 @@ export async function mockAiLog(page: Page, opts: { logs?: AiLogFixture[]; agent
   )
 
   return { logs, agents }
+}
+
+export interface AdminUserFixture {
+  id: number
+  username: string
+  display_name: string | null
+  is_admin: boolean
+  permissions: { apps: Record<string, boolean>; knowledge: Record<string, boolean> }
+  created_at: string
+  last_login_at: string | null
+  is_active: boolean
+  role: string
+  has_password: boolean
+}
+
+export const defaultAppNames: Record<string, string> = {
+  "knowledge-base": "知識庫",
+  "ai-log": "AI Log",
+  linebot: "Bot 管理",
+  settings: "設定",
+}
+
+export const adminUserFixtures: AdminUserFixture[] = [
+  {
+    id: 1, username: "admin", display_name: "管理員", is_admin: true,
+    permissions: { apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true }, knowledge: { global_write: true, global_delete: true } },
+    created_at: "2026-01-01T00:00:00", last_login_at: "2026-09-10T08:00:00", is_active: true, role: "admin", has_password: true,
+  },
+  {
+    id: 2, username: "yazelin", display_name: "亞澤", is_admin: false,
+    permissions: { apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true }, knowledge: { global_write: false, global_delete: false } },
+    created_at: "2026-01-02T00:00:00", last_login_at: "2026-09-11T08:00:00", is_active: true, role: "user", has_password: true,
+  },
+]
+
+/** 攔 /api/admin/users、/api/admin/default-permissions、PATCH /api/admin/users/:id/permissions（依 deep merge 回寫）。 */
+export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] } = {}) {
+  const users: AdminUserFixture[] = (opts.users ?? adminUserFixtures).map((u) => ({
+    ...u,
+    permissions: { apps: { ...u.permissions.apps }, knowledge: { ...u.permissions.knowledge } },
+  }))
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/admin/users`,
+    async (route) => route.fulfill({ json: { users } }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/admin/default-permissions`,
+    async (route) =>
+      route.fulfill({
+        json: {
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true },
+          knowledge: { global_write: false, global_delete: false },
+          app_names: defaultAppNames,
+        },
+      }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/admin\/users\/[^/]+\/permissions$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const id = Number(new URL(route.request().url()).pathname.split("/").slice(-2)[0])
+      const user = users.find((u) => u.id === id)
+      if (!user) return route.fulfill({ status: 404, json: { detail: "找不到" } })
+      const body = route.request().postDataJSON() as { apps?: Record<string, boolean>; knowledge?: Record<string, boolean> }
+      if (body.apps) Object.assign(user.permissions.apps, body.apps)
+      if (body.knowledge) Object.assign(user.permissions.knowledge, body.knowledge)
+      await route.fulfill({ json: { success: true, permissions: user.permissions } })
+    },
+  )
+
+  return { users }
 }

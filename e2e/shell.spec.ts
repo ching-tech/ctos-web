@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import { adminFixture, mockApi, mockKb, seedToken } from "./helpers"
 
-const MODULES = ["首頁", "知識庫", "專案", "Bot 管理", "AI Log", "設定"]
+const MODULES = ["首頁", "知識庫", "專案", "Bot 管理", "設定"]
 
 async function openSidebarIfMobile(page: Page, testInfo: TestInfo) {
   if (testInfo.project.name === "mobile") {
@@ -18,6 +18,7 @@ test("側邊欄列出模組，一般使用者看不到使用者管理", async ({
   const nav = page.getByRole("navigation").first()
   for (const m of MODULES) await expect(nav.getByRole("link", { name: m })).toBeVisible()
   await expect(nav.getByRole("link", { name: "使用者管理" })).toHaveCount(0)
+  await expect(nav.getByRole("link", { name: "AI Log" })).toHaveCount(0) // fixture ai-log=false
 })
 
 test("首頁顯示知識庫最近更新", async ({ page }) => {
