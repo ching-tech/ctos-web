@@ -16,10 +16,45 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { ApiError } from "@/lib/api"
-import { botKeys, deleteGroup, getGroup, listMessages, platformLabel, updateGroup, type BotMessage } from "@/lib/bot"
+import {
+  bindGroupProject,
+  botKeys,
+  deleteGroup,
+  getGroup,
+  listMessages,
+  platformLabel,
+  unbindGroupProject,
+  updateGroup,
+  type BotMessage,
+} from "@/lib/bot"
+import {
+  listProjects,
+  PROJECT_STATUS_LABEL,
+  projectKeys,
+  projectLabel,
+  type ProjectFilters,
+  type ProjectListItem,
+} from "@/lib/projects"
+
+// 綁定專案下拉的「未綁定」值；後端沒有空字串的 project_id，用固定字串當 sentinel。
+const UNBOUND = "unbound"
+// 已完成／已取消的專案排在選單後段並標狀態，照 brief 的排序規則。
+const LATE_PROJECT_STATUSES = new Set(["completed", "cancelled"])
+const PROJECT_LIST_FILTER: ProjectFilters = { page: 1, pageSize: 100 }
+
+function sortProjectsForBinding(items: ProjectListItem[]): ProjectListItem[] {
+  const early = items.filter((p) => !LATE_PROJECT_STATUSES.has(p.status))
+  const late = items.filter((p) => LATE_PROJECT_STATUSES.has(p.status))
+  return [...early, ...late]
+}
+
+function projectOptionLabel(p: ProjectListItem): string {
+  return LATE_PROJECT_STATUSES.has(p.status) ? `${p.name}（${projectLabel(PROJECT_STATUS_LABEL, p.status)}）` : p.name
+}
 
 function SummaryRow({ term, value }: { term: string; value: React.ReactNode }) {
   return (
@@ -71,6 +106,20 @@ export default function BotGroupDetailPage() {
     queryKey: botKeys.messages(messageFilter),
     queryFn: () => listMessages(messageFilter),
     enabled: detailQuery.isSuccess,
+  })
+
+  const projectsQuery = useQuery({
+    queryKey: projectKeys.list(PROJECT_LIST_FILTER),
+    queryFn: () => listProjects(PROJECT_LIST_FILTER),
+    enabled: detailQuery.isSuccess,
+  })
+
+  const projectMutation = useMutation({
+    mutationFn: (projectId: string) => (projectId === UNBOUND ? unbindGroupProject(id) : bindGroupProject(id, projectId)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: botKeys.group(id) })
+      queryClient.invalidateQueries({ queryKey: [...botKeys.all, "groups"] })
+    },
   })
 
   if (detailQuery.isLoading) {
@@ -138,7 +187,48 @@ export default function BotGroupDetailPage() {
                   />
                 }
               />
-              <SummaryRow term="專案" value={group.project_name || "未綁定專案（綁定功能待專案模組）"} />
+              <SummaryRow
+                term="專案"
+                value={
+                  <div className="flex flex-col items-end gap-1">
+                    <Select
+                      value={group.project_id ?? UNBOUND}
+                      onValueChange={(v) => projectMutation.mutate(v)}
+                      disabled={projectsQuery.isError || projectMutation.isPending}
+                    >
+                      <SelectTrigger aria-label="綁定專案" size="sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNBOUND}>未綁定</SelectItem>
+                        {sortProjectsForBinding(projectsQuery.data?.items ?? []).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {projectOptionLabel(p)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {group.project_id && (
+                      <Link
+                        to={`/projects/${group.project_id}`}
+                        className="text-xs text-primary underline-offset-4 hover:underline"
+                      >
+                        {group.project_name || "—"}
+                      </Link>
+                    )}
+                    {projectsQuery.isError && (
+                      <p role="alert" className="text-xs text-destructive">
+                        無法載入專案清單
+                      </p>
+                    )}
+                    {projectMutation.isError && (
+                      <p role="alert" className="text-xs text-destructive">
+                        {projectMutation.error instanceof ApiError ? projectMutation.error.detail : "更新失敗，請稍後再試"}
+                      </p>
+                    )}
+                  </div>
+                }
+              />
             </dl>
           </CardContent>
         </Card>

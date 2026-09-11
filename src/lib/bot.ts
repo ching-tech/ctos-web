@@ -189,6 +189,17 @@ export async function deleteGroup(id: string): Promise<void> {
   await apiFetch<unknown>(`/api/bot/groups/${id}`, { method: "DELETE" })
 }
 
+export async function bindGroupProject(groupId: string, projectId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/bot/groups/${groupId}/bind-project`, {
+    method: "POST",
+    body: JSON.stringify({ project_id: projectId }),
+  })
+}
+
+export async function unbindGroupProject(groupId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/bot/groups/${groupId}/bind-project`, { method: "DELETE" })
+}
+
 // ── 使用者 ────────────────────────────────────────────
 
 export function listUsersWithBinding(f: ListFilter): Promise<BotUserListResponse> {

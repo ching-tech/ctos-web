@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ApiError, API_BASE } from "./api"
-import { blockUser, listFiles, listGroups, listMessages, PLATFORM_LABEL, platformLabel, unbind } from "./bot"
+import {
+  bindGroupProject,
+  blockUser,
+  listFiles,
+  listGroups,
+  listMessages,
+  PLATFORM_LABEL,
+  platformLabel,
+  unbind,
+  unbindGroupProject,
+} from "./bot"
 import { getToken, setToken } from "./token"
 
 beforeEach(() => {
@@ -92,6 +102,29 @@ describe("blockUser", () => {
     await blockUser("usr-4", null)
     const init = (fn.mock.calls[0] as unknown as [string, RequestInit])[1]
     expect(init.body).toBe(JSON.stringify({ reason: null }))
+  })
+})
+
+describe("bindGroupProject", () => {
+  it("POST /api/bot/groups/:id/bind-project body { project_id }", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    await bindGroupProject("grp-1", "proj-1")
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe(`${API_BASE}/api/bot/groups/grp-1/bind-project`)
+    expect(init.method).toBe("POST")
+    expect(init.body).toBe(JSON.stringify({ project_id: "proj-1" }))
+  })
+})
+
+describe("unbindGroupProject", () => {
+  it("DELETE /api/bot/groups/:id/bind-project", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ status: "ok" }), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    await unbindGroupProject("grp-1")
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe(`${API_BASE}/api/bot/groups/grp-1/bind-project`)
+    expect(init.method).toBe("DELETE")
   })
 })
 

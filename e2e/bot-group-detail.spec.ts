@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test"
-import { mockApi, mockBot, mockKb, seedToken } from "./helpers"
+import { mockApi, mockBot, mockKb, mockProjects, seedToken } from "./helpers"
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await mockKb(page)
   await mockBot(page)
+  await mockProjects(page)
   await seedToken(page)
 })
 
