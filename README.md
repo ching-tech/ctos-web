@@ -133,7 +133,9 @@ npm run build
 各頁面元件：
 
 - `login.tsx` — 登入頁（NAS 帳號 vs 平台帳號兩分頁）
-- `home.tsx` — 首頁（個人化問候，掛載知識庫「最近更新」卡片）
+- `home.tsx` — 首頁（個人化問候，掛載「今日 AI 用量」「Bot 概況」「知識庫最近更新」卡片，各依 app 權限顯示）
+- `home/ai-usage-card.tsx` — 首頁「今日 AI 用量」卡片（依本地今天日期查 stats：呼叫次數／成功率／平均耗時／Token 進出）
+- `home/bot-summary-card.tsx` — 首頁「Bot 概況」卡片（群組數／黑名單數／我的 Line／Telegram 綁定狀態）
 - `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁）
 - `placeholder.tsx` — 未完成模組佔位元件（顯示空頁並連回舊桌面）
 - `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
@@ -177,6 +179,7 @@ Playwright 端對端測試：
 - `login.spec.ts` — 登入流程測試
 - `settings.spec.ts` — 設定頁測試
 - `shell.spec.ts` — 應用殼層測試（含首頁知識庫最近更新）
+- `home.spec.ts` — 首頁 dashboard 測試（今日 AI 用量／Bot 概況卡片依權限顯示、統計數字、stats 請求帶 `start_date`）
 - `kb-list.spec.ts` — 知識庫清單測試
 - `kb-detail.spec.ts` — 知識庫閱讀頁測試
 - `kb-editor.spec.ts` — 知識庫新增／編輯測試
@@ -220,7 +223,7 @@ Playwright 端對端測試：
 
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
 - **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
-- **首頁** — 個人化問候訊息，另有知識庫「最近更新」卡片
+- **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片；進行中專案與逾期里程碑待專案模組
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細）
