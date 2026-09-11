@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
-import { useNavigate, useParams } from "react-router"
+import { useNavigate, useParams, useSearchParams } from "react-router"
 import { Markdown } from "@/components/kb/markdown"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -60,10 +60,18 @@ function formFromKnowledge(kb: Knowledge): FormState {
   }
 }
 
+/** 專案明細的「新增條目」會帶 ?scope=project&project_id=<uuid>，這是專案知識唯一的建立管道。 */
+function projectIdFromParams(params: URLSearchParams): string | null {
+  if (params.get("scope") !== "project") return null
+  return params.get("project_id") || null
+}
+
 export default function KbEditorPage() {
   const { id } = useParams()
   const isEdit = Boolean(id)
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
+  const projectId = isEdit ? null : projectIdFromParams(searchParams)
 
   const detailQuery = useQuery({
     queryKey: kbKeys.detail(id ?? ""),
@@ -98,9 +106,10 @@ export default function KbEditorPage() {
       key={isEdit ? detailQuery.data!.id : "new"}
       id={id}
       isEdit={isEdit}
-      initial={isEdit ? formFromKnowledge(detailQuery.data!) : DEFAULT_FORM}
+      initial={isEdit ? formFromKnowledge(detailQuery.data!) : projectId ? { ...DEFAULT_FORM, scope: "project" } : DEFAULT_FORM}
       original={detailQuery.data ?? null}
       user={user}
+      projectId={projectId}
     />
   )
 }
@@ -111,12 +120,14 @@ function EditorForm({
   initial,
   original,
   user,
+  projectId,
 }: {
   id: string | undefined
   isEdit: boolean
   initial: FormState
   original: Knowledge | null
   user: UserInfo | null
+  projectId: string | null
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -125,7 +136,8 @@ function EditorForm({
   const [preview, setPreview] = React.useState(false)
 
   // 範圍選項依權限收斂：一般使用者只能選「個人」，選「全域」會清空 owner
-  // 導致自己失去編輯權；「專案」需要 project_id，UI 尚無管道提供，先移除。
+  // 導致自己失去編輯權。「專案」不在選項裡：它需要 project_id，只能從專案明細
+  // 帶 ?scope=project&project_id=… 進來，此時 scope 會因為不在選項內而鎖死。
   const scopeOptions: [Scope, string][] = user?.is_admin
     ? [["personal", SCOPE_LABEL.personal], ["global", SCOPE_LABEL.global]]
     : [["personal", SCOPE_LABEL.personal]]
@@ -179,6 +191,7 @@ function EditorForm({
         scope: form.scope,
         author: user.username,
         is_public: form.is_public,
+        ...(projectId ? { project_id: projectId } : {}),
       })
     }
   }
