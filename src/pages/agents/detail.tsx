@@ -40,6 +40,8 @@ function TestPanel({ agent }: { agent: AiAgent }) {
 
   const mutation = useMutation({
     mutationFn: () => testAgent({ agent_id: agent.id, message }),
+    // 重跑時先把上一次的回覆、耗時與 log 連結拿掉，免得等新結果的時候看到舊的還以為是這次的。
+    onMutate: () => setResult(null),
     onSuccess: (res) => setResult(res),
   })
 

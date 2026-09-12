@@ -168,3 +168,49 @@ test("沒有 agent-settings 權限時進不去", async ({ page }) => {
   await page.goto("/agents")
   await expect(page.getByRole("heading", { name: "此功能需要管理員開放" })).toBeVisible()
 })
+
+test("清空可為空的欄位不會送 null，欄位旁邊講明清不掉", async ({ page }) => {
+  const { requests } = await setup(page)
+  await page.goto("/agents/agt-1/edit")
+
+  // agt-1 原本有說明與兩個工具，兩個都清掉；後端 PUT 是 `is not None`，送 null 等於沒送（#252）
+  await page.getByLabel("說明").fill("")
+  await page.getByRole("button", { name: "移除「WebSearch」" }).click()
+  await page.getByRole("button", { name: "移除「Read」" }).click()
+  await expect(page.getByTestId("clear-unsupported-note")).toHaveCount(2)
+
+  await page.getByLabel("模型").fill("claude-haiku")
+  await page.getByRole("button", { name: "儲存" }).click()
+
+  await expect(page).toHaveURL(/\/agents\/agt-1$/)
+  const put = requests.find((r) => r.method === "PUT")
+  expect(put?.body).toEqual({ model: "claude-haiku" })
+  expect(Object.keys(put?.body as object)).not.toContain("tools")
+})
+
+test("重跑測試時不會把上一次的回覆留在畫面上", async ({ page }) => {
+  await setup(page)
+  await page.goto("/agents/agt-1")
+
+  await page.getByLabel("測試訊息").fill("用一句話回答 1+1")
+  await page.getByRole("button", { name: "送出測試" }).click()
+  await expect(page.getByTestId("test-result")).toContainText("1+1 等於 2。")
+
+  // 第二次刻意讓後端慢一點回，才看得出畫面上還留不留著上一次的結果
+  let release: () => void = () => {}
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  await page.route(/\/api\/ai\/test$/, async (route) => {
+    await gate
+    await route.fulfill({
+      json: { success: true, response: "第二次的回覆。", error: null, duration_ms: 2222, log_id: "log-02" },
+    })
+  })
+
+  await page.getByLabel("測試訊息").fill("再問一次")
+  await page.getByRole("button", { name: "送出測試" }).click()
+  await expect(page.getByRole("button", { name: "測試中…" })).toBeVisible()
+  await expect(page.getByTestId("test-result")).toHaveCount(0)
+
+  release()
+  await expect(page.getByTestId("test-result")).toContainText("第二次的回覆。")
+})

@@ -60,15 +60,19 @@ export interface AiPromptCreate {
   variables?: Record<string, unknown> | null
 }
 
-/** `AiPromptUpdate`（`models/ai.py` 109–116）：六個欄位都可選，沒送的不動。 */
+/**
+ * `AiPromptUpdate`（`models/ai.py` 109–116）：六個欄位都可選，沒送的不動。
+ *
+ * 注意：後端 `services/ai_manager.py` 135–163 用 `is not None` 組 SQL，送 `null` 等於沒送，
+ * 所以**清空不掉**（ching-tech-os #252）。前端不要送 `null`，直接把欄位留在 patch 外面，
+ * 並在畫面上講清楚，免得使用者以為清掉了。
+ */
 export type AiPromptPatch = Partial<AiPromptCreate>
 
 /** `POST /api/ai/prompts` 的 `name: str = Field(..., max_length=128)`，前端先擋免得白跑一趟 422。 */
 export const PROMPT_NAME_MAX = 128
 /** `display_name: str | None = Field(None, max_length=256)`。 */
 export const PROMPT_DISPLAY_NAME_MAX = 256
-/** `category: str | None = Field(None, max_length=64)`。 */
-export const PROMPT_CATEGORY_MAX = 64
 
 /**
  * 分類是自由字串（`max_length=64`），後端沒有 enum。下拉選項＝說明文字寫的三種
@@ -171,7 +175,12 @@ export interface AiAgentCreate {
   settings?: Record<string, unknown> | null
 }
 
-/** `AiAgentUpdate`（`models/ai.py` 172–180）：八個欄位都可選。 */
+/**
+ * `AiAgentUpdate`（`models/ai.py` 172–180）：八個欄位都可選。
+ *
+ * 與 prompt 同一個坑：後端 `services/ai_manager.py` 412–450 也是 `is not None`，
+ * 送 `null` 清不掉（ching-tech-os #252）。`is_active` 不受影響，`false` 不是 `None`。
+ */
 export type AiAgentPatch = Partial<AiAgentCreate>
 
 /** `name: str = Field(..., max_length=64)`。 */

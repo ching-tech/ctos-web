@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
 import { useNavigate, useParams } from "react-router"
 import { BotPromptAlert } from "@/components/ai-management/bot-prompt-alert"
+import { ClearUnsupportedNote } from "@/components/ai-management/clear-unsupported-note"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -129,6 +130,17 @@ function EditorForm({
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  /**
+   * 「原本有值、現在被清空」的欄位。後端的 PUT 用 `is not None` 組 SQL，送 `null` 等於沒送
+   * （ching-tech-os #252），所以這些欄位一律不進 patch，改在欄位旁邊說清楚。
+   */
+  const cleared = {
+    displayName: isEdit && original!.display_name !== null && form.displayName.trim() === "",
+    category: isEdit && original!.category !== null && form.category === "",
+    description: isEdit && original!.description !== null && form.description.trim() === "",
+    variables: isEdit && original!.variables !== null && form.variables.trim() === "",
+  }
+
   // 既有值不在預設選項裡時把它補進去，免得開編輯頁就把別人設的分類洗掉。
   const categoryOptions = React.useMemo(() => {
     const known = [...PROMPT_CATEGORY_OPTIONS] as string[]
@@ -160,11 +172,11 @@ function EditorForm({
     // `AiPromptUpdate` 每個欄位都可選，只送真的變動的那幾個。
     const patch: AiPromptPatch = {}
     if (form.name.trim() !== original!.name) patch.name = form.name.trim()
-    if ((form.displayName.trim() || null) !== original!.display_name) patch.display_name = form.displayName.trim() || null
-    if ((form.category || null) !== original!.category) patch.category = form.category || null
+    if (!cleared.displayName && (form.displayName.trim() || null) !== original!.display_name) patch.display_name = form.displayName.trim() || null
+    if (!cleared.category && (form.category || null) !== original!.category) patch.category = form.category || null
     if (form.content !== original!.content) patch.content = form.content
-    if ((form.description.trim() || null) !== original!.description) patch.description = form.description.trim() || null
-    if (JSON.stringify(parsedVariables.value) !== JSON.stringify(original!.variables)) patch.variables = parsedVariables.value
+    if (!cleared.description && (form.description.trim() || null) !== original!.description) patch.description = form.description.trim() || null
+    if (!cleared.variables && JSON.stringify(parsedVariables.value) !== JSON.stringify(original!.variables)) patch.variables = parsedVariables.value
     if (Object.keys(patch).length === 0) {
       navigate(`/prompts/${id}`)
       return
@@ -199,6 +211,7 @@ function EditorForm({
               value={form.displayName}
               onChange={(e) => set("displayName", e.target.value)}
             />
+            {cleared.displayName && <ClearUnsupportedNote />}
           </div>
         </div>
 
@@ -220,6 +233,7 @@ function EditorForm({
               ))}
             </SelectContent>
           </Select>
+          {cleared.category && <ClearUnsupportedNote />}
         </div>
 
         <div className="space-y-2">
@@ -237,6 +251,7 @@ function EditorForm({
         <div className="space-y-2">
           <Label htmlFor="prompt-description">說明</Label>
           <Textarea id="prompt-description" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+          {cleared.description && <ClearUnsupportedNote />}
         </div>
 
         <div className="space-y-2">
@@ -253,6 +268,7 @@ function EditorForm({
             }}
           />
           <p className="text-xs text-muted-foreground">留空代表沒有變數。後端收的是物件，陣列或純量會被擋下來。</p>
+          {cleared.variables && <ClearUnsupportedNote />}
           {variablesError && (
             <Alert variant="destructive" role="alert">
               <AlertDescription>變數：{variablesError}</AlertDescription>

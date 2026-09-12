@@ -131,3 +131,21 @@ test("沒有 prompt-editor 權限時進不去", async ({ page }) => {
   await page.goto("/prompts")
   await expect(page.getByRole("heading", { name: "此功能需要管理員開放" })).toBeVisible()
 })
+
+test("清空可為空的欄位不會送 null，欄位旁邊講明清不掉", async ({ page }) => {
+  const { requests } = await setup(page)
+  await page.goto("/prompts/pr-1/edit")
+
+  // pr-1 的說明原本有值，清掉之後後端的 PUT 是 `is not None`，送 null 等於沒送（#252）
+  await page.getByLabel("說明").fill("")
+  await expect(page.getByTestId("clear-unsupported-note")).toBeVisible()
+
+  // 同時改一個真的送得出去的欄位，確認 PUT 只帶那一個
+  await page.getByLabel("顯示名").fill("改過的顯示名")
+  await page.getByRole("button", { name: "儲存" }).click()
+
+  await expect(page).toHaveURL(/\/prompts\/pr-1$/)
+  const put = requests.find((r) => r.method === "PUT")
+  expect(put?.body).toEqual({ display_name: "改過的顯示名" })
+  expect(Object.keys(put?.body as object)).not.toContain("description")
+})

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
 import { useNavigate, useParams } from "react-router"
+import { ClearUnsupportedNote } from "@/components/ai-management/clear-unsupported-note"
 import { TagInput } from "@/components/ai-management/tag-input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -153,6 +154,19 @@ function EditorForm({
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  /**
+   * 「原本有值、現在被清空」的欄位。後端 PUT 用 `is not None` 組 SQL，送 `null` 等於沒送
+   * （ching-tech-os #252），所以這些欄位一律不進 patch，改在欄位旁邊說清楚。
+   * `is_active` 不在名單裡：`false` 不是 `None`，停用送得出去。
+   */
+  const cleared = {
+    displayName: isEdit && original!.display_name !== null && form.displayName.trim() === "",
+    description: isEdit && original!.description !== null && form.description.trim() === "",
+    systemPromptId: isEdit && original!.system_prompt_id !== null && form.systemPromptId === "",
+    tools: isEdit && (original!.tools?.length ?? 0) > 0 && form.tools.length === 0,
+    settings: isEdit && original!.settings !== null && form.settings.trim() === "",
+  }
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     const parsedSettings = parseJsonObject(form.settings)
@@ -179,13 +193,13 @@ function EditorForm({
     // `AiAgentUpdate` 八個欄位都可選，只送真的變動的那幾個。
     const patch: AiAgentPatch = {}
     if (form.name.trim() !== original!.name) patch.name = form.name.trim()
-    if ((form.displayName.trim() || null) !== original!.display_name) patch.display_name = form.displayName.trim() || null
-    if ((form.description.trim() || null) !== original!.description) patch.description = form.description.trim() || null
+    if (!cleared.displayName && (form.displayName.trim() || null) !== original!.display_name) patch.display_name = form.displayName.trim() || null
+    if (!cleared.description && (form.description.trim() || null) !== original!.description) patch.description = form.description.trim() || null
     if (form.model.trim() !== original!.model) patch.model = form.model.trim()
-    if ((form.systemPromptId || null) !== original!.system_prompt_id) patch.system_prompt_id = form.systemPromptId || null
+    if (!cleared.systemPromptId && (form.systemPromptId || null) !== original!.system_prompt_id) patch.system_prompt_id = form.systemPromptId || null
     if (form.isActive !== original!.is_active) patch.is_active = form.isActive
-    if (!sameTools(form.tools, original!.tools)) patch.tools = form.tools.length > 0 ? form.tools : null
-    if (JSON.stringify(parsedSettings.value) !== JSON.stringify(original!.settings)) patch.settings = parsedSettings.value
+    if (!cleared.tools && !sameTools(form.tools, original!.tools)) patch.tools = form.tools.length > 0 ? form.tools : null
+    if (!cleared.settings && JSON.stringify(parsedSettings.value) !== JSON.stringify(original!.settings)) patch.settings = parsedSettings.value
     if (Object.keys(patch).length === 0) {
       navigate(`/agents/${id}`)
       return
@@ -219,12 +233,14 @@ function EditorForm({
               value={form.displayName}
               onChange={(e) => set("displayName", e.target.value)}
             />
+            {cleared.displayName && <ClearUnsupportedNote />}
           </div>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="agent-description">說明</Label>
           <Textarea id="agent-description" rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+          {cleared.description && <ClearUnsupportedNote />}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -268,6 +284,7 @@ function EditorForm({
                 ))}
               </SelectContent>
             </Select>
+            {cleared.systemPromptId && <ClearUnsupportedNote />}
             {promptsQuery.isError && <p className="text-xs text-destructive">Prompt 清單載入失敗，只能維持現有設定。</p>}
           </div>
         </div>
@@ -288,6 +305,7 @@ function EditorForm({
             placeholder="輸入工具名稱後按 Enter"
           />
           <p className="text-xs text-muted-foreground">後端沒有可用工具的端點，名稱要照 provider 認得的寫法填。</p>
+          {cleared.tools && <ClearUnsupportedNote />}
         </div>
 
         <div className="space-y-2">
@@ -303,6 +321,7 @@ function EditorForm({
               if (settingsError) setSettingsError(null)
             }}
           />
+          {cleared.settings && <ClearUnsupportedNote />}
           {settingsError && (
             <Alert variant="destructive" role="alert">
               <AlertDescription>額外設定：{settingsError}</AlertDescription>
