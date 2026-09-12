@@ -27,6 +27,7 @@ import ProjectDetailPage from "@/pages/projects/detail"
 import ProjectEditorPage from "@/pages/projects/editor"
 import ProjectListPage from "@/pages/projects/list"
 import SettingsPage from "@/pages/settings"
+import SharesPage from "@/pages/shares"
 import WarehouseListPage from "@/pages/warehouses/list"
 
 export const router = createBrowserRouter([
@@ -74,6 +75,7 @@ export const router = createBrowserRouter([
           { path: "memory", element: <RequireApp app="memory-manager"><MemoryPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
           { path: "ai-log/:id", element: <RequireApp app="ai-log"><AiLogDetailPage /></RequireApp> },
+          { path: "shares", element: <RequireApp app="share-manager"><SharesPage /></RequireApp> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
           { path: "settings", element: <SettingsPage /> },
         ],

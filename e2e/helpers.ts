@@ -4043,3 +4043,112 @@ export async function mockMemory(
 
   return store
 }
+
+/**
+ * `ShareLinkResponse`（ching-tech-os `models/share.py` 22–37）。
+ * 清單（`services/share.py` 549–600、602–647）每一列都帶滿這些欄位，
+ * `password` 只有建立時才回（546），所以清單 fixture 沒有它。
+ */
+export interface ShareLinkFixture {
+  token: string
+  url: string
+  full_url: string
+  resource_type: string
+  resource_id: string
+  resource_title: string
+  expires_at: string | null
+  access_count: number
+  created_at: string
+  created_by: string | null
+  is_expired: boolean
+  has_password: boolean
+}
+
+/** 登入者（yazelin）自己的連結。三筆各驗一件事：永久、有到期、已過期。 */
+export const shareLinkFixtures: ShareLinkFixture[] = [
+  {
+    token: "sh-kb-001", url: "/s/sh-kb-001", full_url: "https://ctos.test.invalid/s/sh-kb-001",
+    resource_type: "knowledge", resource_id: "kb-001", resource_title: "泵浦保養 SOP",
+    expires_at: null, access_count: 12, created_at: "2026-09-10T02:00:00Z",
+    created_by: "yazelin", is_expired: false, has_password: false,
+  },
+  {
+    token: "sh-nas-002", url: "/s/sh-nas-002", full_url: "https://ctos.test.invalid/s/sh-nas-002",
+    // nas_file 的 resource_title 後端只給檔名（`services/share.py` 423–426），路徑在 resource_id。
+    resource_type: "nas_file", resource_id: "/mnt/nas/projects/甲一機電/配電圖.pdf", resource_title: "配電圖.pdf",
+    expires_at: "2026-12-31T02:00:00Z", access_count: 0, created_at: "2026-09-11T06:00:00Z",
+    created_by: "yazelin", is_expired: false, has_password: true,
+  },
+  {
+    token: "sh-old-003", url: "/s/sh-old-003", full_url: "https://ctos.test.invalid/s/sh-old-003",
+    resource_type: "knowledge", resource_id: "kb-002", resource_title: "PLC 韌體升級紀錄",
+    expires_at: "2026-08-01T02:00:00Z", access_count: 5, created_at: "2026-07-31T02:00:00Z",
+    created_by: "yazelin", is_expired: true, has_password: false,
+  },
+]
+
+/**
+ * 別人的連結，只有管理員 `view=all` 才看得到。
+ * `resource_title` 是「未知資源」：後端的 `get_resource_title` 對 project 與
+ * project_attachment 沒有實作，一律回這四個字（`services/share.py` 430–431）。
+ */
+export const otherShareLinkFixtures: ShareLinkFixture[] = [
+  {
+    token: "sh-proj-004", url: "/s/sh-proj-004", full_url: "https://ctos.test.invalid/s/sh-proj-004",
+    resource_type: "project", resource_id: "7", resource_title: "未知資源",
+    expires_at: null, access_count: 1, created_at: "2026-09-09T02:00:00Z",
+    created_by: "shulin", is_expired: false, has_password: false,
+  },
+]
+
+/**
+ * `GET /api/share?view=`（`api/share.py` 135–166）與 `DELETE /api/share/{token}`（169–199）。
+ *
+ * `view=all` 只有管理員有效：非管理員送 all，後端一樣走 `list_my_links`（155–159），
+ * 這支 mock 照抄這條規則。撤銷成功是 204 無內容（171）。
+ */
+export async function mockShares(
+  page: Page,
+  opts: {
+    links?: ShareLinkFixture[]
+    /** 別人建立的連結（管理員 `view=all` 才會併進來）。 */
+    othersLinks?: ShareLinkFixture[]
+    /** 回應裡的 `is_admin`（`api/share.py` 161 由 session.role 決定）。 */
+    isAdmin?: boolean
+    /** 這個 token 的 DELETE 回 403「您沒有權限撤銷此連結」（`services/share.py` 668–670）。 */
+    denyRevokeToken?: string
+  } = {},
+) {
+  const mine = opts.links ?? shareLinkFixtures.map((l) => ({ ...l }))
+  const others = opts.othersLinks ?? otherShareLinkFixtures.map((l) => ({ ...l }))
+  const isAdmin = opts.isAdmin ?? false
+
+  await page.route(`${API}/api/share*`, async (route) => {
+    // 建立（POST）不歸這一頁管，留給別的 mock（例如 mockKb）或 trapUnmockedApi。
+    if (route.request().method() !== "GET") return route.fallback()
+    const view = new URL(route.request().url()).searchParams.get("view")
+    const links = view === "all" && isAdmin ? [...mine, ...others] : mine
+    await route.fulfill({ json: { links, is_admin: isAdmin } })
+  })
+
+  await page.route(`${API}/api/share/*`, async (route) => {
+    const raw = new URL(route.request().url()).pathname.split("/").pop() ?? ""
+    const token = decodeURIComponent(raw)
+    if (opts.denyRevokeToken === token) {
+      return route.fulfill({ status: 403, json: { detail: "您沒有權限撤銷此連結" } })
+    }
+    const list = [mine, others].find((l) => l.some((x) => x.token === token))
+    if (!list) return route.fulfill({ status: 404, json: { detail: "連結不存在" } })
+    list.splice(list.findIndex((x) => x.token === token), 1)
+    await route.fulfill({ status: 204 })
+  })
+}
+
+/** 一般使用者＋`share-manager` 開放（後端預設關閉，`services/permissions.py` 177）。 */
+export const shareUserFixture = {
+  ...userFixture,
+  permissions: {
+    ...userFixture.permissions,
+    apps: { ...userFixture.permissions.apps, "share-manager": true },
+  },
+}
