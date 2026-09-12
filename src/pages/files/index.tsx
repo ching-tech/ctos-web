@@ -30,6 +30,7 @@ import {
   setNasConnection,
   setNasReconnectHandler,
   sortItems,
+  usableConnection,
   useNasConnection,
   type NasConnection,
   type NasItemType,
@@ -64,7 +65,9 @@ export default function FilesPage() {
   const [syncedQ, setSyncedQ] = React.useState(q)
   const [preview, setPreview] = React.useState<{ path: string; name: string } | null>(null)
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const pendingReconnect = React.useRef<((conn: NasConnection | null) => void) | null>(null)
+  // 一整排等著被喚醒的請求：過期那一刻可能同時有清單、預覽、下載在跑，只留一個位子會把
+  // 先到的那支永遠掛在那裡。（fetch 包裝層已經把同一波合併成一次呼叫，這裡是第二道保險。）
+  const pendingReconnects = React.useRef<((conn: NasConnection | null) => void)[]>([])
 
   // 網址上的 q 被外部改變時（重新整理、上一頁）同步回搜尋框草稿值。
   if (q !== syncedQ) {
@@ -72,16 +75,30 @@ export default function FilesPage() {
     setDraftQ(q)
   }
 
+  /** 把等著的請求全部叫醒；回傳有沒有人在等。 */
+  function settleReconnects(next: NasConnection | null): boolean {
+    const waiting = pendingReconnects.current
+    pendingReconnects.current = []
+    for (const resolve of waiting) resolve(next)
+    return waiting.length > 0
+  }
+
   // fetch 包裝層攔到「缺連線／連線過期」時，開連線對話框並等使用者連好，連好才重試原請求。
   React.useEffect(() => {
     setNasReconnectHandler(
       () =>
         new Promise<NasConnection | null>((resolve) => {
-          pendingReconnect.current = resolve
+          pendingReconnects.current.push(resolve)
           setDialogOpen(true)
         }),
     )
-    return () => setNasReconnectHandler(null)
+    return () => {
+      setNasReconnectHandler(null)
+      // 離開頁面時把還等著的請求收掉，不要讓它們永遠掛著。
+      const waiting = pendingReconnects.current
+      pendingReconnects.current = []
+      for (const resolve of waiting) resolve(null)
+    }
   }, [])
 
   function updateParams(next: { path?: string; q?: string }) {
@@ -113,10 +130,10 @@ export default function FilesPage() {
   })
 
   React.useEffect(() => {
-    const first = connectionsQuery.data?.[0]
-    if (first && !getNasConnection()) {
-      setNasConnection({ token: first.token, host: first.host, username: first.username })
-    }
+    if (!connectionsQuery.data || getNasConnection()) return
+    // 後端不會清掉過期的連線，拿第一筆還沒到期的才有意義。
+    const usable = usableConnection(connectionsQuery.data)
+    if (usable) setNasConnection({ token: usable.token, host: usable.host, username: usable.username })
   }, [connectionsQuery.data])
 
   const listQuery = useQuery({
@@ -162,23 +179,14 @@ export default function FilesPage() {
   function handleConnected(next: NasConnection) {
     setNasConnection(next)
     setDialogOpen(false)
-    const resolve = pendingReconnect.current
-    pendingReconnect.current = null
-    if (resolve) {
-      // 自動重連：原請求會被重試，不必再 invalidate（否則同一份清單會抓兩次）。
-      resolve(next)
-      return
-    }
+    // 自動重連：等著的請求會各自重試，不必再 invalidate（否則同一份清單會抓兩次）。
+    if (settleReconnects(next)) return
     queryClient.invalidateQueries({ queryKey: nasKeys.all })
   }
 
   function handleDialogOpenChange(open: boolean) {
     setDialogOpen(open)
-    if (!open && pendingReconnect.current) {
-      const resolve = pendingReconnect.current
-      pendingReconnect.current = null
-      resolve(null)
-    }
+    if (!open) settleReconnects(null)
   }
 
   async function handleDisconnect() {

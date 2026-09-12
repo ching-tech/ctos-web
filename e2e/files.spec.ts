@@ -41,6 +41,20 @@ test("已經有連線就直接沿用，不再問一次密碼", async ({ page }) 
   await expect(page.getByRole("dialog")).toHaveCount(0)
 })
 
+test("現成連線已經過期就不沿用，照樣要重新連線", async ({ page }) => {
+  // 後端 get_user_connections 不會把過期的剔掉，前端要自己看 expires_at
+  await setup(page, {
+    connections: [{ token: "nas-stale", host: "nas.test.invalid", username: "yazelin", expires_at: "2020-01-01T00:00:00" }],
+  })
+
+  await page.goto("/files")
+  await expect(page.getByText("尚未連線 NAS")).toBeVisible()
+
+  await page.getByRole("button", { name: "連線 NAS" }).first().click()
+  await connect(page)
+  await expect(page.getByRole("button", { name: "共用區", exact: true })).toBeVisible()
+})
+
 test("連線失敗時原樣顯示後端訊息：帳密錯誤是 200 加 error，連不到是 503", async ({ page }) => {
   await setup(page)
 

@@ -3574,14 +3574,45 @@ export interface NasMockControl {
  * 缺連線／過期回 401 加 `X-NAS-Required`／`X-NAS-Token-Expired`（同時給後端那兩句 detail，
  * 跨網域讀不到 header 時前端是靠 detail 判斷的）；根目錄只有 `/api/nas/shares` 能列，`browse?path=/` 是 400。
  */
+/** 對齊後端 `api/nas.py` 的 `NASConnectionInfo`：六個欄位都要有，時間是沒有時區的 isoformat。 */
+export interface NasConnectionFixture {
+  token: string
+  host: string
+  username: string
+  created_at?: string
+  expires_at?: string
+  last_used_at?: string
+}
+
+/** 後端給的是 `datetime.now()` 的 isoformat：沒有時區、是伺服器的本地時間，不是 UTC。 */
+function localIso(ms: number): string {
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function fullConnection(c: NasConnectionFixture) {
+  // 後端 token 預設 30 分鐘，`get_user_connections` 不會把過期的剔掉，所以測試要能指定 expires_at
+  const future = localIso(Date.now() + 30 * 60 * 1000)
+  const past = localIso(Date.now() - 60 * 1000)
+  return {
+    token: c.token,
+    host: c.host,
+    username: c.username,
+    created_at: c.created_at ?? past,
+    expires_at: c.expires_at ?? future,
+    last_used_at: c.last_used_at ?? past,
+  }
+}
+
 export async function mockNas(
   page: Page,
-  opts: { tree?: NasNode[]; connections?: { token: string; host: string; username: string }[]; unreachableHost?: string } = {},
+  opts: { tree?: NasNode[]; connections?: NasConnectionFixture[]; unreachableHost?: string } = {},
 ): Promise<NasMockControl> {
   const tree = opts.tree ?? nasTreeFixture
   const unreachableHost = opts.unreachableHost ?? "unreachable.test.invalid"
   const valid = new Set<string>((opts.connections ?? []).map((c) => c.token))
-  const connections = [...(opts.connections ?? [])]
+  const connections = (opts.connections ?? []).map(fullConnection)
   const control: NasMockControl = { expireTokens: () => valid.clear(), requests: [] }
   let seq = 0
 
@@ -3624,7 +3655,7 @@ export async function mockNas(
     seq += 1
     const token = `nas-tok-${seq}`
     valid.add(token)
-    connections.push({ token, host: body.host, username: body.username })
+    connections.push(fullConnection({ token, host: body.host, username: body.username }))
     return route.fulfill({ json: { success: true, token, error: null, host: body.host } })
   })
 

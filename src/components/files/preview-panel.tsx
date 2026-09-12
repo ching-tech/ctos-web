@@ -21,6 +21,8 @@ export function PreviewPanel({ path, name, onClose }: { path: string; name: stri
     queryFn: () => readNasFile(path),
     enabled: kind === "image" || kind === "pdf",
     retry: false,
+    // 整份檔案的內容不要留在 query 快取裡，面板收起來就丟掉。
+    gcTime: 0,
   })
 
   const textQuery = useQuery({
@@ -28,6 +30,7 @@ export function PreviewPanel({ path, name, onClose }: { path: string; name: stri
     queryFn: () => readNasText(path),
     enabled: kind === "text",
     retry: false,
+    gcTime: 0,
   })
 
   // object URL 只在這一份 blob 活著的期間存在，換檔或卸載就 revoke（同步外部資源，放 effect）

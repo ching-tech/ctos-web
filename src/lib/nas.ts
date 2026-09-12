@@ -105,9 +105,28 @@ export function useNasConnection(): NasConnection | null {
 export type NasReconnect = () => Promise<NasConnection | null>
 
 let reconnectHandler: NasReconnect | null = null
+let reconnectInFlight: Promise<NasConnection | null> | null = null
 
 export function setNasReconnectHandler(fn: NasReconnect | null) {
   reconnectHandler = fn
+  if (!fn) reconnectInFlight = null
+}
+
+/**
+ * 同一波過期只問一次。
+ *
+ * token 是 30 分鐘到期的，過期那一刻很可能同時有好幾支請求在跑（清單重抓、預覽、下載）。
+ * 每支都各自呼叫一次重連流程的話，使用者會看到對話框被重開好幾次，頁面那邊也得記住一整排
+ * 等著被喚醒的請求。這裡讓後到的請求共用同一個 promise，連好之後全部各自重試自己的原請求。
+ */
+function requestReconnect(): Promise<NasConnection | null> {
+  if (!reconnectHandler) return Promise.resolve(null)
+  if (!reconnectInFlight) {
+    reconnectInFlight = reconnectHandler().finally(() => {
+      reconnectInFlight = null
+    })
+  }
+  return reconnectInFlight
 }
 
 // ============================================================
@@ -160,7 +179,7 @@ async function nasFetch(path: string, init: RequestInit = {}, allowRetry = true)
   if (needsReconnect(res, detail)) {
     setNasConnection(null)
     if (allowRetry && reconnectHandler) {
-      const next = await reconnectHandler()
+      const next = await requestReconnect()
       if (next) return nasFetch(path, init, false)
     }
     throw new ApiError(res.status, detail)
@@ -184,7 +203,23 @@ export function connectNas(body: { host: string; username: string; password: str
   return nasJson<NasConnectResponse>("/api/nas/connect", { method: "POST", body: JSON.stringify(body) }, false)
 }
 
-/** 進頁面先打這支：有現成連線就沿用第一筆，讓人不用每次重輸密碼。 */
+/**
+ * 挑一條還能用的連線。
+ *
+ * 後端的 `get_user_connections`（`services/nas_connection.py` 219–239）只照 `user_id` 過濾，
+ * **不會把過期的剔掉**，直接沿用第一筆可能拿到已經死掉的 token。`expires_at` 是後端
+ * `datetime.now()` 的 isoformat（沒有時區），JS 會照本地時間解析。
+ */
+export function usableConnection(list: NasConnectionInfo[], now: number = Date.now()): NasConnectionInfo | null {
+  return (
+    list.find((c) => {
+      const expires = new Date(c.expires_at).getTime()
+      return Number.isNaN(expires) || expires > now
+    }) ?? null
+  )
+}
+
+/** 進頁面先打這支：有現成連線就沿用第一筆還沒過期的，讓人不用每次重輸密碼。 */
 export async function listNasConnections(): Promise<NasConnectionInfo[]> {
   const data = await nasJson<{ connections: NasConnectionInfo[] }>("/api/nas/connections", {}, false)
   return data.connections

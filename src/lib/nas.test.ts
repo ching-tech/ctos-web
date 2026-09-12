@@ -22,6 +22,7 @@ import {
   setNasConnection,
   setNasReconnectHandler,
   sortItems,
+  usableConnection,
 } from "./nas"
 import { setToken } from "./token"
 
@@ -200,6 +201,45 @@ describe("連線失效的攔截與重試", () => {
     expect(localStorage.getItem("ctos-web.token")).toBe("SESSION")
   })
 
+  it("兩支同時撞到過期的請求：只問一次重連，連好之後兩支都拿得到結果", async () => {
+    setNasConnection({ token: "T1", host: "h", username: "u" })
+    // 前兩次（兩支原請求）回過期，之後（兩支各自的重試）回正常資料
+    let calls = 0
+    const fn = vi.fn(async (url: string) => {
+      calls += 1
+      if (calls <= 2) return nasAuthResponse("X-NAS-Token-Expired", "NAS 連線已過期，請重新連線")
+      return url.includes("/api/nas/shares")
+        ? jsonResponse({ shares: [{ name: "共用區", type: "disk" }] })
+        : jsonResponse({ path: "/共用區", items: [] })
+    })
+    vi.stubGlobal("fetch", fn)
+
+    let release: ((conn: { token: string; host: string; username: string } | null) => void) | null = null
+    const reconnect = vi.fn(
+      () =>
+        new Promise<{ token: string; host: string; username: string } | null>((resolve) => {
+          release = resolve
+        }),
+    )
+    setNasReconnectHandler(reconnect)
+
+    const shares = listShares()
+    const browse = browseNas("/共用區")
+
+    // 同一波過期只會叫出一次連線流程（頁面那邊也就只會開一次對話框）
+    await vi.waitFor(() => expect(reconnect).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(release).not.toBeNull())
+
+    const next = { token: "T2", host: "h", username: "u" }
+    setNasConnection(next)
+    release!(next)
+
+    expect(await shares).toEqual([{ name: "共用區", type: "disk" }])
+    expect(await browse).toEqual({ path: "/共用區", items: [] })
+    expect(reconnect).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledTimes(4)
+  })
+
   it("使用者關掉連線對話框（重連傳回 null）就不重試，把 detail 丟出來", async () => {
     const fn = vi.fn(async () => nasAuthResponse("X-NAS-Required", "請先連線 NAS"))
     vi.stubGlobal("fetch", fn)
@@ -283,5 +323,31 @@ describe("路徑與顯示工具", () => {
       { name: "a.txt", type: "file" as const, size: 1, modified: null },
     ]
     expect(sortItems(items).map((i) => i.name)).toEqual(["a 資料夾", "a.txt", "b.txt"])
+  })
+})
+
+describe("沿用現成連線", () => {
+  const make = (token: string, expires: string) => ({
+    token,
+    host: "h",
+    username: "u",
+    created_at: "2026-09-12T10:00:00",
+    expires_at: expires,
+    last_used_at: "2026-09-12T10:00:00",
+  })
+  const now = new Date("2026-09-12T12:00:00").getTime()
+
+  it("跳過已經過期的那幾筆（後端的 get_user_connections 不會自己清）", () => {
+    const list = [make("old", "2026-09-12T11:30:00"), make("good", "2026-09-12T12:20:00")]
+    expect(usableConnection(list, now)?.token).toBe("good")
+  })
+
+  it("全部過期就回 null，會走連線對話框", () => {
+    expect(usableConnection([make("old", "2026-09-12T11:30:00")], now)).toBeNull()
+    expect(usableConnection([], now)).toBeNull()
+  })
+
+  it("expires_at 解析不出來時不擋（寧可讓請求自己撞 401 走重連）", () => {
+    expect(usableConnection([make("weird", "not-a-date")], now)?.token).toBe("weird")
   })
 })
