@@ -1,5 +1,8 @@
 import { API_BASE, apiFetch } from "./api"
 import { getToken } from "./token"
+import type { ShareLink } from "./types"
+
+export type { ShareLink }
 
 export type Scope = "global" | "personal" | "project"
 
@@ -77,15 +80,6 @@ export interface HistoryEntry {
   author: string
   date: string
   message: string
-}
-
-export interface ShareLink {
-  token: string
-  url: string
-  full_url: string
-  resource_type: string
-  resource_id: string
-  resource_title: string
 }
 
 export interface ListFilters {

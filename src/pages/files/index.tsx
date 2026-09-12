@@ -4,6 +4,8 @@ import * as React from "react"
 import { useLocation, useSearchParams } from "react-router"
 import { ConnectDialog } from "@/components/files/connect-dialog"
 import { PreviewPanel } from "@/components/files/preview-panel"
+import { FileRowActions } from "@/components/files/row-actions"
+import { FilesToolbar } from "@/components/files/toolbar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { titleForPath } from "@/lib/nav"
+import { canAccessApp } from "@/lib/permissions"
 import {
   breadcrumbs,
   browseNas,
@@ -30,6 +33,7 @@ import {
   setNasConnection,
   setNasReconnectHandler,
   sortItems,
+  toShareResourceId,
   usableConnection,
   useNasConnection,
   type NasConnection,
@@ -209,6 +213,11 @@ export default function FilesPage() {
   }
 
   const crumbs = breadcrumbs(path)
+  // 寫入類動作只在瀏覽清單時出現：搜尋結果跨資料夾，改完要重抓的不是同一份清單。
+  // 根目錄列的是 share，後端的 `_parse_path` 不接受空路徑，寫不了也刪不了。
+  const canWrite = !!conn && !atRoot && !searching
+  // 分享連結要 share-manager 權限（後端預設關閉），而且檔案要落在設定好的掛載點底下。
+  const canShare = canAccessApp(user, "share-manager")
   const error = active.isError ? (active.error instanceof ApiError ? active.error.detail : "載入失敗，請稍後再試") : null
 
   return (
@@ -275,6 +284,8 @@ export default function FilesPage() {
         </div>
       )}
 
+      {canWrite && <FilesToolbar path={path} />}
+
       {searching && !active.isPending && !error && (
         <p className="text-sm text-muted-foreground">在 {path} 底下搜尋「{q}」，共 {rows.length} 筆</p>
       )}
@@ -310,6 +321,7 @@ export default function FilesPage() {
                   {searching ? <TableHead>路徑</TableHead> : null}
                   <TableHead>大小</TableHead>
                   <TableHead>修改時間</TableHead>
+                  {canWrite ? <TableHead>動作</TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -328,6 +340,21 @@ export default function FilesPage() {
                     {searching ? <TableCell className="text-muted-foreground break-all">{row.path}</TableCell> : null}
                     <TableCell>{row.type === "directory" ? "—" : formatSize(row.size)}</TableCell>
                     <TableCell>{formatModified(row.modified)}</TableCell>
+                    {canWrite ? (
+                      <TableCell>
+                        <FileRowActions
+                          path={row.path}
+                          name={row.name}
+                          type={row.type}
+                          listPath={path}
+                          shareResourceId={canShare && row.type === "file" ? toShareResourceId(row.path) : null}
+                          onDeleted={() => setPreview((p) => (p?.path === row.path ? null : p))}
+                          onRenamed={(next) =>
+                            setPreview((p) => (p?.path === row.path ? { path: joinPath(path, next), name: next } : p))
+                          }
+                        />
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -361,6 +388,19 @@ export default function FilesPage() {
                     <dd>{formatModified(row.modified)}</dd>
                   </div>
                 </dl>
+                {canWrite && (
+                  <FileRowActions
+                    path={row.path}
+                    name={row.name}
+                    type={row.type}
+                    listPath={path}
+                    shareResourceId={canShare && row.type === "file" ? toShareResourceId(row.path) : null}
+                    onDeleted={() => setPreview((p) => (p?.path === row.path ? null : p))}
+                    onRenamed={(next) =>
+                      setPreview((p) => (p?.path === row.path ? { path: joinPath(path, next), name: next } : p))
+                    }
+                  />
+                )}
               </li>
             ))}
           </ul>

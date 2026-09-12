@@ -44,3 +44,13 @@ export interface ChangePasswordResponse {
   success: boolean
   error: string | null
 }
+
+/** `POST /api/share` 的回應（後端 models/share.py 的 ShareLinkResponse，這裡只取前端會用到的欄位）。 */
+export interface ShareLink {
+  token: string
+  url: string
+  full_url: string
+  resource_type: string
+  resource_id: string
+  resource_title: string
+}

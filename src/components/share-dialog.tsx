@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ApiError } from "@/lib/api"
-import { createShareLink } from "@/lib/kb"
+import type { ShareLink } from "@/lib/types"
 
 type ExpiryOption = "1h" | "24h" | "7d" | "never"
 
@@ -18,21 +18,29 @@ const EXPIRY_OPTIONS: { value: ExpiryOption; label: string }[] = [
   { value: "never", label: "永久" },
 ]
 
+/**
+ * 分享連結對話框：有效期、選填的 4 位數字密碼、建立後給連結與複製。
+ *
+ * 知識庫與 NAS 檔案共用同一支，差別只在 `createLink`（打的是同一支
+ * `POST /api/share`，但 `resource_type` 與 `resource_id` 不同）與 `ariaLabel`。
+ */
 export function ShareDialog({
-  id,
   open,
   onOpenChange,
+  createLink,
+  ariaLabel,
 }: {
-  id: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  createLink: (opts: { expires_in: "1h" | "24h" | "7d" | null; password?: string }) => Promise<ShareLink>
+  ariaLabel: string
 }) {
   const [expiry, setExpiry] = React.useState<ExpiryOption>("24h")
   const [password, setPassword] = React.useState("")
   const [copyStatus, setCopyStatus] = React.useState<string | null>(null)
 
   const mutation = useMutation({
-    mutationFn: () => createShareLink(id, { expires_in: expiry === "never" ? null : expiry, password }),
+    mutationFn: () => createLink({ expires_in: expiry === "never" ? null : expiry, password }),
   })
 
   function reset() {
@@ -64,7 +72,7 @@ export function ShareDialog({
           Radix 會把 DialogTitle 的文字透過 aria-labelledby 接到 DialogContent 上，
           若與下方「分享連結」欄位的 aria-label 完全相同，會讓 getByLabel 同時配對到對話框本身。
           這裡改給 DialogContent 一個語意相近但不同字串的 aria-label 來避免衝突。 */}
-      <DialogContent aria-label="分享此篇知識">
+      <DialogContent aria-label={ariaLabel}>
         <DialogHeader>
           <h2 className="font-heading text-base leading-none font-medium">分享連結</h2>
         </DialogHeader>
