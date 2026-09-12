@@ -19,9 +19,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Attachments } from "@/components/kb/attachments"
 import { HistorySheet } from "@/components/kb/history-sheet"
 import { Markdown } from "@/components/kb/markdown"
-import { ShareDialog } from "@/components/kb/share-dialog"
+import { ShareDialog } from "@/components/share-dialog"
 import { ApiError } from "@/lib/api"
-import { CATEGORY_LABEL, categoryColor, deleteKnowledge, getKnowledge, kbKeys, label, SCOPE_LABEL, TYPE_LABEL } from "@/lib/kb"
+import { CATEGORY_LABEL, categoryColor, createShareLink, deleteKnowledge, getKnowledge, kbKeys, label, SCOPE_LABEL, TYPE_LABEL } from "@/lib/kb"
 import { Skeleton } from "@/components/ui/skeleton"
 
 function MetaRow({ term, value }: { term: string; value: string | null | undefined }) {
@@ -172,7 +172,12 @@ export default function KbDetailPage() {
         </Card>
       </div>
 
-      <ShareDialog id={id} open={shareOpen} onOpenChange={setShareOpen} />
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        ariaLabel="分享此篇知識"
+        createLink={(opts) => createShareLink(id, opts)}
+      />
       <HistorySheet id={id} open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   )

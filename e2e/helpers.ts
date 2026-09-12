@@ -3548,6 +3548,11 @@ export const nasTreeFixture: NasNode[] = [
   { name: "備份區", type: "directory", children: [] },
 ]
 
+/** 每次 mock 都要拿到自己的一份：寫入類端點會直接改這棵樹，共用同一份會讓測試互相污染。 */
+function cloneNasTree(nodes: NasNode[]): NasNode[] {
+  return nodes.map((n) => ({ ...n, children: n.children ? cloneNasTree(n.children) : undefined }))
+}
+
 function findNasNode(tree: NasNode[], path: string): NasNode | null {
   const segs = path.replace(/^\/+/, "").replace(/\/+$/, "").split("/").filter(Boolean)
   let nodes = tree
@@ -3582,7 +3587,7 @@ function searchNasTree(tree: NasNode[], path: string, query: string): { name: st
 export interface NasMockControl {
   /** 模擬連線 token 到期（後端 30 分鐘）：之後帶舊 token 的請求都回 401＋X-NAS-Token-Expired。 */
   expireTokens: () => void
-  /** 已經送出去的上傳／寫入請求（PR B 用）。 */
+  /** 寫入類端點實際收到的內容，供測試比對契約。 */
   requests: { method: string; path: string; body: unknown }[]
 }
 
@@ -3628,7 +3633,7 @@ export async function mockNas(
   page: Page,
   opts: { tree?: NasNode[]; connections?: NasConnectionFixture[]; unreachableHost?: string } = {},
 ): Promise<NasMockControl> {
-  const tree = opts.tree ?? nasTreeFixture
+  const tree = cloneNasTree(opts.tree ?? nasTreeFixture)
   const unreachableHost = opts.unreachableHost ?? "unreachable.test.invalid"
   const valid = new Set<string>((opts.connections ?? []).map((c) => c.token))
   const connections = (opts.connections ?? []).map(fullConnection)
@@ -3735,6 +3740,96 @@ export async function mockNas(
 
   await page.route(on("file"), (route) => serveFile(route, false))
   await page.route(on("download"), (route) => serveFile(route, true))
+
+  // ---- 寫入類 ----
+
+  const parentOf = (path: string) => {
+    const segs = path.replace(/^\/+/, "").split("/").filter(Boolean)
+    const name = segs.pop() ?? ""
+    const parent = findNasNode(tree, `/${segs.join("/")}`)
+    const siblings = segs.length === 0 ? tree : (parent?.children ?? null)
+    return { name, siblings }
+  }
+
+  await page.route(on("upload"), async (route) => {
+    if (!(await requireToken(route))) return
+    // multipart：path 是目標資料夾，file 是檔案本身
+    const body = route.request().postData() ?? ""
+    const dir = body.match(/name="path"\r?\n\r?\n([^\r\n]*)/)?.[1] ?? ""
+    const filename = body.match(/filename="([^"]*)"/)?.[1] ?? "unnamed"
+    control.requests.push({ method: "POST", path: "/api/nas/upload", body: { path: dir, filename } })
+    const node = findNasNode(tree, dir)
+    if (!node || node.type !== "directory") return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
+    node.children = node.children ?? []
+    node.children.push({ name: filename, type: "file", size: 12, modified: "2026-09-12T09:00:00", content: "uploaded", contentType: "text/plain" })
+    return route.fulfill({ json: { success: true, message: "上傳成功" } })
+  })
+
+  await page.route(on("mkdir"), async (route) => {
+    if (!(await requireToken(route))) return
+    const body = route.request().postDataJSON() as { path: string }
+    control.requests.push({ method: "POST", path: "/api/nas/mkdir", body })
+    const { name, siblings } = parentOf(body.path)
+    if (!siblings) return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
+    if (siblings.some((n) => n.name === name)) return route.fulfill({ status: 409, json: { detail: "資料夾已存在" } })
+    siblings.push({ name, type: "directory", modified: "2026-09-12T09:00:00", children: [] })
+    return route.fulfill({ json: { success: true, message: "建立成功" } })
+  })
+
+  await page.route(on("rename"), async (route) => {
+    if (!(await requireToken(route))) return
+    const body = route.request().postDataJSON() as { path: string; new_name: string }
+    control.requests.push({ method: "PATCH", path: "/api/nas/rename", body })
+    const { name, siblings } = parentOf(body.path)
+    const node = siblings?.find((n) => n.name === name)
+    if (!siblings || !node) return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
+    if (siblings.some((n) => n.name === body.new_name)) return route.fulfill({ status: 409, json: { detail: "目標名稱已存在" } })
+    node.name = body.new_name
+    return route.fulfill({ json: { success: true, message: "重命名成功" } })
+  })
+
+  // DELETE /api/nas/file 與上面的 GET 同一條路徑：後註冊的先比對，方法不合就 fallback 給 GET 那支。
+  await page.route(
+    (url) => url.origin === base.origin && url.pathname === `${prefix}/api/nas/file`,
+    async (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback()
+      if (!(await requireToken(route))) return
+      const body = route.request().postDataJSON() as { path: string; recursive: boolean }
+      control.requests.push({ method: "DELETE", path: "/api/nas/file", body })
+      const { name, siblings } = parentOf(body.path)
+      const idx = siblings?.findIndex((n) => n.name === name) ?? -1
+      if (!siblings || idx === -1) return route.fulfill({ status: 404, json: { detail: "檔案或資料夾不存在" } })
+      const node = siblings[idx]
+      if (node.type === "directory" && (node.children?.length ?? 0) > 0 && !body.recursive) {
+        return route.fulfill({ status: 400, json: { detail: "資料夾不是空的，請使用遞迴刪除" } })
+      }
+      siblings.splice(idx, 1)
+      return route.fulfill({ json: { success: true, message: "刪除成功" } })
+    },
+  )
+
+  // 分享連結（nas_file）：resource_id 要是後端讀得到的掛載點路徑
+  await page.route(
+    (url) => url.origin === base.origin && url.pathname === `${prefix}/api/share`,
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const body = route.request().postDataJSON() as { resource_type: string; resource_id: string }
+      control.requests.push({ method: "POST", path: "/api/share", body })
+      if (!body.resource_id.startsWith("/mnt/")) {
+        return route.fulfill({ status: 403, json: { detail: `無效的路徑：${body.resource_id}` } })
+      }
+      return route.fulfill({
+        json: {
+          token: "nas-share-1",
+          url: "/s/nas-share-1",
+          full_url: "https://ching-tech.ddns.net/ctos/s/nas-share-1",
+          resource_type: body.resource_type,
+          resource_id: body.resource_id,
+          resource_title: body.resource_id.split("/").pop() ?? "",
+        },
+      })
+    },
+  )
 
   return control
 }

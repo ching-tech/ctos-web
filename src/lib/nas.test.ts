@@ -4,6 +4,8 @@ import {
   breadcrumbs,
   browseNas,
   connectNas,
+  createNasShareLink,
+  deleteNasItem,
   disconnectNas,
   downloadNasFile,
   formatModified,
@@ -13,15 +15,20 @@ import {
   listNasConnections,
   listShares,
   normalizePath,
+  mkdirNas,
   parentPath,
+  parseShareMounts,
   previewKind,
   readNasFile,
   readNasText,
+  renameNas,
   searchNas,
   searchResultPath,
   setNasConnection,
   setNasReconnectHandler,
   sortItems,
+  toShareResourceId,
+  uploadNasFile,
   usableConnection,
 } from "./nas"
 import { setToken } from "./token"
@@ -349,5 +356,100 @@ describe("沿用現成連線", () => {
 
   it("expires_at 解析不出來時不擋（寧可讓請求自己撞 401 走重連）", () => {
     expect(usableConnection([make("weird", "not-a-date")], now)?.token).toBe("weird")
+  })
+})
+
+describe("寫入端點", () => {
+  beforeEach(() => setNasConnection({ token: "T1", host: "h", username: "u" }))
+
+  it("upload 用 multipart 送 path（目標資料夾）與 file", async () => {
+    const fn = vi.fn(async () => jsonResponse({ success: true, message: "上傳成功" }))
+    vi.stubGlobal("fetch", fn)
+    const file = new File(["x"], "圖面.pdf", { type: "application/pdf" })
+    expect(await uploadNasFile("/共用區/甲一", file)).toEqual({ success: true, message: "上傳成功" })
+    const { url, init, headers } = lastCall(fn)
+    expect(url).toBe(`${API_BASE}/api/nas/upload`)
+    expect(init.method).toBe("POST")
+    // multipart 的 Content-Type 要留給瀏覽器自己帶 boundary
+    expect(headers.get("Content-Type")).toBeNull()
+    const form = init.body as FormData
+    expect(form.get("path")).toBe("/共用區/甲一")
+    expect((form.get("file") as File).name).toBe("圖面.pdf")
+  })
+
+  it("mkdir 送完整的新資料夾路徑", async () => {
+    const fn = vi.fn(async () => jsonResponse({ success: true, message: "建立成功" }))
+    vi.stubGlobal("fetch", fn)
+    await mkdirNas("/共用區/甲一/新資料夾")
+    const { url, init } = lastCall(fn)
+    expect(url).toBe(`${API_BASE}/api/nas/mkdir`)
+    expect(init.method).toBe("POST")
+    expect(JSON.parse(String(init.body))).toEqual({ path: "/共用區/甲一/新資料夾" })
+  })
+
+  it("rename 用 PATCH，欄位是 path 與 new_name", async () => {
+    const fn = vi.fn(async () => jsonResponse({ success: true, message: "重命名成功" }))
+    vi.stubGlobal("fetch", fn)
+    await renameNas("/共用區/甲一/舊.pdf", "新.pdf")
+    const { url, init } = lastCall(fn)
+    expect(url).toBe(`${API_BASE}/api/nas/rename`)
+    expect(init.method).toBe("PATCH")
+    expect(JSON.parse(String(init.body))).toEqual({ path: "/共用區/甲一/舊.pdf", new_name: "新.pdf" })
+  })
+
+  it("delete 用 DELETE 帶 body，recursive 照傳", async () => {
+    const fn = vi.fn(async () => jsonResponse({ success: true, message: "刪除成功" }))
+    vi.stubGlobal("fetch", fn)
+    await deleteNasItem("/共用區/甲一", true)
+    const { url, init } = lastCall(fn)
+    expect(url).toBe(`${API_BASE}/api/nas/file`)
+    expect(init.method).toBe("DELETE")
+    expect(JSON.parse(String(init.body))).toEqual({ path: "/共用區/甲一", recursive: true })
+  })
+
+  it("資料夾不是空的那個 400 原樣丟出", async () => {
+    const fn = vi.fn(async () => jsonResponse({ detail: "資料夾不是空的，請使用遞迴刪除" }, { status: 400 }))
+    vi.stubGlobal("fetch", fn)
+    await expect(deleteNasItem("/共用區/甲一", false)).rejects.toMatchObject({
+      status: 400,
+      detail: "資料夾不是空的，請使用遞迴刪除",
+    })
+  })
+})
+
+describe("分享連結的 resource_id", () => {
+  const mounts = parseShareMounts("/共用區/在案資料=/mnt/nas/projects;/共用區/線路圖=/mnt/nas/circuits")
+
+  it("parseShareMounts 解析成前綴對掛載點", () => {
+    expect(mounts).toEqual([
+      { prefix: "/共用區/在案資料", mount: "/mnt/nas/projects" },
+      { prefix: "/共用區/線路圖", mount: "/mnt/nas/circuits" },
+    ])
+    expect(parseShareMounts(undefined)).toEqual([])
+    expect(parseShareMounts("亂寫沒有等號")).toEqual([])
+  })
+
+  it("檔案管理器路徑換成掛載點路徑；不在設定範圍內回 null", () => {
+    // 後端 path_manager 只認 /tmp/ 與 /mnt/ 開頭的絕對路徑，SMB 路徑會被判成 NAS zone 而拒絕
+    expect(toShareResourceId("/共用區/在案資料/甲一/圖面.pdf", mounts)).toBe("/mnt/nas/projects/甲一/圖面.pdf")
+    expect(toShareResourceId("/共用區/線路圖/a.dwg", mounts)).toBe("/mnt/nas/circuits/a.dwg")
+    expect(toShareResourceId("/共用區/其他/x.pdf", mounts)).toBeNull()
+    expect(toShareResourceId("/備份區/x.pdf", mounts)).toBeNull()
+    // 前綴只比整段，不比字首
+    expect(toShareResourceId("/共用區/在案資料夾/x.pdf", mounts)).toBeNull()
+  })
+
+  it("createNasShareLink 送 nas_file 與換算後的路徑", async () => {
+    const fn = vi.fn(async () => jsonResponse({ token: "t", url: "/s/t", full_url: "https://x/s/t", resource_type: "nas_file", resource_id: "/mnt/nas/projects/甲一/圖面.pdf", resource_title: "圖面.pdf" }))
+    vi.stubGlobal("fetch", fn)
+    await createNasShareLink("/mnt/nas/projects/甲一/圖面.pdf", { expires_in: "24h", password: "1234" })
+    const { url, init } = lastCall(fn)
+    expect(url).toBe(`${API_BASE}/api/share`)
+    expect(JSON.parse(String(init.body))).toEqual({
+      resource_type: "nas_file",
+      resource_id: "/mnt/nas/projects/甲一/圖面.pdf",
+      expires_in: "24h",
+      password: "1234",
+    })
   })
 })

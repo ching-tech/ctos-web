@@ -1,6 +1,7 @@
 import * as React from "react"
-import { API_BASE, ApiError } from "./api"
+import { API_BASE, ApiError, apiFetch } from "./api"
 import { clearSession, getToken } from "./token"
+import type { ShareLink } from "./types"
 
 // 型別一律對齊後端 `api/nas.py`（連線相關的 model 在檔頭 46–80 行）與 `models/nas.py`，不自己猜欄位。
 //
@@ -55,6 +56,12 @@ export interface NasSearchItem {
   name: string
   path: string
   type: NasItemType
+}
+
+/** 寫入類端點共用的回應（models/nas.py 的 OperationResponse）。 */
+export interface NasOperationResponse {
+  success: boolean
+  message: string
 }
 
 export interface NasSearchResponse {
@@ -269,6 +276,93 @@ export async function readNasText(path: string): Promise<string> {
 export async function downloadNasFile(path: string): Promise<Blob> {
   const res = await nasFetch(`/api/nas/download?path=${encodeURIComponent(path)}`)
   return res.blob()
+}
+
+/** 上傳。後端是 multipart：`path` 是**目標資料夾**，`file` 是檔案本身（`api/nas.py` 的 `upload_file`）。 */
+export async function uploadNasFile(dirPath: string, file: File): Promise<NasOperationResponse> {
+  const form = new FormData()
+  form.append("path", dirPath)
+  form.append("file", file)
+  return nasJson<NasOperationResponse>("/api/nas/upload", { method: "POST", body: form })
+}
+
+export function mkdirNas(path: string): Promise<NasOperationResponse> {
+  return nasJson<NasOperationResponse>("/api/nas/mkdir", { method: "POST", body: JSON.stringify({ path }) })
+}
+
+export function renameNas(path: string, newName: string): Promise<NasOperationResponse> {
+  return nasJson<NasOperationResponse>("/api/nas/rename", { method: "PATCH", body: JSON.stringify({ path, new_name: newName }) })
+}
+
+/** 刪除。資料夾不是空的又沒帶 `recursive` 時，後端回 400「資料夾不是空的，請使用遞迴刪除」。 */
+export function deleteNasItem(path: string, recursive: boolean): Promise<NasOperationResponse> {
+  return nasJson<NasOperationResponse>("/api/nas/file", { method: "DELETE", body: JSON.stringify({ path, recursive }) })
+}
+
+// ============================================================
+// 分享連結（resource_type: nas_file）
+// ============================================================
+
+/**
+ * 檔案管理器路徑 → 後端掛載點路徑的對照表，來自環境變數 `VITE_NAS_SHARE_MOUNTS`，
+ * 格式 `<檔案管理器路徑前綴>=<掛載點路徑>`，多組用 `;` 分隔。
+ *
+ * **為什麼需要這個**：`POST /api/share` 的 `nas_file` 會把 `resource_id` 丟給
+ * `services/share.py` 的 `validate_nas_file_path()` → `path_manager.parse()`。
+ * 以 `/` 開頭、但不是 `/tmp/` 或 `/mnt/` 的路徑（也就是檔案管理器的 SMB 路徑）會被判成
+ * NAS zone（`services/path_manager.py` 215–221），而 `validate_nas_file_path` 只放行
+ * CTOS 與 SHARED 兩區（`services/share.py` 212–214），直接回 403
+ * 「不允許存取 nas:// 區域的檔案」（本機打過，確認是這句）。
+ * 所以一定要先換成掛載點路徑（`/mnt/nas/projects/...`）或 `shared://projects/...`
+ * 這種後端讀得到的形式，兩種都驗過可以過路徑檢查。舊桌面 `file-manager.js` 41–72 行
+ * 也是這樣做的（硬寫死一組前綴）。這份對照表後端沒有端點可以拿，只能由部署端設定。
+ */
+export interface NasShareMount {
+  prefix: string
+  mount: string
+}
+
+export function parseShareMounts(raw: string | undefined): NasShareMount[] {
+  if (!raw) return []
+  return raw
+    .split(";")
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .map((pair) => {
+      const idx = pair.indexOf("=")
+      if (idx <= 0) return null
+      const prefix = normalizePath(pair.slice(0, idx).trim())
+      const mount = pair.slice(idx + 1).trim().replace(/\/+$/, "")
+      return mount ? { prefix, mount } : null
+    })
+    .filter((m): m is NasShareMount => m !== null)
+}
+
+export const NAS_SHARE_MOUNTS: NasShareMount[] = parseShareMounts(import.meta.env.VITE_NAS_SHARE_MOUNTS)
+
+/** 不在任何一組前綴底下就回 null（＝這個檔案不能分享，按鈕不出現）。 */
+export function toShareResourceId(path: string, mounts: NasShareMount[] = NAS_SHARE_MOUNTS): string | null {
+  const p = normalizePath(path)
+  for (const m of mounts) {
+    if (p === m.prefix) return m.mount
+    if (p.startsWith(`${m.prefix}/`)) return `${m.mount}${p.slice(m.prefix.length)}`
+  }
+  return null
+}
+
+export function createNasShareLink(
+  resourceId: string,
+  opts: { expires_in: "1h" | "24h" | "7d" | null; password?: string },
+): Promise<ShareLink> {
+  return apiFetch<ShareLink>("/api/share", {
+    method: "POST",
+    body: JSON.stringify({
+      resource_type: "nas_file",
+      resource_id: resourceId,
+      expires_in: opts.expires_in,
+      password: opts.password || undefined,
+    }),
+  })
 }
 
 // ============================================================

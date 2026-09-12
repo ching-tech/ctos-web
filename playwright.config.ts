@@ -26,7 +26,8 @@ export default defineConfig({
     url: "http://127.0.0.1:4173",
     // 檔案頁連線對話框的 host 預設值來自 build 時的環境變數；e2e 一律給假主機，
     // 不讓真的 NAS 位址進 repo，測試也才有固定值可比對。
-    env: { VITE_NAS_HOST: "nas.test.invalid" },
+    // VITE_NAS_SHARE_MOUNTS 是「檔案管理器路徑前綴＝後端掛載點」，決定哪些檔案能產生分享連結。
+    env: { VITE_NAS_HOST: "nas.test.invalid", VITE_NAS_SHARE_MOUNTS: "/共用區/甲一機電=/mnt/nas/projects" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
