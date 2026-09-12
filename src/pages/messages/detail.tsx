@@ -38,7 +38,7 @@ export default function MessageDetailPage() {
   })
 
   const mark = useMutation({
-    mutationFn: markRead,
+    mutationFn: (body: Parameters<typeof markRead>[0]) => markRead(body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: messageKeys.all })
     },

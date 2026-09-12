@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import {
   isSeverity,
   isSource,
@@ -41,15 +42,19 @@ import {
   type MessageListItem,
   type MessageSeverity,
 } from "@/lib/messages"
+import { listSimpleUsers, simpleUserName, userKeys } from "@/lib/users"
 
 function filtersFromParams(params: URLSearchParams): MessageFilters {
   const rawIsRead = params.get("is_read")
   const rawPage = params.get("page")
+  const rawUserId = params.get("user_id")
+  const userId = rawUserId !== null && rawUserId !== "" && !Number.isNaN(Number(rawUserId)) ? Number(rawUserId) : undefined
   return {
     severity: params.getAll("severity").filter(isSeverity),
     source: params.getAll("source").filter(isSource),
     search: params.get("search") || undefined,
     isRead: rawIsRead === "true" ? true : rawIsRead === "false" ? false : undefined,
+    userId,
     from: params.get("from") || undefined,
     to: params.get("to") || undefined,
     page: rawPage ? Math.max(1, Number(rawPage) || 1) : undefined,
@@ -105,8 +110,17 @@ function MessageCard({
 export default function MessageListPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const filters = filtersFromParams(searchParams)
+  const { user } = useAuth()
+  const isAdmin = Boolean(user?.is_admin)
+  const rawFilters = filtersFromParams(searchParams)
+  // user_id 只有管理員送出去有效（api/messages.py 38、51–57），非管理員一律不帶，
+  // 避免手改網址也打出一個後端會忽略的參數。
+  const filters: MessageFilters = isAdmin ? rawFilters : { ...rawFilters, userId: undefined }
   const page = filters.page ?? 1
+
+  const usersQuery = useQuery({ queryKey: userKeys.list, queryFn: listSimpleUsers, enabled: isAdmin })
+  const users = usersQuery.data?.users ?? []
+  const selectedUserLabel = filters.userId !== undefined ? users.find((u) => u.id === filters.userId) : undefined
 
   const [selected, setSelected] = React.useState<number[]>([])
   const [confirmAll, setConfirmAll] = React.useState(false)
@@ -125,7 +139,7 @@ export default function MessageListPage() {
   const totalPages = Math.max(1, listQuery.data?.total_pages ?? 1)
 
   const mark = useMutation({
-    mutationFn: markRead,
+    mutationFn: (vars: { body: Parameters<typeof markRead>[0]; userId?: number }) => markRead(vars.body, vars.userId),
     onSuccess: () => {
       setSelected([])
       void queryClient.invalidateQueries({ queryKey: messageKeys.all })
@@ -231,6 +245,26 @@ export default function MessageListPage() {
           </SelectContent>
         </Select>
 
+        {/* 只有管理員看得到：後端 user_id 篩選對非管理員一律被忽略（api/messages.py 38、51–57）。 */}
+        {isAdmin && (
+          <Select
+            value={filters.userId === undefined ? "all" : String(filters.userId)}
+            onValueChange={(v) => setParams((next) => (v === "all" ? next.delete("user_id") : next.set("user_id", v)))}
+          >
+            <SelectTrigger className="w-32" aria-label="使用者">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部使用者</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>
+                  {simpleUserName(u)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <form
           className="flex items-center gap-2"
           onSubmit={(e) => {
@@ -273,7 +307,7 @@ export default function MessageListPage() {
         <Button
           variant="outline"
           disabled={selected.length === 0 || mark.isPending}
-          onClick={() => mark.mutate({ ids: selected })}
+          onClick={() => mark.mutate({ body: { ids: selected } })}
         >
           標為已讀{selected.length > 0 ? `（${selected.length}）` : ""}
         </Button>
@@ -391,13 +425,18 @@ export default function MessageListPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>確定把全部訊息標為已讀？</AlertDialogTitle>
               <AlertDialogDescription>
-                這會標記你看得到的所有訊息，不只目前這一頁，也不受篩選條件影響。
+                {isAdmin && filters.userId !== undefined
+                  ? `這會把「${selectedUserLabel ? simpleUserName(selectedUserLabel) : filters.userId}」看得到的所有未讀訊息標為已讀（含全系統訊息），不只目前這一頁；其他篩選條件不影響範圍。`
+                  : "這會標記你看得到的所有訊息，不只目前這一頁，也不受其他篩選條件影響。"}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={mark.isPending}>返回</AlertDialogCancel>
               {/* 用一般的 Button：AlertDialogAction 會在請求還在路上時就把按鈕關掉。 */}
-              <Button disabled={mark.isPending} onClick={() => mark.mutate({ all: true })}>
+              <Button
+                disabled={mark.isPending}
+                onClick={() => mark.mutate({ body: { all: true }, userId: isAdmin ? filters.userId : undefined })}
+              >
                 確定
               </Button>
             </AlertDialogFooter>
