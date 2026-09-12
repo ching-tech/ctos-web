@@ -22,8 +22,9 @@ export function PreferencesCard() {
         <CardDescription>主題會存在帳號上，換一台裝置登入也是同一個設定。</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="theme-light">主題</Label>
+        <fieldset className="space-y-2">
+          {/* 這一行是整組的標題，不能用 htmlFor 指到某一顆 radio，否則點標題會選中那一顆。 */}
+          <legend className="text-sm font-medium">主題</legend>
           <RadioGroup
             value={theme}
             onValueChange={setTheme}
@@ -42,7 +43,7 @@ export function PreferencesCard() {
               目前跟隨系統，還沒有存到帳號上；選亮色或暗色就會存回去。
             </p>
           )}
-        </div>
+        </fieldset>
 
         {error && (
           <Alert variant="destructive" role="alert">

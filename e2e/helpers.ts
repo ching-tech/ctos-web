@@ -61,8 +61,12 @@ export async function mockApi(
     failRevokeOnce?: boolean
     /** 目前密碼「正確」的那一組；填別的會拿到後端的 `success:false` 與 error（api/auth.py 596–601）。 */
     currentPassword?: string
-    /** `GET /api/user/preferences` 回的主題（api/user.py 247–259），預設 "dark"。 */
-    theme?: "dark" | "light"
+    /**
+     * `GET /api/user/preferences` 回的主題（api/user.py 247–259），預設 "dark"。
+     * 刻意允許 dark／light 以外的字串，用來模擬 ching-tech-os #240 把 preferences 寫壞之後
+     * 讀回來的值前端認不得的情況。
+     */
+    theme?: string
     /** PUT 一律回 400，模擬後端拒絕（api/user.py 277–281）。 */
     themeUpdateFails?: boolean
   } = {},
@@ -148,7 +152,7 @@ export async function mockApi(
     return route.fulfill({ json: { success: true, error: null } })
   })
   // 偏好設定（api/user.py 247–293）。每一頁登入後都會 GET 一次，所以放在共用 mock 裡。
-  let theme = opts.theme ?? "dark"
+  let theme: string = opts.theme ?? "dark"
   await page.route(`${API}/api/user/preferences`, async (route) => {
     if (route.request().method() === "PUT") {
       const body = route.request().postDataJSON() as { theme?: string }

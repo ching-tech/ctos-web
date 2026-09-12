@@ -27,8 +27,12 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
   const { user } = useAuth()
   const [error, setError] = React.useState<string | null>(null)
 
-  // 後端目前存的值。沒拿到之前不送 PUT，免得把本機殘留的值蓋過去。
+  // 後端目前存的值；null 代表「後端沒有存過可用的值」。
   const serverTheme = React.useRef<PreferenceTheme | null>(null)
+  // GET 有沒有回來過。這件事要跟「後端存的是什麼」分開記：後端可能回一個認不得的值
+  // （ching-tech-os #240 把 preferences 寫壞的那種），那時候 serverTheme 還是 null，
+  // 但使用者之後改主題**必須**寫得出去，不然整個功能就靜靜地不動了。
+  const loaded = React.useRef(false)
   const loadedForUser = React.useRef<number | null>(null)
 
   // 登入後拿一次；用 Promise chaining 而不是 async/await，理由同 auth-context.tsx。
@@ -37,7 +41,12 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
     loadedForUser.current = user.id
     getPreferences()
       .then((prefs) => {
-        if (!isPreferenceTheme(prefs.theme)) return
+        loaded.current = true
+        if (!isPreferenceTheme(prefs.theme)) {
+          // 認不得的值當成「還沒設定過」：不動畫面上的主題，但之後的切換照樣送得出去。
+          serverTheme.current = null
+          return
+        }
         serverTheme.current = prefs.theme
         setTheme(prefs.theme)
       })
@@ -49,9 +58,9 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
 
   // 主題改了就存回去。側邊欄的切換鈕與設定頁的選項都走這一條。
   React.useEffect(() => {
-    if (!user) return
+    // GET 還沒回來之前不要寫，免得把本機殘留的值蓋過後端已經存好的。
+    if (!user || !loaded.current) return
     const previous = serverTheme.current
-    if (previous === null) return
     if (!isPreferenceTheme(theme) || theme === previous) return
 
     let cancelled = false
@@ -64,7 +73,8 @@ export function ThemePreferenceProvider({ children }: { children: React.ReactNod
       .catch((e) => {
         if (cancelled) return
         setError(e instanceof ApiError ? e.detail : "主題沒有存成功，請稍後再試。")
-        setTheme(previous)
+        // 後端本來就沒有可用的值時沒有東西可以退回，畫面留在使用者選的那個，只報錯。
+        if (previous !== null) setTheme(previous)
       })
     return () => {
       cancelled = true
