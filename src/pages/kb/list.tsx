@@ -1,6 +1,15 @@
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
 import { Link, useLocation, useSearchParams } from "react-router"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,14 +18,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { KbCard } from "@/components/kb/kb-card"
 import { titleForPath } from "@/lib/nav"
 import { ApiError } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import {
   CATEGORY_LABEL,
   getTags,
   kbKeys,
   label,
   listKnowledge,
+  rebuildIndex,
   TYPE_LABEL,
   type ListFilters,
+  type RebuildIndexResult,
   type Scope,
 } from "@/lib/kb"
 
@@ -28,6 +40,12 @@ const SCOPE_OPTIONS: { value: Scope; label: string }[] = [
 
 const SEARCH_DEBOUNCE_MS = 300
 const VALID_SCOPES: readonly Scope[] = ["global", "personal", "project"]
+
+/** 後端回的是統計 dict，不是一句話，所以文案在前端組。 */
+function rebuildMessage(r: RebuildIndexResult): string {
+  const base = `已重建索引，共 ${r.total} 筆，下一個編號 ${r.next_id}`
+  return r.errors.length === 0 ? base : `${base}；${r.errors.length} 筆讀不進去：${r.errors.join("、")}`
+}
 
 function filtersFromParams(params: URLSearchParams): ListFilters {
   const rawScope = params.get("scope")
@@ -42,6 +60,13 @@ function filtersFromParams(params: URLSearchParams): ListFilters {
 
 export default function KbListPage() {
   const { pathname } = useLocation()
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  // 後端只要 `knowledge-base` 的 app 權限（`api/knowledge.py` 193），能進這頁的人都過得了；
+  // 但重建是整庫的維護動作，前端收得比後端緊，只給管理員。
+  const canRebuild = Boolean(user?.is_admin)
+  const [confirmingRebuild, setConfirmingRebuild] = React.useState(false)
+  const [rebuildNotice, setRebuildNotice] = React.useState<{ ok: boolean; text: string } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = filtersFromParams(searchParams)
   const [draftQ, setDraftQ] = React.useState(filters.q ?? "")
@@ -84,6 +109,20 @@ export default function KbListPage() {
   const listQuery = useQuery({ queryKey: kbKeys.list(filters), queryFn: () => listKnowledge(filters) })
   const tagsQuery = useQuery({ queryKey: kbKeys.tags, queryFn: getTags })
 
+  const rebuild = useMutation({
+    mutationFn: rebuildIndex,
+    onMutate: () => setRebuildNotice(null),
+    onSuccess: (data) => {
+      setRebuildNotice({ ok: true, text: rebuildMessage(data) })
+      setConfirmingRebuild(false)
+      void queryClient.invalidateQueries({ queryKey: kbKeys.all })
+    },
+    onError: (e) => {
+      setRebuildNotice({ ok: false, text: e instanceof ApiError ? e.detail : "重建索引失敗，請稍後再試" })
+      setConfirmingRebuild(false)
+    },
+  })
+
   const items = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
 
@@ -92,10 +131,23 @@ export default function KbListPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="sr-only">{titleForPath(pathname)}</h1>
         <p className="text-sm text-muted-foreground">{listQuery.isLoading ? "" : `共 ${total} 筆`}</p>
-        <Button asChild>
-          <Link to="/kb/new">新增知識</Link>
-        </Button>
+        <div className="flex gap-2">
+          {canRebuild && (
+            <Button type="button" variant="outline" disabled={rebuild.isPending} onClick={() => setConfirmingRebuild(true)}>
+              {rebuild.isPending ? "重建中…" : "重建索引"}
+            </Button>
+          )}
+          <Button asChild>
+            <Link to="/kb/new">新增知識</Link>
+          </Button>
+        </div>
       </div>
+
+      {rebuildNotice && (
+        <Alert variant={rebuildNotice.ok ? "default" : "destructive"}>
+          <AlertDescription>{rebuildNotice.text}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -174,6 +226,30 @@ export default function KbListPage() {
           )}
         </>
       )}
+
+      <AlertDialog
+        open={confirmingRebuild}
+        onOpenChange={(open) => {
+          if (!open && !rebuild.isPending) setConfirmingRebuild(false)
+        }}
+      >
+        {confirmingRebuild && (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>確定重建索引？</AlertDialogTitle>
+              <AlertDialogDescription>
+                會重新掃過知識庫目錄裡的每一個檔案，改寫 index.json；條目多的時候要等一下，期間其他人的搜尋結果可能對不上。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={rebuild.isPending}>返回</AlertDialogCancel>
+              <Button disabled={rebuild.isPending} onClick={() => rebuild.mutate()}>
+                確定重建
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
     </div>
   )
 }

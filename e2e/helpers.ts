@@ -298,7 +298,17 @@ export interface KbTagsOverride {
   topics?: string[]
 }
 
-export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbTagsOverride } = {}) {
+export async function mockKb(
+  page: Page,
+  opts: {
+    items?: KbFixture[]
+    tags?: KbTagsOverride
+    /** `POST /api/knowledge/rebuild-index` 的回應（`services/knowledge.py` 819–823）。 */
+    rebuild?: { total: number; errors: string[]; next_id: number }
+    /** 重建索引改回 500，detail 原樣顯示（`api/knowledge.py` 201–205）。 */
+    rebuildError?: string
+  } = {},
+) {
   const items: KbFixture[] = (opts.items ?? kbFixtures).map((i) => ({ ...i }))
   const base = new URL(API)
   const prefix = base.pathname.replace(/\/$/, "")
@@ -532,7 +542,19 @@ export async function mockKb(page: Page, opts: { items?: KbFixture[]; tags?: KbT
     },
   )
 
-  return { items }
+  // 重建索引（`api/knowledge.py` 188–205）。註冊在最後：上面的「明細」handler 也會吃到
+  // `/api/knowledge/rebuild-index`，Playwright 由後註冊的先比對，所以這支才接得到。
+  const rebuildCalls: string[] = []
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/knowledge/rebuild-index`,
+    async (route) => {
+      rebuildCalls.push(route.request().method())
+      if (opts.rebuildError) return route.fulfill({ status: 500, json: { detail: opts.rebuildError } })
+      await route.fulfill({ json: opts.rebuild ?? { total: items.length, errors: [], next_id: items.length + 1 } })
+    },
+  )
+
+  return { items, rebuildCalls }
 }
 
 export interface AiLogFixture {

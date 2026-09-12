@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { mockApi, mockKb, seedToken } from "./helpers"
+import { adminFixture, mockApi, mockKb, seedToken } from "./helpers"
 
 test.beforeEach(async ({ page }) => { await mockApi(page); await mockKb(page); await seedToken(page) })
 
@@ -45,4 +45,28 @@ test("輸入未觸發 debounce 就離開頁面，不會把 q 寫進新網址", a
   await page.getByRole("link", { name: /泵浦保養 SOP/ }).click()
   await page.waitForTimeout(500)
   await expect(page).toHaveURL(/\/kb\/kb-001$/)
+})
+
+test("管理員重建索引：確認後送 POST，成功顯示後端回的筆數", async ({ page }) => {
+  await mockApi(page, { user: { ...adminFixture } })
+  await mockKb(page, { rebuild: { total: 12, errors: [], next_id: 13 } })
+  await seedToken(page)
+  await page.goto("/kb")
+
+  const req = page.waitForRequest(
+    (r) => r.url().includes("/api/knowledge/rebuild-index") && r.method() === "POST",
+  )
+  await page.getByRole("button", { name: "重建索引" }).click()
+  await expect(page.getByRole("alertdialog")).toContainText("確定重建索引？")
+  await page.getByRole("button", { name: "確定重建" }).click()
+  await req
+
+  await expect(page.getByText("已重建索引，共 12 筆，下一個編號 13")).toBeVisible()
+  await expect(page.getByRole("alertdialog")).toHaveCount(0)
+})
+
+test("非管理員看不到重建索引按鈕", async ({ page }) => {
+  await page.goto("/kb")
+  await expect(page.getByRole("link", { name: "新增知識" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "重建索引" })).toHaveCount(0)
 })

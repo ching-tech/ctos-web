@@ -134,6 +134,25 @@ export async function deleteKnowledge(id: string): Promise<void> {
   await apiFetch<unknown>(`/api/knowledge/${id}`, { method: "DELETE" })
 }
 
+/**
+ * 重建索引的回應（`services/knowledge.py` 819–823 的裸 dict，端點沒有 `response_model`）：
+ * `total` 是掃到並寫進索引的條目數，`errors` 是逐檔的失敗訊息，`next_id` 是下一個可用序號。
+ */
+export interface RebuildIndexResult {
+  total: number
+  errors: string[]
+  next_id: number
+}
+
+/**
+ * 重建知識庫索引（`api/knowledge.py` 188–205）。
+ * 後端要的是 `knowledge-base` 的 app 權限（不是 admin），唯讀 PAT 會被擋成 403。
+ * 同步掃完 `kb-*.md` 才回應，條目多的時候會等一下。
+ */
+export function rebuildIndex(): Promise<RebuildIndexResult> {
+  return apiFetch<RebuildIndexResult>("/api/knowledge/rebuild-index", { method: "POST" })
+}
+
 export function getHistory(id: string): Promise<{ id: string; entries: HistoryEntry[] }> {
   return apiFetch<{ id: string; entries: HistoryEntry[] }>(`/api/knowledge/${id}/history`)
 }
