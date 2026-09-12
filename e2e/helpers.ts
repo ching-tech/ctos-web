@@ -5445,3 +5445,136 @@ export async function mockPresentation(
     return route.fulfill({ json: opts.result ?? presentationResultFixture })
   })
 }
+
+// ── Bot 平台設定（api/bot_settings.py） ──────────────────
+
+/** `FieldStatus`（api/bot_settings.py 84–89）。遮罩格式照 services/bot_settings.py 41–46 的前 4 後 4。 */
+export interface BotSettingsFieldFixture {
+  has_value: boolean
+  masked_value: string
+  source: "database" | "env" | "none"
+  updated_at: string | null
+}
+
+/** `BotSettingsStatusResponse`（api/bot_settings.py 92–96）。 */
+export interface BotSettingsFixture {
+  platform: "line" | "telegram"
+  fields: Record<string, BotSettingsFieldFixture>
+  proactive_push_enabled: boolean
+}
+
+/** 全部杜撰。真的憑證不進 repo，遮罩值只是長得像後端輸出的假字串。 */
+export const botSettingsFixtures: Record<"line" | "telegram", BotSettingsFixture> = {
+  line: {
+    platform: "line",
+    fields: {
+      channel_secret: { has_value: true, masked_value: "aaaa...zzzz", source: "database", updated_at: "2026-09-10T02:00:00" },
+      channel_access_token: { has_value: true, masked_value: "bbbb...yyyy", source: "env", updated_at: null },
+    },
+    proactive_push_enabled: false,
+  },
+  telegram: {
+    platform: "telegram",
+    fields: {
+      bot_token: { has_value: false, masked_value: "", source: "none", updated_at: null },
+      webhook_secret: { has_value: true, masked_value: "cccc...xxxx", source: "database", updated_at: "2026-09-11T05:30:00" },
+      // admin_chat_id 不在 ENCRYPTED_KEYS 裡，後端原樣回傳不遮罩（services/bot_settings.py 113–118）。
+      admin_chat_id: { has_value: true, masked_value: "100200300", source: "env", updated_at: null },
+    },
+    proactive_push_enabled: true,
+  },
+}
+
+const BOT_SETTINGS_ENV_DEFAULTS: Record<"line" | "telegram", Record<string, BotSettingsFieldFixture>> = {
+  line: {
+    channel_secret: { has_value: false, masked_value: "", source: "none", updated_at: null },
+    channel_access_token: { has_value: true, masked_value: "bbbb...yyyy", source: "env", updated_at: null },
+  },
+  telegram: {
+    bot_token: { has_value: false, masked_value: "", source: "none", updated_at: null },
+    webhook_secret: { has_value: false, masked_value: "", source: "none", updated_at: null },
+    admin_chat_id: { has_value: true, masked_value: "100200300", source: "env", updated_at: null },
+  },
+}
+
+const SENSITIVE_BOT_SETTINGS_FIELDS = ["channel_secret", "channel_access_token", "bot_token", "webhook_secret"]
+
+/**
+ * 攔 /api/admin/bot-settings/{platform} 的 GET／PUT／DELETE 與 /test。
+ * PUT 會把欄位改成「資料庫來源＋新的遮罩值」，DELETE 退回環境變數的預設，讓重抓看得到差異。
+ */
+export async function mockBotSettings(
+  page: Page,
+  opts: {
+    line?: BotSettingsFixture
+    telegram?: BotSettingsFixture
+    /** 各平台測試連線的回應（後端失敗也是 200 + success:false，api/bot_settings.py 165–184）。 */
+    test?: Partial<Record<"line" | "telegram", { success: boolean; message: string }>>
+    /** PUT 一律回 400，模擬後端拒絕。 */
+    failUpdate?: string
+    /** DELETE 一律回 500，模擬清除失敗。 */
+    failDelete?: string
+  } = {},
+) {
+  const state: Record<"line" | "telegram", BotSettingsFixture> = {
+    line: { ...(opts.line ?? botSettingsFixtures.line), fields: structuredClone((opts.line ?? botSettingsFixtures.line).fields) },
+    telegram: { ...(opts.telegram ?? botSettingsFixtures.telegram), fields: structuredClone((opts.telegram ?? botSettingsFixtures.telegram).fields) },
+  }
+
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  const isPlatform = (v: string): v is "line" | "telegram" => v === "line" || v === "telegram"
+
+  await page.route(
+    (url) =>
+      sameOrigin(url) &&
+      (url.pathname === `${prefix}/api/admin/bot-settings/line/test` ||
+        url.pathname === `${prefix}/api/admin/bot-settings/telegram/test`),
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fallback()
+      const platform = new URL(route.request().url()).pathname.split("/").slice(-2)[0]
+      if (!isPlatform(platform)) return route.fallback()
+      const result = opts.test?.[platform] ?? { success: false, message: "未設定 Bot Token" }
+      await route.fulfill({ json: result })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && (url.pathname === `${prefix}/api/admin/bot-settings/line` || url.pathname === `${prefix}/api/admin/bot-settings/telegram`),
+    async (route) => {
+      const platform = new URL(route.request().url()).pathname.split("/").pop() ?? ""
+      if (!isPlatform(platform)) return route.fallback()
+      const method = route.request().method()
+
+      if (method === "PUT") {
+        if (opts.failUpdate) return route.fulfill({ status: 400, json: { detail: opts.failUpdate } })
+        const body = route.request().postDataJSON() as Record<string, string | boolean>
+        for (const [key, value] of Object.entries(body)) {
+          if (key === "proactive_push_enabled") {
+            state[platform].proactive_push_enabled = Boolean(value)
+            continue
+          }
+          state[platform].fields[key] = {
+            has_value: true,
+            masked_value: SENSITIVE_BOT_SETTINGS_FIELDS.includes(key) ? "dddd...wwww" : String(value),
+            source: "database",
+            updated_at: "2026-09-12T06:00:00",
+          }
+        }
+        return route.fulfill({ json: { success: true, message: `${platform} 設定已更新` } })
+      }
+
+      if (method === "DELETE") {
+        if (opts.failDelete) return route.fulfill({ status: 500, json: { detail: opts.failDelete } })
+        const before = Object.values(state[platform].fields).filter((f) => f.source === "database").length
+        state[platform].fields = structuredClone(BOT_SETTINGS_ENV_DEFAULTS[platform])
+        return route.fulfill({ json: { deleted: before } })
+      }
+
+      await route.fulfill({ json: state[platform] })
+    },
+  )
+
+  return { state }
+}
