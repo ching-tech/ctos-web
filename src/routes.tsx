@@ -10,6 +10,7 @@ import AiLogDetailPage from "@/pages/ai-log/detail"
 import AiLogListPage from "@/pages/ai-log/list"
 import BotPage from "@/pages/bot"
 import BotGroupDetailPage from "@/pages/bot/group-detail"
+import BotUserDetailPage from "@/pages/bot/user-detail"
 import FilesPage from "@/pages/files"
 import HomePage from "@/pages/home"
 import ItemDetailPage from "@/pages/items/detail"
@@ -87,6 +88,7 @@ export const router = createBrowserRouter([
           { path: "purchase-orders/:id/edit", element: <RequireApp app="inventory-management"><PurchaseOrderEditorPage /></RequireApp> },
           { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
           { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
+          { path: "bot/users/:id", element: <RequireApp app="linebot"><BotUserDetailPage /></RequireApp> },
           { path: "memory", element: <RequireApp app="memory-manager"><MemoryPage /></RequireApp> },
           { path: "prompts", element: <RequireApp app="prompt-editor"><PromptListPage /></RequireApp> },
           { path: "prompts/new", element: <RequireApp app="prompt-editor"><PromptEditorPage /></RequireApp> },

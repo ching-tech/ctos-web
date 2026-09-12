@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
-import { useSearchParams } from "react-router"
+import { Link, useSearchParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -152,7 +152,9 @@ export default function UsersTab({ platform }: { platform: Platform | "" }) {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <UserAvatar pictureUrl={u.picture_url} name={u.display_name || "—"} />
-                        <span>{u.display_name || "—"}</span>
+                        <Link to={`/bot/users/${u.id}`} className="text-primary underline-offset-4 hover:underline">
+                          {u.display_name || "未命名使用者"}
+                        </Link>
                       </div>
                     </TableCell>
                     <TableCell>

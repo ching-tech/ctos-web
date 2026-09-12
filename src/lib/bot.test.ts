@@ -3,6 +3,7 @@ import { ApiError, API_BASE } from "./api"
 import {
   bindGroupProject,
   blockUser,
+  getUser,
   listFiles,
   listGroups,
   listMessages,
@@ -166,5 +167,30 @@ describe("downloadFile", () => {
     const { downloadFile } = await import("./bot")
     await expect(downloadFile("file-1")).rejects.toBeInstanceOf(ApiError)
     expect(getToken()).toBeNull()
+  })
+})
+
+describe("getUser", () => {
+  it("打 GET /api/bot/users/:id，回的是與清單同一個 LineUserResponse", async () => {
+    const fn = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          id: "bu-1", platform_type: "line", platform_user_id: "U0001", display_name: "甲一",
+          picture_url: null, status_message: null, language: "zh-TW", user_id: 7, is_friend: true,
+          created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-10T00:00:00Z",
+          bound_username: null, bound_display_name: null,
+          is_blocked: false, blocked_at: null, blocked_reason: null,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    )
+    vi.stubGlobal("fetch", fn)
+    const user = await getUser("bu-1")
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe(`${API_BASE}/api/bot/users/bu-1`)
+    expect(init.method ?? "GET").toBe("GET")
+    // 這支沒 JOIN users（services/bot_line/admin.py 193–206），綁定名字一律 null，只有 user_id 有值。
+    expect(user.user_id).toBe(7)
+    expect(user.bound_username).toBeNull()
   })
 })

@@ -1342,6 +1342,27 @@ export async function mockBot(
     },
   )
 
+  // ── 單一使用者明細（`api/linebot_router.py` 699–709） ──
+  // 服務層是 `SELECT * FROM bot_users`（`services/bot_line/admin.py` 193–206），沒有
+  // JOIN users，所以這裡刻意把 `bound_username` 與 `bound_display_name` 抹成 null，
+  // 照後端真的會回的形狀走，而不是把清單 fixture 原樣端出去。
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/bot/users/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback()
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const user = users.find((u) => u.id === id)
+      if (!user) return route.fulfill({ status: 404, json: { detail: "User not found" } })
+      await route.fulfill({ json: { ...user, bound_username: null, bound_display_name: null } })
+    },
+  )
+
   // ── 訊息 ──
   await page.route(
     (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/messages`,
