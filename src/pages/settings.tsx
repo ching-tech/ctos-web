@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { ApiError } from "@/lib/api"
 import { bindNas, unbindNas } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
+import { ApiTokensCard } from "@/pages/settings/api-tokens"
 
 function NasBindingCard() {
   const { user, refresh } = useAuth()
@@ -69,6 +70,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
       <NasBindingCard />
+      <ApiTokensCard />
     </div>
   )
 }

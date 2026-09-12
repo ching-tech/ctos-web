@@ -24,7 +24,41 @@ export const adminFixture = {
   },
 }
 
-export async function mockApi(page: Page, opts: { user?: typeof userFixture | null; loginOk?: boolean } = {}) {
+/** `ApiTokenInfo`（ching-tech-os models/auth.py 87–97）。 */
+export interface ApiTokenFixture {
+  id: number
+  name: string
+  scopes: string[]
+  read_only: boolean
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+}
+
+export const apiTokenFixtures: ApiTokenFixture[] = [
+  {
+    id: 1, name: "筆電 CLI", scopes: ["knowledge-base"], read_only: true,
+    expires_at: "2027-03-11T00:00:00Z", last_used_at: "2026-09-10T08:30:00Z", created_at: "2026-09-01T02:00:00Z",
+  },
+  {
+    id: 2, name: "夜間備份", scopes: [], read_only: false,
+    expires_at: null, last_used_at: null, created_at: "2026-08-20T02:00:00Z",
+  },
+]
+
+/** 建立時回傳一次的原始 token（services/api_token.py 25、36–38）。 */
+export const CREATED_PAT = "ctos_pat_ZmFrZS10b2tlbi1mb3ItZTJlLW9ubHk"
+
+export async function mockApi(
+  page: Page,
+  opts: {
+    user?: typeof userFixture | null
+    loginOk?: boolean
+    apiTokens?: ApiTokenFixture[]
+    /** 以 PAT 換發／撤銷 token 時後端回 403（api/auth.py 486–490、532–536）。 */
+    patSession?: boolean
+  } = {},
+) {
   const user = opts.user === undefined ? { ...userFixture } : opts.user
   const loginOk = opts.loginOk ?? true
   await page.route(`${API}/api/auth/login`, async (route) => {
@@ -42,6 +76,46 @@ export async function mockApi(page: Page, opts: { user?: typeof userFixture | nu
     if (body.nas_username === "taken") return route.fulfill({ status: 409, json: { detail: "此 NAS 帳號已綁定其他使用者" } })
     if (user) user.nas_username = body.nas_username
     return route.fulfill({ json: { success: true, nas_username: body.nas_username } })
+  })
+  const apiTokens = opts.apiTokens ?? apiTokenFixtures.map((t) => ({ ...t }))
+  let nextTokenId = 100
+  await page.route(`${API}/api/auth/tokens`, async (route) => {
+    if (route.request().method() === "POST") {
+      if (opts.patSession) {
+        return route.fulfill({
+          status: 403,
+          json: { detail: "不可使用 API token 換發新 token，請以帳號密碼登入後再操作" },
+        })
+      }
+      const body = route.request().postDataJSON() as {
+        name: string; scopes: string[]; expires_days: number | null; read_only: boolean
+      }
+      const info: ApiTokenFixture = {
+        id: nextTokenId++,
+        name: body.name,
+        scopes: body.scopes,
+        read_only: body.read_only,
+        expires_at: body.expires_days === null ? null : "2027-03-11T00:00:00Z",
+        last_used_at: null,
+        created_at: "2026-09-12T02:00:00Z",
+      }
+      apiTokens.unshift(info)
+      return route.fulfill({ status: 201, json: { success: true, token: CREATED_PAT, info } })
+    }
+    return route.fulfill({ json: { success: true, tokens: apiTokens } })
+  })
+  await page.route(`${API}/api/auth/tokens/*`, async (route) => {
+    if (opts.patSession) {
+      return route.fulfill({
+        status: 403,
+        json: { detail: "不可使用 API token 撤銷 token，請以帳號密碼登入後再操作" },
+      })
+    }
+    const id = Number(new URL(route.request().url()).pathname.split("/").pop())
+    const index = apiTokens.findIndex((t) => t.id === id)
+    if (index === -1) return route.fulfill({ status: 404, json: { detail: "token 不存在" } })
+    apiTokens.splice(index, 1)
+    return route.fulfill({ json: { success: true } })
   })
   await page.route(`${API}/api/user/me`, (route) => {
     const auth = route.request().headers()["authorization"]
