@@ -35,10 +35,12 @@ cp .env.example .env
 
 ```
 VITE_API_BASE=https://ching-tech.ddns.net/ctos
+VITE_NAS_HOST=192.168.x.x
 ```
 
 - **正式機**（預設）：`https://ching-tech.ddns.net/ctos`
 - **本機後端**：改成 `http://127.0.0.1:8088`
+- `VITE_NAS_HOST`：檔案頁（`/files`）連線對話框的 NAS 主機預設值，使用者可以在對話框裡改。後端沒有端點可以拿 `settings.nas_host`，所以由前端的環境變數帶；沒設就是空字串，要自己填。e2e 由 `playwright.config.ts` 的 `webServer.env` 固定成假主機 `nas.test.invalid`。
 
 ### 啟動開發伺服器
 
@@ -140,6 +142,8 @@ npm run build
 - `users.ts` — 使用者選單（`GET /api/user/list`，登入即可讀，供負責人與成員下拉用）
 - `api-tokens.ts` — 個人存取權杖（PAT）API 客戶端（列表／建立／撤銷、scope 對照 app 名稱、`apiTokenKeys`）
 - `api-tokens.test.ts` — PAT API 與 scope 名稱對照單元測試
+- `nas.ts` — NAS 檔案 API 客戶端（連線／連線列表／斷線、共享資料夾、瀏覽、搜尋、讀檔與下載；記憶體連線狀態與 `X-NAS-Token` 注入、連線失效的攔截與重試、路徑與大小時間格式化、`nasKeys`）
+- `nas.test.ts` — NAS API 單元測試（每支端點、連線失效攔截與重試、路徑工具）
 
 ### `src/pages/`
 
@@ -196,6 +200,7 @@ npm run build
 - `purchase-orders/editor.tsx` — 採購單新增／編輯頁（新增是單頭＋可增列的行項表格，編輯只改單頭；狀態只收草稿與已下單）
 - `purchase-orders/detail.tsx` — 採購單明細頁（表頭主檔與狀態 badge，「問 AI」「編輯」「收貨」「取消採購單」；行項表含已收與未收）
 - `purchase-orders/receive-dialog.tsx` — 收貨對話框（入庫倉下拉、每行一個本次收貨數量、「送出收貨」與「全部收貨」）
+- `files/index.tsx` — 檔案頁（麵包屑、共享資料夾與資料夾瀏覽、目前路徑搜尋、預覽面板、連線資訊與連線對話框；`?path=` 與 `?q=` 寫進網址）
 - `admin/users.tsx` — 使用者管理頁（使用者表格與「新增使用者」對話框；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH；每列「動作」選單含編輯、停用／啟用、重設密碼、清除密碼、刪除）
 
 ### `src/components/`
@@ -215,6 +220,9 @@ UI 元件與版面：
 - `kb/history-sheet.tsx` — 版本歷史側欄（歷史清單、舊版內容檢視）
 - `kb/markdown.tsx` — Markdown 渲染（含圖片路徑改寫）
 - `kb/share-dialog.tsx` — 分享連結對話框
+- `files/connect-dialog.tsx` — NAS 連線對話框（主機、帳號、密碼；後端的錯誤訊息原樣顯示）
+- `files/preview-panel.tsx` — 檔案預覽面板（圖片、PDF、文字；其他類型只給下載）
+- `files/download-button.tsx` — NAS 檔案下載鈕（header 取 blob 再存檔）
 - `parties/role-badges.tsx` — 往來對象角色 badge（供應商／客戶可同時出現，都沒有時顯示破折號）
 - `parties/merge-dialog.tsx` — 合併對話框（debounce 搜尋挑另一筆、選保留哪一筆，送 `{keep_id, drop_id}`；候選只列第一頁並提示）
 
@@ -243,6 +251,7 @@ Playwright 端對端測試：
 - `parties.spec.ts` — 往來對象清單／明細五分頁／新增編輯／合併／權限擋下測試
 - `items.spec.ts` — 物料清單／明細庫存與異動兩分頁／調整與調撥／新增編輯／倉庫頁／權限擋下測試
 - `purchasing.spec.ts` — 採購單清單篩選／新增行項／明細收貨與取消／首頁待收貨卡／權限擋下測試
+- `files.spec.ts` — 檔案頁測試（空狀態與連線、沿用既有連線、連線失敗訊息、瀏覽與麵包屑、搜尋、預覽、連線過期自動重連重試、中斷、權限擋下）
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -280,6 +289,8 @@ Playwright 端對端測試：
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
+- **檔案** — 路由 `/files`（需 `file-manager` 權限，預設開放）。進頁面先打 `GET /api/nas/connections`，有現成連線就沿用第一筆，沒有才開連線對話框（主機預設值來自 `VITE_NAS_HOST`）。連線 token 只放記憶體（後端 30 分鐘，操作會自動延長），不進 localStorage。之後每支 NAS 端點都帶 `X-NAS-Token`，缺連線或過期時 `lib/nas.ts` 的 fetch 包裝層攔下來，清掉連線、開對話框，連好再把原請求重試一次。根目錄列的是共享資料夾（`GET /api/nas/shares`，`browse?path=/` 後端會回 400），往下是 `GET /api/nas/browse`；桌面表格、手機卡片，`?path=` 寫進網址，重新整理停在同一層。搜尋只在共享資料夾底下可用（後端 `_parse_path` 不接受空路徑），結果的 `path` 後端不含 share 名稱，前端接回去才點得進。圖片、PDF 與文字（txt／md／csv／json／log）在預覽面板顯示，其他類型只給下載；預覽與下載都用 header 取 blob，NAS token 不進網址。上傳、新資料夾、重新命名、刪除與分享連結在下一支 PR
+
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細、依使用者篩選）
 - **使用者管理** — 路由 `/admin/users`（僅管理員）。清單有帳號、顯示名稱、角色、狀態、密碼（已設定／NAS）、最後登入，停用的使用者整列淡化。每列「權限」按鈕開 Sheet 調 app／知識庫權限（PATCH 只送變動的鍵，即時生效）；每列「動作」選單有編輯（顯示名稱、Email、角色）、停用／啟用、重設密碼、清除密碼與刪除，清除密碼與刪除各有確認對話框。清單上方的「新增使用者」對話框收帳號、密碼、顯示名稱與角色，後端一律把新帳號設成 `must_change_password=true`，成功後提示首次登入需改密碼。後端擋自己的四條（降級、停用、清除密碼、刪除）在自己那一列直接停用選項並寫出原因，不等 400。其餘 400 的 `detail` 原樣顯示。編輯表單的 Email 留空代表不變更：清單端點 `AdminUserInfo` 沒有回 email，後端 `update_user_info` 也只有收到 `None` 才跳過該欄
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載

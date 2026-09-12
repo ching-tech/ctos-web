@@ -12,14 +12,14 @@ export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true },
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true },
     knowledge: { global_write: false, global_delete: false },
   },
 }
 export const adminFixture = {
   ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true },
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true },
     knowledge: { global_write: true, global_delete: true },
   },
 }
@@ -748,6 +748,7 @@ export const defaultAppNames: Record<string, string> = {
   "project-management": "專案管理",
   "vendor-management": "廠商管理",
   "inventory-management": "物料管理",
+  "file-manager": "檔案管理",
 }
 
 export const adminUserFixtures: AdminUserFixture[] = [
@@ -808,7 +809,7 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[]; 
     async (route) =>
       route.fulfill({
         json: {
-          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true },
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true },
           knowledge: { global_write: false, global_delete: false },
           app_names: defaultAppNames,
         },
@@ -3487,4 +3488,203 @@ export async function mockErp(
   )
 
   return { parties, items, warehouses, purchaseOrders }
+}
+
+// ============================================================
+// NAS 檔案管理（/api/nas/*）
+// ============================================================
+
+export interface NasNode {
+  name: string
+  type: "file" | "directory"
+  size?: number | null
+  modified?: string | null
+  /** 只有檔案有：預覽與下載時回的內容。 */
+  content?: string | Buffer
+  contentType?: string
+  children?: NasNode[]
+}
+
+/** 杜撰的目錄樹（公開 repo，不放真實客戶／廠商／專案名）。 */
+export const nasTreeFixture: NasNode[] = [
+  {
+    name: "共用區",
+    type: "directory",
+    children: [
+      {
+        name: "甲一機電",
+        type: "directory",
+        modified: "2026-09-01T09:30:00",
+        children: [
+          { name: "配置圖.png", type: "file", size: 2048, modified: "2026-09-02T10:15:00", content: ONE_PX_PNG, contentType: "image/png" },
+          { name: "說明.md", type: "file", size: 96, modified: "2026-09-03T11:45:00", content: "# 甲一機電\n這是杜撰的測試內容。", contentType: "text/markdown" },
+          { name: "手冊.pdf", type: "file", size: 4096, modified: "2026-09-04T08:00:00", content: "%PDF-1.4 測試", contentType: "application/pdf" },
+          { name: "模型.dwg", type: "file", size: 8192, modified: "2026-09-05T16:20:00", content: "dwg", contentType: "application/octet-stream" },
+        ],
+      },
+      { name: "乙二運輸", type: "directory", modified: "2026-08-20T13:00:00", children: [] },
+      { name: "工作說明.txt", type: "file", size: 32, modified: "2026-08-21T14:05:00", content: "杜撰的純文字內容", contentType: "text/plain" },
+    ],
+  },
+  { name: "備份區", type: "directory", children: [] },
+]
+
+function findNasNode(tree: NasNode[], path: string): NasNode | null {
+  const segs = path.replace(/^\/+/, "").replace(/\/+$/, "").split("/").filter(Boolean)
+  let nodes = tree
+  let found: NasNode | null = null
+  for (const seg of segs) {
+    const next = nodes.find((n) => n.name === seg)
+    if (!next) return null
+    found = next
+    nodes = next.children ?? []
+  }
+  return found
+}
+
+/** 照 services/smb.py 的 search_files：回傳的 path **不含 share 名稱**，是相對於搜尋起點所屬 share 的路徑。 */
+function searchNasTree(tree: NasNode[], path: string, query: string): { name: string; path: string; type: "file" | "directory" }[] {
+  const start = findNasNode(tree, path)
+  if (!start) return []
+  const segs = path.replace(/^\/+/, "").split("/").filter(Boolean)
+  const basePath = segs.slice(1).join("/") // 去掉 share 名稱
+  const out: { name: string; path: string; type: "file" | "directory" }[] = []
+  const walk = (nodes: NasNode[], prefix: string) => {
+    for (const n of nodes) {
+      const p = prefix ? `${prefix}/${n.name}` : n.name
+      if (n.name.includes(query)) out.push({ name: n.name, path: `/${p}`, type: n.type })
+      if (n.children) walk(n.children, p)
+    }
+  }
+  walk(start.children ?? [], basePath)
+  return out
+}
+
+export interface NasMockControl {
+  /** 模擬連線 token 到期（後端 30 分鐘）：之後帶舊 token 的請求都回 401＋X-NAS-Token-Expired。 */
+  expireTokens: () => void
+  /** 已經送出去的上傳／寫入請求（PR B 用）。 */
+  requests: { method: string; path: string; body: unknown }[]
+}
+
+/**
+ * /api/nas/* 全 mock。
+ *
+ * 契約對照 `api/nas.py`：connect 帳密錯誤回 **200 加 success:false**（不是 401），連不到 NAS 才 503；
+ * 缺連線／過期回 401 加 `X-NAS-Required`／`X-NAS-Token-Expired`（同時給後端那兩句 detail，
+ * 跨網域讀不到 header 時前端是靠 detail 判斷的）；根目錄只有 `/api/nas/shares` 能列，`browse?path=/` 是 400。
+ */
+export async function mockNas(
+  page: Page,
+  opts: { tree?: NasNode[]; connections?: { token: string; host: string; username: string }[]; unreachableHost?: string } = {},
+): Promise<NasMockControl> {
+  const tree = opts.tree ?? nasTreeFixture
+  const unreachableHost = opts.unreachableHost ?? "unreachable.test.invalid"
+  const valid = new Set<string>((opts.connections ?? []).map((c) => c.token))
+  const connections = [...(opts.connections ?? [])]
+  const control: NasMockControl = { expireTokens: () => valid.clear(), requests: [] }
+  let seq = 0
+
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const on = (name: string) => (url: URL) => url.origin === base.origin && url.pathname === `${prefix}/api/nas/${name}`
+
+  const tokenOf = (route: Parameters<Parameters<Page["route"]>[1]>[0]) => route.request().headers()["x-nas-token"]
+
+  const authFail = (expired: boolean) => ({
+    status: 401,
+    headers: expired ? { "X-NAS-Token-Expired": "true" } : { "X-NAS-Required": "true" },
+    json: { detail: expired ? "NAS 連線已過期，請重新連線" : "請先連線 NAS" },
+  })
+
+  /** 回 null 代表已經回過 401，呼叫端直接 return。 */
+  const requireToken = async (route: Parameters<Parameters<Page["route"]>[1]>[0]) => {
+    const token = tokenOf(route)
+    if (!token) {
+      await route.fulfill(authFail(false))
+      return false
+    }
+    if (!valid.has(token)) {
+      await route.fulfill(authFail(true))
+      return false
+    }
+    return true
+  }
+
+  await page.route(on("connections"), (route) => route.fulfill({ json: { connections } }))
+
+  await page.route(on("connect"), async (route) => {
+    const body = route.request().postDataJSON() as { host: string; username: string; password: string }
+    if (body.host === unreachableHost) {
+      return route.fulfill({ status: 503, json: { detail: `無法連線至 NAS ${body.host}` } })
+    }
+    if (body.password === "wrong") {
+      return route.fulfill({ json: { success: false, token: null, error: "NAS 帳號或密碼錯誤", host: null } })
+    }
+    seq += 1
+    const token = `nas-tok-${seq}`
+    valid.add(token)
+    connections.push({ token, host: body.host, username: body.username })
+    return route.fulfill({ json: { success: true, token, error: null, host: body.host } })
+  })
+
+  await page.route(on("disconnect"), async (route) => {
+    const token = tokenOf(route)
+    if (token) valid.delete(token)
+    connections.length = 0
+    return route.fulfill({ json: { success: true } })
+  })
+
+  await page.route(on("shares"), async (route) => {
+    if (!(await requireToken(route))) return
+    return route.fulfill({ json: { shares: tree.map((n) => ({ name: n.name, type: "disk" })) } })
+  })
+
+  await page.route(on("browse"), async (route) => {
+    if (!(await requireToken(route))) return
+    const path = new URL(route.request().url()).searchParams.get("path") ?? "/"
+    if (path.replace(/\//g, "") === "") return route.fulfill({ status: 400, json: { detail: "請指定共享資料夾名稱" } })
+    const node = findNasNode(tree, path)
+    if (!node || node.type !== "directory") return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
+    return route.fulfill({
+      json: {
+        path,
+        items: (node.children ?? []).map((c) => ({
+          name: c.name,
+          type: c.type,
+          size: c.type === "directory" ? null : (c.size ?? 0),
+          modified: c.modified ?? null,
+        })),
+      },
+    })
+  })
+
+  await page.route(on("search"), async (route) => {
+    if (!(await requireToken(route))) return
+    const params = new URL(route.request().url()).searchParams
+    const path = params.get("path") ?? "/"
+    const query = params.get("query") ?? ""
+    const results = searchNasTree(tree, path, query)
+    return route.fulfill({ json: { query, path, results, total: results.length } })
+  })
+
+  const serveFile = async (route: Parameters<Parameters<Page["route"]>[1]>[0], asDownload: boolean) => {
+    if (!(await requireToken(route))) return
+    const path = new URL(route.request().url()).searchParams.get("path") ?? ""
+    const node = findNasNode(tree, path)
+    if (!node || node.type !== "file") return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
+    const headers: Record<string, string> = {}
+    if (asDownload) headers["Content-Disposition"] = `attachment; filename*=UTF-8''${encodeURIComponent(node.name)}`
+    return route.fulfill({
+      status: 200,
+      contentType: node.contentType ?? "application/octet-stream",
+      headers,
+      body: node.content instanceof Buffer ? node.content : String(node.content ?? ""),
+    })
+  }
+
+  await page.route(on("file"), (route) => serveFile(route, false))
+  await page.route(on("download"), (route) => serveFile(route, true))
+
+  return control
 }

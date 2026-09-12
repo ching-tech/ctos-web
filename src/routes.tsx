@@ -7,6 +7,7 @@ import AiLogDetailPage from "@/pages/ai-log/detail"
 import AiLogListPage from "@/pages/ai-log/list"
 import BotPage from "@/pages/bot"
 import BotGroupDetailPage from "@/pages/bot/group-detail"
+import FilesPage from "@/pages/files"
 import HomePage from "@/pages/home"
 import ItemDetailPage from "@/pages/items/detail"
 import ItemEditorPage from "@/pages/items/editor"
@@ -49,6 +50,7 @@ export const router = createBrowserRouter([
           { path: "kb/new", element: <RequireApp app="knowledge-base"><KbEditorPage /></RequireApp> },
           { path: "kb/:id", element: <RequireApp app="knowledge-base"><KbDetailPage /></RequireApp> },
           { path: "kb/:id/edit", element: <RequireApp app="knowledge-base"><KbEditorPage /></RequireApp> },
+          { path: "files", element: <RequireApp app="file-manager"><FilesPage /></RequireApp> },
           { path: "projects", element: <RequireApp app="project-management"><ProjectListPage /></RequireApp> },
           { path: "projects/new", element: <RequireApp app="project-management"><ProjectEditorPage /></RequireApp> },
           { path: "projects/:id", element: <RequireApp app="project-management"><ProjectDetailPage /></RequireApp> },
