@@ -5064,3 +5064,330 @@ export async function mockVoice(
     return route.fulfill({ status: 200, contentType: "audio/mp4", body: FAKE_AUDIO })
   })
 }
+
+/**
+ * Skills（ching-tech-os `api/skills.py`）。清單 181–206、明細 208–243、
+ * `PUT` 258–286、`DELETE` 287–295、`POST /reload` 297–302、
+ * Hub 的 sources／search／inspect／install 169–179、307–520、
+ * 檔案 `GET /{name}/files/{path}` 599–610。
+ */
+export interface SkillSummaryFixture {
+  name: string
+  description: string
+  requires_app: string | string[] | null
+  tools_count: number
+  has_prompt: boolean
+  references: string[]
+  scripts: string[]
+  scripts_count: number
+  assets: string[]
+  source: string
+  license: string
+  compatibility: string
+  has_module: boolean
+}
+
+/** 明細比清單多這些欄位，但**沒有** `scripts_count`（`api/skills.py` 221–243）。 */
+export interface SkillDetailFixture extends Omit<SkillSummaryFixture, "scripts_count"> {
+  allowed_tools: string[]
+  mcp_servers: string[]
+  prompt: string
+  script_tools: { name: string; path: string; description: string }[]
+  metadata: Record<string, unknown> | null
+  contributes: unknown
+  meta: Record<string, unknown> | null
+}
+
+/**
+ * 三支杜撰的 skill，各驗一種 `requires_app` 形狀：單一字串、清單（任一）、null。
+ * `tools_count` 是後端算的 `len(allowed_tools)`（185），fixture 要跟明細的陣列長度一致。
+ */
+export const skillDetailFixtures: SkillDetailFixture[] = [
+  {
+    name: "inventory-helper",
+    description: "查庫存餘額與調撥紀錄的助手說明。",
+    requires_app: "inventory-management",
+    tools_count: 2,
+    has_prompt: true,
+    references: ["references/庫存查詢.md", "references/調撥規則.txt"],
+    scripts: ["scripts/stock_check.py"],
+    assets: [],
+    source: "native",
+    license: "MIT",
+    compatibility: ">=0.3.0",
+    has_module: false,
+    allowed_tools: ["Read", "Grep"],
+    mcp_servers: ["erp"],
+    prompt: "## 查庫存\n\n先問倉別，再查餘額。",
+    script_tools: [{ name: "stock_check", path: "inventory-helper/scripts/stock_check.py", description: "盤點差異表" }],
+    metadata: { ctos: { requires_app: "inventory-management" } },
+    contributes: null,
+    meta: null,
+  },
+  {
+    name: "vendor-brief",
+    // 清單語意是「任一」（`skills/__init__.py` 103–105），兩個 app 只要有一邊就看得到。
+    requires_app: ["vendor-management", "project-management"],
+    description: "整理往來對象近況給業務看。",
+    tools_count: 1,
+    has_prompt: true,
+    references: [],
+    scripts: [],
+    assets: ["assets/範本.csv"],
+    source: "external",
+    license: "",
+    compatibility: "",
+    has_module: true,
+    allowed_tools: ["Read"],
+    mcp_servers: [],
+    prompt: "## 對象近況\n\n先列最近三張採購單。",
+    script_tools: [],
+    metadata: { contributes: { app: { id: "vendor-brief", name: "對象近況", icon: "building" } } },
+    contributes: { app: { id: "vendor-brief", name: "對象近況", icon: "building" } },
+    meta: null,
+  },
+  {
+    name: "pdf-toolkit",
+    description: "把 PDF 拆頁與抽文字。",
+    requires_app: null,
+    tools_count: 0,
+    has_prompt: false,
+    references: [],
+    scripts: ["scripts/split.sh"],
+    assets: [],
+    source: "clawhub",
+    license: "Apache-2.0",
+    compatibility: "",
+    has_module: false,
+    allowed_tools: [],
+    mcp_servers: [],
+    prompt: "",
+    script_tools: [{ name: "split", path: "pdf-toolkit/scripts/split.sh", description: "依頁碼拆檔" }],
+    metadata: {},
+    contributes: null,
+    // 只有從 Hub 裝進來的才有 `_meta.json`（`services/hub_meta.py` 55–83）。
+    meta: { slug: "pdf-toolkit", version: "1.4.0", source: "clawhub", installed_at: "2026-09-01T02:00:00+00:00", owner: "demo-owner" },
+  },
+]
+
+function skillSummaryOf(d: SkillDetailFixture): SkillSummaryFixture {
+  return {
+    name: d.name, description: d.description, requires_app: d.requires_app, tools_count: d.tools_count,
+    has_prompt: d.has_prompt, references: d.references, scripts: d.scripts, scripts_count: d.scripts.length,
+    assets: d.assets, source: d.source, license: d.license, compatibility: d.compatibility, has_module: d.has_module,
+  }
+}
+
+/** `POST /hub/search` 的結果列：後端把 Hub 的 JSON 原樣轉發，只保證補上 `source`（335–336、348）。 */
+export interface HubResultFixture {
+  /** ClawHub 的全域唯一 id；同一個 slug 可能有好幾個作者各發一份，只有這個分得開。 */
+  id?: string
+  slug: string
+  displayName?: string
+  summary?: string
+  /** 實測 ClawHub 搜尋結果這一欄是 null，版本由後端在 install 時抓 latest。 */
+  version?: string | null
+  source: "clawhub" | "skillhub"
+  owner?: { handle: string; displayName?: string }
+}
+
+export const hubResultFixtures: HubResultFixture[] = [
+  {
+    id: "clawhub:aaa1", slug: "invoice-reader", displayName: "發票辨識", summary: "把發票掃描檔轉成表格。",
+    version: "2.1.0", source: "clawhub", owner: { handle: "demo-owner", displayName: "示範作者" },
+  },
+  { id: "skillhub:bbb2", slug: "meeting-notes", displayName: "會議紀錄", summary: "把錄音逐字稿整理成重點。", version: "0.9.0", source: "skillhub" },
+]
+
+/**
+ * 同一個 slug、不同作者的兩筆——ClawHub 真的會這樣回（搜「pdf」一次二十筆裡有七筆 slug 都是 `pdf`），
+ * 而且 `version` 是 null。用來擋「安裝確認跳在每一筆同名的列上」這個回歸。
+ */
+export const duplicateSlugHubFixtures: HubResultFixture[] = [
+  {
+    id: "clawhub:dup1", slug: "pdf", displayName: "Pdf", summary: "甲作者的 PDF 工具。",
+    version: null, source: "clawhub", owner: { handle: "owner-jia", displayName: "甲作者" },
+  },
+  {
+    id: "clawhub:dup2", slug: "pdf", displayName: "Pdf", summary: "乙作者的 PDF 工具。",
+    version: null, source: "clawhub", owner: { handle: "owner-yi", displayName: "乙作者" },
+  },
+]
+
+/**
+ * `GET /api/config/apps`（ching-tech-os `api/config_public.py` 19–22 →
+ * `modules.py` 的 `get_enabled_app_manifests()` 364–378）。
+ *
+ * 回的是**裸陣列**不是 `{apps: [...]}`，而且這支**不需要認證**。清單含 extends 與
+ * skill 貢獻的 app（`contributes.app` 走 `modules.py` 292–315），那些才是 SKILL.md
+ * 的 `requires_app` 真的會寫的值；skill 貢獻的多帶 `loader`／`css`，這一頁用不到。
+ */
+export interface ConfigAppFixture {
+  id: string
+  name: string
+  icon: string
+  loader?: { src: string; globalName: string }
+  css?: string
+}
+
+/** 照本機實測的形狀挑六筆：四個有頁面的、一個 skill 貢獻的（帶 loader／css）、一個側邊欄沒有的。 */
+export const configAppFixtures: ConfigAppFixture[] = [
+  { id: "knowledge-base", name: "知識庫", icon: "mdi-book-open-page-variant" },
+  { id: "project-management", name: "專案管理", icon: "mdi-clipboard-text" },
+  // 後端叫「廠商管理」，側邊欄叫「往來對象」——名稱以後端為準，這一筆就是拿來驗這件事的。
+  { id: "vendor-management", name: "廠商管理", icon: "mdi-handshake" },
+  { id: "inventory-management", name: "物料管理", icon: "mdi-package-variant" },
+  { id: "file-manager", name: "檔案管理", icon: "mdi-folder" },
+  {
+    id: "his-integration",
+    name: "HIS 整合",
+    icon: "mdi-hospital-box",
+    loader: { src: "/api/skills/his-integration/frontend/his-app.js", globalName: "HISIntegrationApp" },
+    css: "/api/skills/his-integration/frontend/his-app.css",
+  },
+]
+
+/** 單獨一支，讓需要 app 清單的頁各自掛（不綁在 mockApi 上，免得每一頁都多一次請求）。 */
+export async function mockConfigApps(page: Page, apps: ConfigAppFixture[] | "fail" = configAppFixtures) {
+  await page.route(`${API}/api/config/apps`, async (route) => {
+    if (apps === "fail") return route.fulfill({ status: 500, json: { detail: "模組清單讀取失敗" } })
+    await route.fulfill({ json: apps })
+  })
+}
+
+export interface SkillMockStore {
+  /** 每一次 `PUT /api/skills/{name}` 的 body，用來驗「只送變動欄位」與「沒變動就不送」。 */
+  puts: { name: string; body: Record<string, unknown> }[]
+  /** 清單被抓了幾次，用來驗安裝／重新載入之後有沒有重抓。 */
+  listCalls: number
+  reloadCalls: number
+  deleted: string[]
+  installed: { name: string; source: string; version?: string }[]
+}
+
+export async function mockSkills(
+  page: Page,
+  opts: {
+    skills?: SkillDetailFixture[]
+    /** `GET /{name}/files/{path}` 的內容，key 是 `<skill>/<path>`；沒列到的回 404「File not found」。 */
+    files?: Record<string, string>
+    hubSources?: { id: string; name: string; enabled: boolean }[]
+    hubResults?: HubResultFixture[]
+    /** 雙來源其中一家掛掉時後端放在 `errors` 而不是整支失敗（355–364）。 */
+    hubErrors?: string[]
+    hubInspectContent?: string
+    /** 安裝一律回 409，detail 原樣是後端那句（454–457）。 */
+    installConflict?: boolean
+    /** `PUT` 一律回這個 400 detail。 */
+    updateError?: string
+  } = {},
+): Promise<SkillMockStore> {
+  const skills = (opts.skills ?? skillDetailFixtures).map((s) => ({ ...s }))
+  const files = opts.files ?? {}
+  const hubSources = opts.hubSources ?? [
+    { id: "clawhub", name: "ClawHub", enabled: true },
+    { id: "skillhub", name: "SkillHub", enabled: true },
+  ]
+  const hubResults = opts.hubResults ?? hubResultFixtures
+  const store: SkillMockStore = { puts: [], listCalls: 0, reloadCalls: 0, deleted: [], installed: [] }
+
+  async function dispatch(route: Parameters<Parameters<Page["route"]>[1]>[0]) {
+    const req = route.request()
+    const method = req.method()
+    const path = new URL(req.url()).pathname
+    // API_BASE 可能帶前綴（`/ctos`），從 `/api/skills` 之後切出來比對。
+    const rest = decodeURIComponent(path.slice(path.indexOf("/api/skills") + "/api/skills".length))
+
+    if (rest === "" && method === "GET") {
+      store.listCalls += 1
+      return route.fulfill({ json: { skills: skills.map(skillSummaryOf) } })
+    }
+    if (rest === "/reload" && method === "POST") {
+      store.reloadCalls += 1
+      return route.fulfill({ json: { reloaded: skills.length } })
+    }
+    if (rest === "/hub/sources") return route.fulfill({ json: { sources: hubSources } })
+    if (rest === "/hub/search") {
+      const body = req.postDataJSON() as { query: string; source: string | null }
+      const results = hubResults.filter((r) => !body.source || r.source === body.source)
+      return route.fulfill({
+        json: body.source
+          ? { query: body.query, results }
+          : { query: body.query, results, sources: hubSources.map((s) => s.id), errors: opts.hubErrors ?? null },
+      })
+    }
+    if (rest === "/hub/inspect") {
+      const body = req.postDataJSON() as { slug: string; source: "clawhub" | "skillhub" }
+      return route.fulfill({
+        json: {
+          slug: body.slug, source: body.source,
+          content: opts.hubInspectContent ?? `---\nname: ${body.slug}\n---\n\n# ${body.slug}\n\n示範內容。`,
+          skill: {}, owner: {}, latestVersion: {},
+        },
+      })
+    }
+    if (rest === "/hub/install") {
+      const body = req.postDataJSON() as { name: string; source: string; version?: string }
+      if (opts.installConflict) {
+        return route.fulfill({ status: 409, json: { detail: `Skill '${body.name}' 已安裝。如需更新請先移除。` } })
+      }
+      store.installed.push(body)
+      const found = hubResults.find((r) => r.slug === body.name)
+      skills.push({
+        name: body.name, description: found?.summary ?? "", requires_app: null, tools_count: 0, has_prompt: true,
+        references: [], scripts: [], assets: [], source: body.source, license: "", compatibility: "", has_module: false,
+        allowed_tools: [], mcp_servers: [], prompt: `# ${body.name}`, script_tools: [], metadata: {}, contributes: null,
+        meta: { slug: body.name, version: found?.version ?? "", source: body.source, installed_at: "2026-09-12T02:00:00+00:00", owner: "" },
+      })
+      return route.fulfill({
+        json: {
+          installed: body.name, version: body.version ?? found?.version ?? "", source: body.source,
+          path: `/srv/skills/${body.name}`, description: found?.summary ?? "", scripts_count: 0,
+        },
+      })
+    }
+
+    const fileMatch = /^\/([^/]+)\/(files|references)\/(.+)$/.exec(rest)
+    if (fileMatch) {
+      const [, name, kind, filePath] = fileMatch
+      const key = `${name}/${kind === "references" && !filePath.startsWith("references/") ? `references/${filePath}` : filePath}`
+      const content = files[key]
+      if (content === undefined) return route.fulfill({ status: 404, json: { detail: "File not found" } })
+      return route.fulfill({ json: { path: filePath, content } })
+    }
+
+    const name = rest.replace(/^\//, "")
+    const index = skills.findIndex((s) => s.name === name)
+    if (index === -1) return route.fulfill({ status: 404, json: { detail: `Skill '${name}' not found` } })
+    const skill = skills[index]
+
+    // 明細沒有 `scripts_count`，fixture 型別本身就沒帶，直接回整包。
+    if (method === "GET") return route.fulfill({ json: skill })
+    if (method === "PUT") {
+      const body = req.postDataJSON() as Record<string, unknown>
+      store.puts.push({ name, body })
+      if (opts.updateError) return route.fulfill({ status: 400, json: { detail: opts.updateError } })
+      if (Object.keys(body).length === 0) return route.fulfill({ status: 400, json: { detail: "No fields to update" } })
+      if ("requires_app" in body) skill.requires_app = body.requires_app as string | string[] | null
+      if ("allowed_tools" in body) {
+        skill.allowed_tools = body.allowed_tools as string[]
+        skill.tools_count = skill.allowed_tools.length
+      }
+      if ("mcp_servers" in body) skill.mcp_servers = body.mcp_servers as string[]
+      // `PUT` 只回這四個欄位（281–286），不是完整的明細。
+      return route.fulfill({
+        json: { name: skill.name, requires_app: skill.requires_app, allowed_tools: skill.allowed_tools, mcp_servers: skill.mcp_servers },
+      })
+    }
+    if (method === "DELETE") {
+      skills.splice(index, 1)
+      store.deleted.push(name)
+      return route.fulfill({ json: { removed: name } })
+    }
+    return route.fallback()
+  }
+
+  await page.route(`${API}/api/skills`, dispatch)
+  await page.route(`${API}/api/skills/**`, dispatch)
+  return store
+}

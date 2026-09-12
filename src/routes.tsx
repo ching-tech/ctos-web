@@ -38,6 +38,8 @@ import SchedulerEditorPage from "@/pages/scheduler/editor"
 import SchedulerListPage from "@/pages/scheduler/list"
 import SettingsPage from "@/pages/settings"
 import SharesPage from "@/pages/shares"
+import SkillDetailPage from "@/pages/skills/detail"
+import SkillListPage from "@/pages/skills/list"
 import WarehouseListPage from "@/pages/warehouses/list"
 
 export const router = createBrowserRouter([
@@ -100,6 +102,8 @@ export const router = createBrowserRouter([
           { path: "scheduler", element: <RequireAdmin><SchedulerListPage /></RequireAdmin> },
           { path: "scheduler/new", element: <RequireAdmin><SchedulerEditorPage /></RequireAdmin> },
           { path: "scheduler/:id/edit", element: <RequireAdmin><SchedulerEditorPage /></RequireAdmin> },
+          { path: "skills", element: <RequireAdmin><SkillListPage /></RequireAdmin> },
+          { path: "skills/:name", element: <RequireAdmin><SkillDetailPage /></RequireAdmin> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
           { path: "settings", element: <SettingsPage /> },
         ],
