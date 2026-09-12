@@ -1,4 +1,4 @@
-import { BookOpen, Bot, Brain, Building2, Folder, FolderKanban, Home, Package, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
+import { Bell, BookOpen, Bot, Brain, Building2, Folder, FolderKanban, Home, Package, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
@@ -17,6 +17,8 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "AI Log", path: "/ai-log", icon: ScrollText, app: "ai-log" },
   // share-manager 後端預設關閉（services/permissions.py 177），沒開的人看不到這一項。
   { title: "分享", path: "/shares", icon: Share2, app: "share-manager" },
+  // 訊息中心沒有 app 閘：後端只要登入（ching-tech-os api/messages.py 45）。
+  { title: "訊息", path: "/messages", icon: Bell },
   { title: "使用者管理", path: "/admin/users", icon: Users, adminOnly: true },
   { title: "設定", path: "/settings", icon: Settings },
 ]

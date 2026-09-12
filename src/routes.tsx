@@ -17,6 +17,8 @@ import KbEditorPage from "@/pages/kb/editor"
 import KbListPage from "@/pages/kb/list"
 import LoginPage from "@/pages/login"
 import MemoryPage from "@/pages/memory"
+import MessageDetailPage from "@/pages/messages/detail"
+import MessageListPage from "@/pages/messages/list"
 import PartyDetailPage from "@/pages/parties/detail"
 import PartyEditorPage from "@/pages/parties/editor"
 import PartyListPage from "@/pages/parties/list"
@@ -76,6 +78,9 @@ export const router = createBrowserRouter([
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
           { path: "ai-log/:id", element: <RequireApp app="ai-log"><AiLogDetailPage /></RequireApp> },
           { path: "shares", element: <RequireApp app="share-manager"><SharesPage /></RequireApp> },
+          // 訊息中心沒有 app 閘，後端只要求登入（ching-tech-os api/messages.py 45）。
+          { path: "messages", element: <MessageListPage /> },
+          { path: "messages/:id", element: <MessageDetailPage /> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
           { path: "settings", element: <SettingsPage /> },
         ],
