@@ -178,6 +178,9 @@ export async function mockApi(
     if (!auth || !user) return route.fulfill({ status: 401, json: { detail: "未授權" } })
     return route.fulfill({ json: user })
   })
+  // 設定頁的語音區塊一進頁面就會打這三支，先給一組預設；要測語音本身請在後面再呼叫
+  // `mockVoice`，它註冊得比較晚會蓋過這裡（Playwright 由後註冊的 handler 先比對）。
+  await mockVoice(page, { isAdmin: Boolean(user?.is_admin) })
 }
 
 /**
@@ -4908,4 +4911,156 @@ export async function mockScheduler(
   )
 
   return { tasks }
+}
+
+// ── 語音設定（api/voice_router.py 29–314）────────────────────────────────
+
+export interface VoiceFixtureEngine {
+  voices: { id: string; name: string; gender: string; language: string }[]
+  config_schema: Record<string, Record<string, unknown>>
+}
+
+/**
+ * 各引擎的 `get_config_schema()` 與 `list_voices()` 逐欄照抄
+ * （ching-tech-os extends/voice/voice_tts.py：Edge 108–137、Google Cloud 146–172、
+ * Gemini 331–355）。語音角色的 id 是引擎自己的識別碼，名稱是杜撰的顯示字串。
+ *
+ * `google_cloud` 目前不在 `get_available_engines()` 的回傳裡（voice_tts.py 385–388），
+ * 但表單是照 `config_schema` 動態產的，這裡留著它是為了蓋到 slider 型別。
+ */
+export const voiceEngineFixtures: Record<string, VoiceFixtureEngine> = {
+  edge: {
+    // name 是 edge-tts 的 FriendlyName，照本機 `GET /api/voice/voices` 實際回的字串抄。
+    voices: [
+      { id: "zh-TW-HsiaoChenNeural", name: "Microsoft HsiaoChen Online (Natural) - Chinese (Taiwan)", gender: "female", language: "zh-TW" },
+      { id: "zh-TW-YunJheNeural", name: "Microsoft YunJhe Online (Natural) - Chinese (Taiwan)", gender: "male", language: "zh-TW" },
+      { id: "zh-TW-HsiaoYuNeural", name: "Microsoft HsiaoYu Online (Natural) - Chinese (Taiwanese Mandarin)", gender: "female", language: "zh-TW" },
+    ],
+    config_schema: { voice: { type: "select", label: "語音角色", required: true } },
+  },
+  gemini: {
+    // Gemini 的 name 本來就帶了性別後綴（voice_tts.py 的 `_GEMINI_VOICES`），照抄。
+    voices: [
+      { id: "Kore", name: "Kore（女聲）", gender: "female", language: "multilingual" },
+      { id: "Puck", name: "Puck（男聲）", gender: "male", language: "multilingual" },
+    ],
+    config_schema: {
+      voice: { type: "select", label: "語音角色", required: true },
+      instructions: {
+        type: "text",
+        label: "朗讀指示",
+        placeholder: "用溫柔自然的語氣朗讀",
+        default: "用溫柔自然的語氣朗讀",
+      },
+    },
+  },
+  google_cloud: {
+    voices: [{ id: "cmn-TW-Standard-A", name: "標準女聲 A", gender: "female", language: "cmn-TW" }],
+    config_schema: {
+      voice: { type: "select", label: "語音角色", required: true },
+      speed: { type: "slider", label: "語速", min: 0.5, max: 2.0, step: 0.1, default: 1.0 },
+      pitch: { type: "slider", label: "音調", min: -10, max: 10, step: 1, default: 0 },
+    },
+  },
+}
+
+export interface VoiceSettingsFixture {
+  tts_engine: string
+  tts_params: Record<string, unknown>
+}
+
+/** `resolve_voice_settings` 的系統預設（services/mcp/voice_tools.py 58–64）。 */
+export const voiceSystemDefault: VoiceSettingsFixture = {
+  tts_engine: "edge",
+  tts_params: { voice: "zh-TW-HsiaoChenNeural" },
+}
+
+export const voiceScopeFixtures = {
+  groups: [
+    { id: "11111111-1111-4111-8111-111111111111", name: "甲一機電群", platform: "line" },
+    { id: "22222222-2222-4222-8222-222222222222", name: "乙二運輸群", platform: "telegram" },
+  ],
+  agents: [{ id: "33333333-3333-4333-8333-333333333333", name: "小助手" }],
+}
+
+/** 1 秒無聲 M4A 的前幾個 bytes；試聽只要能餵給 <audio> 當 blob，不必真的能播。 */
+export const FAKE_AUDIO = Buffer.from("AAAAHGZ0eXBNNEEgAAAAAE00QSBpc29tbXA0Mg==", "base64")
+
+export async function mockVoice(
+  page: Page,
+  opts: {
+    isAdmin?: boolean
+    groups?: typeof voiceScopeFixtures.groups
+    agents?: typeof voiceScopeFixtures.agents
+    /** key 是 `user`、`group:<id>`、`agent:<id>`；沒列到的 scope 代表沒存過設定（current=null）。 */
+    stored?: Record<string, VoiceSettingsFixture>
+    /** 試聽固定回這個狀態碼與 detail（429 冷卻、503 未安裝、501／500）。 */
+    previewStatus?: number
+    previewDetail?: string
+    /** 可用引擎清單（`get_available_engines()`，voice_tts.py 385–388）。 */
+    availableEngines?: string[]
+  } = {},
+) {
+  const stored: Record<string, VoiceSettingsFixture> = { ...(opts.stored ?? {}) }
+  const availableEngines = opts.availableEngines ?? ["edge", "gemini"]
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const at = (path: string) => (url: URL) => url.origin === base.origin && url.pathname === `${prefix}${path}`
+
+  await page.route(at("/api/voice/voices"), (route) => {
+    const engine = new URL(route.request().url()).searchParams.get("engine") || "edge"
+    const fixture = voiceEngineFixtures[engine] ?? voiceEngineFixtures.edge
+    return route.fulfill({
+      json: {
+        engine,
+        voices: fixture.voices,
+        config_schema: fixture.config_schema,
+        available_engines: availableEngines,
+      },
+    })
+  })
+
+  await page.route(at("/api/voice/scopes"), (route) =>
+    route.fulfill({
+      json: {
+        is_admin: opts.isAdmin ?? false,
+        groups: opts.groups ?? (opts.isAdmin ? voiceScopeFixtures.groups : []),
+        agents: opts.isAdmin ? (opts.agents ?? voiceScopeFixtures.agents) : [],
+      },
+    }),
+  )
+
+  await page.route(at("/api/voice/settings"), (route) => {
+    const req = route.request()
+    const method = req.method()
+    if (method === "PUT" || method === "DELETE") {
+      const body = req.postDataJSON() as {
+        scope: string; scope_id: string | null; tts_engine?: string; tts_params?: Record<string, unknown>
+      }
+      const key = body.scope === "user" ? "user" : `${body.scope}:${body.scope_id ?? ""}`
+      if (body.scope !== "user" && !(opts.isAdmin ?? false)) {
+        const what = body.scope === "group" ? "群組" : "Agent"
+        return route.fulfill({ status: 403, json: { detail: `只有管理員可修改${what}語音設定` } })
+      }
+      if (method === "DELETE") delete stored[key]
+      else stored[key] = { tts_engine: body.tts_engine ?? "edge", tts_params: body.tts_params ?? {} }
+      return route.fulfill({ json: { ok: true } })
+    }
+    const params = new URL(req.url()).searchParams
+    const scope = params.get("scope") ?? "user"
+    const scopeId = params.get("scope_id") ?? ""
+    const key = scope === "user" ? "user" : `${scope}:${scopeId}`
+    const current = stored[key] ?? null
+    return route.fulfill({ json: { scope, current, effective: current ?? voiceSystemDefault } })
+  })
+
+  await page.route(at("/api/voice/preview"), (route) => {
+    if (opts.previewStatus) {
+      return route.fulfill({
+        status: opts.previewStatus,
+        json: { detail: opts.previewDetail ?? "試聽失敗" },
+      })
+    }
+    return route.fulfill({ status: 200, contentType: "audio/mp4", body: FAKE_AUDIO })
+  })
 }
