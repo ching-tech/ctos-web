@@ -3878,6 +3878,146 @@ export async function mockNas(
 }
 
 // ============================================================
+// 本機儲存區（/api/files/{zone}/{path}）
+// ============================================================
+
+/** 欄位對後端 `models/files.py` 的 `DirectoryFile`：`name`、`size`、`modified_at`（沒有時區的 isoformat）。 */
+export interface FilesZoneNode {
+  name: string
+  type: "file" | "directory"
+  size?: number
+  modified_at?: string
+  /** 只有檔案有：讀檔與下載時回的內容。 */
+  content?: string | Buffer
+  contentType?: string
+  children?: FilesZoneNode[]
+}
+
+/**
+ * 杜撰的本機儲存區內容（公開 repo，不放真實資料）。
+ *
+ * `ctos` 與 `shared` 這台開發機沒有掛載，留空樹測 404；真的掛載時是 `/mnt/nas/...`。
+ */
+export const filesZoneTreeFixture: Record<string, FilesZoneNode[]> = {
+  temp: [
+    {
+      name: "示範資料夾",
+      type: "directory",
+      children: [
+        { name: "圖示.png", type: "file", size: 70, modified_at: "2026-09-11T09:00:00", content: ONE_PX_PNG, contentType: "image/png" },
+        { name: "備註.txt", type: "file", size: 30, modified_at: "2026-09-11T09:05:00", content: "杜撰的暫存區文字。", contentType: "text/plain" },
+        { name: "封存.zip", type: "file", size: 1024, modified_at: "2026-09-11T09:10:00", content: "zip", contentType: "application/zip" },
+        { name: "子資料夾", type: "directory", children: [{ name: "內層.txt", type: "file", size: 12, modified_at: "2026-09-11T09:20:00", content: "內層的杜撰內容。", contentType: "text/plain" }] },
+      ],
+    },
+    { name: "說明.md", type: "file", size: 48, modified_at: "2026-09-10T08:00:00", content: "# 暫存區\n杜撰的說明。", contentType: "text/markdown" },
+  ],
+  local: [{ name: "knowledge", type: "directory", children: [] }],
+  ctos: [],
+  shared: [],
+}
+
+export interface FilesZoneMockControl {
+  /** 每一支請求的網址（含 query），供測試比對 `?token=` 與根目錄的 `%2F`。 */
+  requests: { pathname: string; search: string; hasAuthHeader: boolean }[]
+}
+
+function findZoneNode(tree: FilesZoneNode[], path: string): FilesZoneNode | null {
+  const segs = path.split("/").filter(Boolean)
+  let nodes = tree
+  let found: FilesZoneNode | null = null
+  for (const seg of segs) {
+    const next = nodes.find((n) => n.name === seg)
+    if (!next) return null
+    found = next
+    nodes = next.children ?? []
+  }
+  return found
+}
+
+/**
+ * `/api/files/{zone}/{path}` 三支端點全 mock（list、讀檔、download）。
+ *
+ * 契約對照 `api/files.py`（本機實打後端逐條確認過）：
+ * - zone 不是 ctos／shared／temp／local／nas → 400「無效的儲存區域: …」（48–56）。
+ * - path 含 `..` → 400「無效的路徑」（59–65）。
+ * - list：nas zone → 400「NAS zone 不支援目錄列表」；path 空字串 → 400「請指定目錄路徑」；
+ *   目錄不存在 → 404「目錄不存在：{path}」；隱藏檔（`.` 開頭）後端已經濾掉（290–353）。
+ * - 讀檔：目錄 → 400「指定的路徑不是檔案」；不存在 → 404「檔案不存在」（205–217）。
+ * - download 多一個 `Content-Disposition: attachment`（356–390）。
+ * - 認證：`Authorization` header 或 `?token=`（api/auth.py 96–110），都沒有就 401「未授權，請重新登入」。
+ *   **沒有 app 閘**：後端只看有沒有登入，`file-manager` 是前端自己擋的。
+ */
+export async function mockFilesZones(
+  page: Page,
+  opts: { trees?: Record<string, FilesZoneNode[]> } = {},
+): Promise<FilesZoneMockControl> {
+  const trees = opts.trees ?? filesZoneTreeFixture
+  const control: FilesZoneMockControl = { requests: [] }
+  const base = new URL(API)
+  const prefix = `${base.pathname.replace(/\/$/, "")}/api/files/`
+
+  await page.route(
+    (url) => url.origin === base.origin && url.pathname.startsWith(prefix),
+    async (route) => {
+      const url = new URL(route.request().url())
+      const hasAuthHeader = !!route.request().headers()["authorization"]
+      control.requests.push({ pathname: url.pathname, search: url.search, hasAuthHeader })
+      if (!hasAuthHeader && !url.searchParams.get("token")) {
+        return route.fulfill({ status: 401, json: { detail: "未授權，請重新登入" } })
+      }
+
+      // 路徑段各自解碼：根目錄是 `%2F`（後端 unquote 回 "/"），不能整條 decode 再切。
+      const segs = url.pathname.slice(prefix.length).split("/")
+      const zone = decodeURIComponent(segs.shift() ?? "")
+      const action = segs.at(-1) === "list" || segs.at(-1) === "download" ? (segs.pop() as "list" | "download") : "read"
+      // raw 是後端收到的原樣（根目錄是 "/"，回應會照樣 echo）；path 是拿去查樹用的正規化版本。
+      const raw = segs.map(decodeURIComponent).join("/")
+      const path = raw.split("/").filter((seg) => seg && seg !== ".").join("/")
+
+      if (!["ctos", "shared", "temp", "local", "nas"].includes(zone)) {
+        return route.fulfill({ status: 400, json: { detail: `無效的儲存區域: ${zone}，支援的區域: ctos, shared, temp, local, nas` } })
+      }
+      if (raw.split("/").includes("..")) return route.fulfill({ status: 400, json: { detail: "無效的路徑" } })
+
+      if (action === "list") {
+        if (zone === "nas") return route.fulfill({ status: 400, json: { detail: "NAS zone 不支援目錄列表" } })
+        if (!raw) return route.fulfill({ status: 400, json: { detail: "請指定目錄路徑" } })
+        const node = path === "" ? { type: "directory" as const, children: trees[zone] ?? [] } : findZoneNode(trees[zone] ?? [], path)
+        if (!node || node.type !== "directory") {
+          return route.fulfill({ status: 404, json: { detail: `目錄不存在：${raw}` } })
+        }
+        const nodes = node.children ?? []
+        return route.fulfill({
+          json: {
+            success: true,
+            zone,
+            path: raw,
+            dirs: nodes.filter((n) => n.type === "directory").map((n) => n.name),
+            files: nodes
+              .filter((n) => n.type === "file")
+              .map((n) => ({ name: n.name, size: n.size ?? 0, modified_at: n.modified_at ?? "2026-09-01T00:00:00" })),
+          },
+        })
+      }
+
+      if (!path) return route.fulfill({ status: 400, json: { detail: "請指定檔案路徑" } })
+      const node = findZoneNode(trees[zone] ?? [], path)
+      if (!node) return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
+      if (node.type !== "file") return route.fulfill({ status: 400, json: { detail: "指定的路徑不是檔案" } })
+      return route.fulfill({
+        status: 200,
+        contentType: node.contentType ?? "application/octet-stream",
+        headers: action === "download" ? { "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(node.name)}` } : {},
+        body: node.content instanceof Buffer ? node.content : String(node.content ?? ""),
+      })
+    },
+  )
+
+  return control
+}
+
+// ============================================================
 // 記憶管理（欄位逐一對後端 models/linebot.py 296–328 的 MemoryResponse）
 // ============================================================
 

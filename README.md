@@ -157,7 +157,7 @@ npm run build
 
 共用工具與狀態管理：
 
-- `api.ts` — API 客戶端（請求封裝與錯誤處理）
+- `api.ts` — API 客戶端（請求封裝與錯誤處理；`withToken` 把 session token 接成 query，供 `<img src>`／`<a href>` 這種設不了 header 的地方用）
 - `api.test.ts` — API 單元測試
 - `auth.ts` — 認證函式（登入、登出、NAS 綁定、變更密碼）
 - `auth.test.ts` — 認證單元測試
@@ -192,6 +192,8 @@ npm run build
 - `api-tokens.test.ts` — PAT API 與 scope 名稱對照單元測試
 - `nas.ts` — NAS 檔案 API 客戶端（連線／連線列表／斷線、共享資料夾、瀏覽、搜尋、讀檔與下載、上傳／新資料夾／重新命名／刪除、`nas_file` 分享連結；記憶體連線狀態與 `X-NAS-Token` 注入、連線失效的攔截與重試、路徑與大小時間格式化、分享路徑對照 `toShareResourceId`、`nasKeys`）
 - `nas.test.ts` — NAS API 單元測試（每支端點、連線失效攔截與重試、路徑工具、分享路徑對照）
+- `files.ts` — 本機儲存區 API 客戶端（`/api/files/{zone}/…` 的 list／讀檔／下載，四個 zone 的短名與說明、`?zone=` 解析、路徑正規化與逐段編碼、根目錄的 `%2F`、`filesKeys`；**只有讀**）
+- `files.test.ts` — 本機儲存區 API 單元測試（zone 驗證、根目錄與中文路徑編碼、`..` 濾掉、`?token=` 網址、detail 原樣丟出）
 - `memory.ts` — Bot 記憶 API 客戶端（群組／個人記憶清單與新增、更新、刪除；`memoryKeys`）
 - `memory.test.ts` — 記憶 API 單元測試（六支端點各一條）
 - `share.ts` — 分享連結管理 API 客戶端（清單 `view=mine｜all`、撤銷、資源類型中文對照、標題與落點連結、`shareKeys`；建立仍在 `kb.ts` 與 `nas.ts`）
@@ -274,7 +276,7 @@ npm run build
 - `purchase-orders/editor.tsx` — 採購單新增／編輯頁（新增是單頭＋可增列的行項表格，編輯只改單頭；狀態只收草稿與已下單）
 - `purchase-orders/detail.tsx` — 採購單明細頁（表頭主檔與狀態 badge，「問 AI」「編輯」「收貨」「取消採購單」；行項表含已收與未收）
 - `purchase-orders/receive-dialog.tsx` — 收貨對話框（入庫倉下拉、每行一個本次收貨數量、「送出收貨」與「全部收貨」）
-- `files/index.tsx` — 檔案頁（麵包屑、共享資料夾與資料夾瀏覽、目前路徑搜尋、預覽面板、連線資訊與連線對話框、上傳與新資料夾工具列、每列的動作選單；`?path=` 與 `?q=` 寫進網址）
+- `files/index.tsx` — 檔案頁（儲存區切換、麵包屑、共享資料夾與資料夾瀏覽、目前路徑搜尋、預覽面板、連線資訊與連線對話框、上傳與新資料夾工具列、每列的動作選單；`?zone=`、`?path=` 與 `?q=` 寫進網址）
 - `shares/index.tsx` — 分享管理頁（清單、管理員的「只看我的／全部」切換、複製網址、撤銷確認；桌面表格、手機卡片）
 - `skills/list.tsx` — Skills 清單頁（就地搜尋、需要的 app badge、工具數、提示詞、來源、模組；「重新載入」與「從 Hub 安裝」；桌面表格、手機卡片）
 - `skills/detail.tsx` — Skill 明細頁（提示詞 Markdown、references 點開才讀檔、腳本只列不執行、附帶檔案、`_meta.json` 摺疊、刪除確認；「權限與工具」表單編輯 `requires_app` 多選與工具／MCP servers 標籤）
@@ -303,7 +305,7 @@ UI 元件與版面：
 - `kb/markdown.tsx` — Markdown 渲染（含圖片路徑改寫）
 - `share-dialog.tsx` — 分享連結對話框（知識庫與 NAS 檔案共用，差別只在 `createLink` 與 `ariaLabel`）
 - `files/connect-dialog.tsx` — NAS 連線對話框（主機、帳號、密碼；後端的錯誤訊息原樣顯示）
-- `files/preview-panel.tsx` — 檔案預覽面板（圖片、PDF、文字；其他類型只給下載）
+- `files/preview-panel.tsx` — 檔案預覽面板（圖片、PDF、文字；其他類型只給下載。NAS 取 blob，本機儲存區直接用帶 `?token=` 的網址當 `src`、下載是一條 `<a href>`）
 - `files/download-button.tsx` — NAS 檔案下載鈕（header 取 blob 再存檔）
 - `files/toolbar.tsx` — 檔案頁工具列（多檔上傳、新資料夾）
 - `files/row-actions.tsx` — 每列的動作選單（重新命名、刪除含遞迴、分享連結）
@@ -343,6 +345,7 @@ Playwright 端對端測試：
 - `items.spec.ts` — 物料清單／明細庫存與異動兩分頁／調整與調撥／新增編輯／倉庫頁／權限擋下測試
 - `purchasing.spec.ts` — 採購單清單篩選／新增行項／明細收貨與取消／首頁待收貨卡／權限擋下測試
 - `files.spec.ts` — 檔案頁測試（空狀態與連線、沿用既有連線、連線失敗訊息、瀏覽與麵包屑、搜尋、預覽、連線過期自動重連重試、中斷、權限擋下；上傳、新資料夾、重新命名含 409、刪除含遞迴、分享連結的權限與 `resource_id`）
+- `files-zones.spec.ts` — 檔案頁本機儲存區測試（切換儲存區寫進網址與根目錄的 `%2F`、進子目錄與麵包屑、圖片與文字預覽、下載連結形狀、寫入動作不出現、搜尋停用、空狀態與 400／404 detail）
 - `memory.spec.ts` — 記憶管理測試（群組分頁列記憶與折疊、空狀態、新增、編輯、停用與 500 錯誤、刪除確認、個人分頁與搜尋、對象不存在的 404 detail、權限擋下）
 - `shares.spec.ts` — 分享管理測試（一般使用者清單、空狀態、已過期淡化、管理員切換 `?view=all` 與建立者欄、複製網址、撤銷確認、撤銷被拒的 detail、權限擋下）
 - `messages.spec.ts` — 訊息中心測試（鈴鐺未讀數與 99+、多選篩選寫進網址、勾選與全部標已讀、明細與自動標已讀、分頁、未登入被擋；桌機與手機）
@@ -385,7 +388,9 @@ Playwright 端對端測試：
 - **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「密碼」區塊變更或首次設定平台密碼（`POST /api/auth/change-password`）。已有平台密碼的人要填目前密碼，NAS 認證、還沒設密碼的人（`has_password` 為 false）沒有這一欄，改成提示設定後兩種都能登。這支端點**失敗也回 200**，只有 body 的 `success` 與 `error` 會變，前端照 body 判斷而不是看狀態碼；強度規則留在後端，前端只擋「兩次一致」與最少 8 碼。改完密碼**不會**讓其他裝置的 session 或 API 權杖失效。「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示。「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示。「偏好」區塊選主題（亮色／暗色），與側邊欄的切換鈕是同一份 `ThemeProvider` 狀態。登入後跟後端要一次（`GET /api/user/preferences`），之後不管從哪裡切都 PUT 回去；後端回 400 就退回上一個存住的值並把 detail 顯示出來。側邊欄多出來的「跟隨系統」後端沒有地方存，選它就不送，設定頁會說明。「語音」區塊設定 Bot 用語音回覆時的引擎與聲音（`/api/voice/*`）：引擎清單來自 `GET /api/voice/voices` 回的 `available_engines`（沒有獨立的「列引擎」端點），參數欄位照同一支端點回的 `config_schema` 動態產——`select` 配語音角色清單、`slider` 產 range、`text` 產輸入框，有 `default` 的欄位沒動過就直接帶預設值送出。換引擎會重抓語音角色並清掉舊參數。摘要區顯示 `effective`（這一層沒設定就是繼承來的值，一路退到系統預設 edge＋zh-TW-HsiaoChenNeural）。試聽打 `POST /api/voice/preview` 拿 `audio/mp4` 的 bytes，用 blob URL 掛 `<audio>`（換掉時 `revokeObjectURL`），後端每人十秒一次，429「試聽冷卻中」與 503「語音功能未安裝」的 detail 原樣顯示。清除有確認對話框，清完退回繼承。管理員多一個「套用範圍」下拉（自己／群組／Agent，來自 `GET /api/voice/scopes`），切換會重抓那個 scope 的設定；非管理員只有自己，群組與 Agent 的寫入後端本來就會回 403
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
-- **檔案** — 路由 `/files`（需 `file-manager` 權限，預設開放）。進頁面先打 `GET /api/nas/connections`，有現成連線就沿用第一筆，沒有才開連線對話框（主機預設值來自 `VITE_NAS_HOST`）。連線 token 只放記憶體（後端 30 分鐘，操作會自動延長），不進 localStorage。之後每支 NAS 端點都帶 `X-NAS-Token`，缺連線或過期時 `lib/nas.ts` 的 fetch 包裝層攔下來，清掉連線、開對話框，連好再把原請求重試一次。根目錄列的是共享資料夾（`GET /api/nas/shares`，`browse?path=/` 後端會回 400），往下是 `GET /api/nas/browse`；桌面表格、手機卡片，`?path=` 寫進網址，重新整理停在同一層。搜尋只在共享資料夾底下可用（後端 `_parse_path` 不接受空路徑），結果的 `path` 後端不含 share 名稱，前端接回去才點得進。圖片、PDF 與文字（txt／md／csv／json／log）在預覽面板顯示，其他類型只給下載；預覽與下載都用 header 取 blob，NAS token 不進網址。工具列有「上傳」（多檔，逐檔送，做完重抓清單）與「新資料夾」，每一列的「動作」選單有重新命名、刪除（資料夾多一個遞迴勾選，後端沒勾會回 400）與分享連結；這些寫入類動作只在共享資料夾底下的瀏覽清單出現（根目錄列的是 share，後端 `_parse_path` 不接受空路徑；搜尋結果跨資料夾，改完要重抓的不是同一份清單）。分享連結要 `share-manager` 權限（後端預設關閉）而且檔案要落在 `VITE_NAS_SHARE_MOUNTS` 設定的前綴底下：`POST /api/share` 的 `nas_file` 會把 `resource_id` 丟給 `validate_nas_file_path()`，檔案管理器的 SMB 路徑（以 `/` 開頭但不是 `/tmp/`、`/mnt/`）會被 `path_manager` 判成 NAS zone 直接拒絕，所以要先換成掛載點路徑
+- **檔案** — 路由 `/files`（需 `file-manager` 權限，預設開放）。進頁面先打 `GET /api/nas/connections`，有現成連線就沿用第一筆，沒有才開連線對話框（主機預設值來自 `VITE_NAS_HOST`）。連線 token 只放記憶體（後端 30 分鐘，操作會自動延長），不進 localStorage。之後每支 NAS 端點都帶 `X-NAS-Token`，缺連線或過期時 `lib/nas.ts` 的 fetch 包裝層攔下來，清掉連線、開對話框，連好再把原請求重試一次。根目錄列的是共享資料夾（`GET /api/nas/shares`，`browse?path=/` 後端會回 400），往下是 `GET /api/nas/browse`；桌面表格、手機卡片，`?path=` 寫進網址，重新整理停在同一層。搜尋只在共享資料夾底下可用（後端 `_parse_path` 不接受空路徑），結果的 `path` 後端不含 share 名稱，前端接回去才點得進。圖片、PDF 與文字（txt／md／csv／json／log）在預覽面板顯示，其他類型只給下載；預覽與下載都用 header 取 blob，NAS token 不進網址。工具列有「上傳」（多檔，逐檔送，做完重抓清單）與「新資料夾」，每一列的「動作」選單有重新命名、刪除（資料夾多一個遞迴勾選，後端沒勾會回 400）與分享連結；這些寫入類動作只在共享資料夾底下的瀏覽清單出現（根目錄列的是 share，後端 `_parse_path` 不接受空路徑；搜尋結果跨資料夾，改完要重抓的不是同一份清單）。分享連結要 `share-manager` 權限（後端預設關閉）而且檔案要落在 `VITE_NAS_SHARE_MOUNTS` 設定的前綴底下：`POST /api/share` 的 `nas_file` 會把 `resource_id` 丟給 `validate_nas_file_path()`，檔案管理器的 SMB 路徑（以 `/` 開頭但不是 `/tmp/`、`/mnt/`）會被 `path_manager` 判成 NAS zone 直接拒絕，所以要先換成掛載點路徑。
+
+  頁面頂部另有儲存區切換：NAS（上面這一套）與四個本機儲存區 ctos／shared／temp／local，選到哪一個寫進網址 `?zone=`（預設 NAS）。本機儲存區走 `/api/files/{zone}/…`，只要登入就能用（後端沒有 app 閘，`file-manager` 是前端沿用 `/files` 的 `RequireApp` 自己擋的），不需要 NAS 連線，所以連線列與連線對話框在這幾個 zone 不出現。列目錄是 `GET /api/files/{zone}/{path}/list`，回 `dirs`（資料夾名稱）與 `files`（名稱、大小、`modified_at`），開頭是 `.` 的隱藏檔後端已經濾掉，目錄不存在回 404「目錄不存在：{path}」。根目錄的路徑段送 `%2F`：`path` 是空字串時後端回 400「請指定目錄路徑」，而 `.` 與 `%2E` 會被瀏覽器的 URL 正規化拿掉、連續斜線會被 nginx 預設的 `merge_slashes` 併掉，四種寫法本機都實打過，只有 `%2F` 兩關都過（詳見 `lib/files.ts` 的對照表）。圖片與 PDF 直接拿帶 `?token=` 的網址當 `src`（後端 `get_session_from_token_or_query` 就是為此收 query token），文字類走 header 取回內容，下載是一條連到 `/download` 的 `<a href>`（後端帶 `Content-Disposition: attachment`）。這組端點只有讀——沒有上傳、改名、刪除、建資料夾的端點——所以工具列、每列的動作選單與分享連結在本機儲存區全部不顯示；搜尋也沒有對應端點，輸入框停用並寫明「本機儲存區沒有搜尋」。每個 zone 附一句說明（照 `services/path_manager.py` 的註解，不寫死掛載路徑）：ctos＝CTOS 系統檔案、shared＝公司專案共用區、temp＝暫存檔案、local＝本機小檔案（應用程式 data 目錄）；掛載點沒掛上去的機器上，後端回的 404 detail 原樣顯示在畫面上
 
 - **記憶** — 路由 `/memory`（需 `memory-manager` 權限，後端預設開放；記憶端點本身只驗登入，前端仍用 `RequireApp` 擋入口）。兩個分頁「群組」「個人」寫進網址 `?tab=`，選到的對象寫進 `?target=`；左側清單沿用 Bot 頁的群組（`/api/bot/groups`）與使用者（`/api/bot/users-with-binding`）資料層，每頁 20 筆、附平台 badge，搜尋是就地過濾當頁（這兩支端點沒有關鍵字參數），手機寬度收進抽屜。右側列該對象的記憶：標題、內容（純文字，超出三行折起來）、啟用開關（`PUT` 只送 `is_active`）、編輯與刪除，上方「新增記憶」。記憶和 bot 用的是同一份：`services/linebot_ai.py` 組系統提示詞時只讀 `is_active = true` 的那些，所以停用等於 bot 讀不到。刪除的確認對話框照 PR #29 的做法（只掛一個、關掉直接卸載、等請求落地才關）。後端 404 的 detail（`Group not found`／`User not found`／`Memory not found`）原樣顯示
 - **Prompt** — 路由 `/prompts`（需 `prompt-editor` 權限，後端預設關閉）。清單列名稱、顯示名、分類 badge、說明與更新時間，搜尋是就地過濾（`GET /api/ai/prompts` 只吃 `category`，沒有關鍵字參數），手機寬度改卡片。`/prompts/:id` 閱讀頁把內容原樣放在等寬 `<pre>`（不做 Markdown 渲染，看到的就是送進模型的字），變數用表格列出；`/prompts/new`、`/prompts/:id/edit` 是表單（名稱、顯示名、分類下拉、內容、說明、變數 JSON），變數欄位送出前先驗 JSON，後端收的是物件，陣列與純量前端就擋掉。編輯只送有變動的欄位；可為空的欄位（顯示名、說明、分類、變數、system prompt、工具、額外設定）**清空不掉**：後端 `services/ai_manager.py` 135–163 與 412–450 是用 `is not None` 組 UPDATE，送 `null` 等於沒送（ching-tech-os #252）。前端遇到「原本有值、現在被清空」就不把那個欄位放進 PUT，改在欄位旁邊寫明只能改成別的值。`linebot-personal` 與 `linebot-group` 在明細與編輯頁都有醒目提示，說明改了 bot 下一則訊息就照新的內容回答。刪除有確認對話框（照 PR #29 的做法），被 Agent 引用時後端回 400，detail 原樣顯示在對話框裡。另外：`GET /api/ai/prompts/{id}` 後端雖然塞了 `referencing_agents`，但 `response_model=AiPromptResponse` 會把它濾掉，前端拿不到，所以沒有「哪些 Agent 在用」的畫面

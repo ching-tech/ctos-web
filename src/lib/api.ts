@@ -47,3 +47,14 @@ export async function apiFetch<T>(path: string, init: RequestInit & { keepSessio
   }
   return (await res.json()) as T
 }
+
+/**
+ * 把 session token 放進網址。
+ *
+ * 只給 `<img src>`／`<iframe src>`／`<a href>` 這種設不了 header 的地方用；
+ * 後端 `api/auth.py` 96–110 的 `get_session_from_token_or_query` 就是為此收 query token。
+ */
+export function withToken(url: string): string {
+  const t = getToken()
+  return t ? `${url}?token=${encodeURIComponent(t)}` : url
+}

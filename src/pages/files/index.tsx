@@ -13,6 +13,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import {
+  filesKeys,
+  isLocalZone,
+  listZone,
+  LOCAL_ZONES,
+  parseZone,
+  ZONE_DESCRIPTIONS,
+  ZONE_LABELS,
+  type FilesZone,
+  type LocalZone,
+} from "@/lib/files"
 import { titleForPath } from "@/lib/nav"
 import { canAccessApp } from "@/lib/permissions"
 import {
@@ -60,10 +71,14 @@ export default function FilesPage() {
   const queryClient = useQueryClient()
   const conn = useNasConnection()
   const [searchParams, setSearchParams] = useSearchParams()
+  // 儲存區寫進網址（`?zone=`，預設 NAS）。路徑格式兩邊共用：根目錄是 `/`，往下是 `/a/b`；
+  // 本機儲存區的端點吃的是相對 zone 根目錄的路徑，開頭那條斜線在 `lib/files.ts` 會被濾掉。
+  const zone = parseZone(searchParams.get("zone"))
+  const localZone: LocalZone | null = isLocalZone(zone) ? zone : null
   const path = normalizePath(searchParams.get("path"))
   const q = searchParams.get("q") ?? ""
   const atRoot = isRoot(path)
-  const searching = q.length > 0 && !atRoot
+  const searching = !localZone && q.length > 0 && !atRoot
 
   const [draftQ, setDraftQ] = React.useState(q)
   const [syncedQ, setSyncedQ] = React.useState(q)
@@ -105,8 +120,12 @@ export default function FilesPage() {
     }
   }, [])
 
-  function updateParams(next: { path?: string; q?: string }) {
+  function updateParams(next: { path?: string; q?: string; zone?: FilesZone }) {
     const params = new URLSearchParams(searchParams)
+    if (next.zone !== undefined) {
+      if (next.zone === "nas") params.delete("zone")
+      else params.set("zone", next.zone)
+    }
     if (next.path !== undefined) {
       if (isRoot(next.path)) params.delete("path")
       else params.set("path", next.path)
@@ -125,11 +144,20 @@ export default function FilesPage() {
     updateParams({ path: nextPath, q: "" })
   }
 
+  /** 換儲存區：路徑與搜尋都不通用，一起清掉回到根目錄。 */
+  function goToZone(next: FilesZone) {
+    if (next === zone) return
+    setPreview(null)
+    setDraftQ("")
+    setSyncedQ("")
+    updateParams({ zone: next, path: "/", q: "" })
+  }
+
   // 進頁面先看有沒有現成連線，有就沿用第一筆（不用每次重輸密碼）。
   const connectionsQuery = useQuery({
     queryKey: nasKeys.connections,
     queryFn: listNasConnections,
-    enabled: !conn,
+    enabled: !conn && !localZone,
     retry: false,
   })
 
@@ -157,7 +185,7 @@ export default function FilesPage() {
         modified: i.modified,
       }))
     },
-    enabled: !!conn && !searching,
+    enabled: !!conn && !searching && !localZone,
     retry: false,
   })
 
@@ -177,7 +205,29 @@ export default function FilesPage() {
     retry: false,
   })
 
-  const active = searching ? searchQuery : listQuery
+  // 本機儲存區：一支 list 就是全部。dirs 是名稱陣列、files 帶大小與 modified_at，
+  // 併成跟 NAS 同一個列模型，下面的表格與卡片兩邊共用。
+  const zoneQuery = useQuery({
+    queryKey: filesKeys.list(zone, path),
+    queryFn: async (): Promise<Row[]> => {
+      if (!localZone) return []
+      const data = await listZone(localZone, path)
+      return [
+        ...data.dirs.map((name) => ({ name, type: "directory" as const, path: joinPath(path, name), size: null, modified: null })),
+        ...data.files.map((f) => ({
+          name: f.name,
+          type: "file" as const,
+          path: joinPath(path, f.name),
+          size: f.size,
+          modified: f.modified_at,
+        })),
+      ]
+    },
+    enabled: !!localZone,
+    retry: false,
+  })
+
+  const active = localZone ? zoneQuery : searching ? searchQuery : listQuery
   const rows = active.data ?? []
 
   function handleConnected(next: NasConnection) {
@@ -215,13 +265,31 @@ export default function FilesPage() {
   const crumbs = breadcrumbs(path)
   // 寫入類動作只在瀏覽清單時出現：搜尋結果跨資料夾，改完要重抓的不是同一份清單。
   // 根目錄列的是 share，後端的 `_parse_path` 不接受空路徑，寫不了也刪不了。
-  const canWrite = !!conn && !atRoot && !searching
+  // 本機儲存區整組端點只有讀（沒有上傳／改名／刪除／建資料夾），寫入類動作一個都不出現。
+  const canWrite = !localZone && !!conn && !atRoot && !searching
   // 分享連結要 share-manager 權限（後端預設關閉），而且檔案要落在設定好的掛載點底下。
   const canShare = canAccessApp(user, "share-manager")
   const error = active.isError ? (active.error instanceof ApiError ? active.error.detail : "載入失敗，請稍後再試") : null
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="儲存區" className="flex flex-wrap items-center gap-1">
+          {(["nas", ...LOCAL_ZONES] as FilesZone[]).map((z) => (
+            <Button
+              key={z}
+              variant={z === zone ? "default" : "outline"}
+              size="sm"
+              aria-pressed={z === zone}
+              onClick={() => goToZone(z)}
+            >
+              {ZONE_LABELS[z]}
+            </Button>
+          ))}
+        </div>
+        {localZone && <span className="text-sm text-muted-foreground">{ZONE_DESCRIPTIONS[localZone]}</span>}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="sr-only">{titleForPath(pathname)}</h1>
 
@@ -240,7 +308,7 @@ export default function FilesPage() {
         </nav>
 
         <div className="flex flex-wrap items-center gap-2">
-          {conn ? (
+          {localZone ? null : conn ? (
             <>
               <span className="text-sm text-muted-foreground">
                 {conn.host}／{conn.username}
@@ -260,20 +328,21 @@ export default function FilesPage() {
         </div>
       </div>
 
-      {conn && (
+      {(conn || localZone) && (
         <div className="flex flex-wrap items-center gap-2">
+          {/* 本機儲存區沒有搜尋端點（`/api/files/*` 只有 list、讀檔、下載），輸入框停用並講明。 */}
           <Input
             aria-label="搜尋"
-            placeholder={atRoot ? "進到共享資料夾後才能搜尋" : "在目前資料夾搜尋"}
+            placeholder={localZone ? "本機儲存區沒有搜尋" : atRoot ? "進到共享資料夾後才能搜尋" : "在目前資料夾搜尋"}
             className="min-w-48 flex-1"
-            disabled={atRoot}
+            disabled={!!localZone || atRoot}
             value={draftQ}
             onChange={(e) => setDraftQ(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") runSearch()
             }}
           />
-          <Button variant="outline" size="sm" disabled={atRoot || !draftQ} onClick={runSearch}>
+          <Button variant="outline" size="sm" disabled={!!localZone || atRoot || !draftQ} onClick={runSearch}>
             搜尋
           </Button>
           {searching && (
@@ -290,7 +359,7 @@ export default function FilesPage() {
         <p className="text-sm text-muted-foreground">在 {path} 底下搜尋「{q}」，共 {rows.length} 筆</p>
       )}
 
-      {!conn ? (
+      {!localZone && !conn ? (
         connectionsQuery.isPending ? (
           <Skeleton className="h-10 w-full" />
         ) : (
@@ -407,7 +476,9 @@ export default function FilesPage() {
         </>
       )}
 
-      {preview && <PreviewPanel path={preview.path} name={preview.name} onClose={() => setPreview(null)} />}
+      {preview && (
+        <PreviewPanel path={preview.path} name={preview.name} zone={localZone ?? undefined} onClose={() => setPreview(null)} />
+      )}
 
       {/* key 跟著連線走：重新開對話框時才會用目前連線的 host／帳號當預設值。 */}
       <ConnectDialog
