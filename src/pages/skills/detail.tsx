@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApiError } from "@/lib/api"
+import { configAppKeys, listConfigApps, type ConfigApp } from "@/lib/config-apps"
 import {
   deleteSkill,
   getSkill,
@@ -112,9 +113,10 @@ function References({ name, paths }: { name: string; paths: string[] }) {
   )
 }
 
-function EditForm({ skill }: { skill: SkillDetail }) {
+function EditForm({ skill, apps }: { skill: SkillDetail; apps: ConfigApp[] }) {
   const queryClient = useQueryClient()
-  const [apps, setApps] = React.useState<string[]>(() => requiredApps(skill.requires_app))
+  // 勾起來的 app id；`apps` 這個名字留給後端來的 app 清單（prop）。
+  const [selected, setSelected] = React.useState<string[]>(() => requiredApps(skill.requires_app))
   const [tools, setTools] = React.useState<string[]>(() => [...skill.allowed_tools])
   const [servers, setServers] = React.useState<string[]>(() => [...skill.mcp_servers])
   const [notice, setNotice] = React.useState<string | null>(null)
@@ -124,7 +126,7 @@ function EditForm({ skill }: { skill: SkillDetail }) {
     onMutate: () => setNotice(null),
     onSuccess: (data) => {
       // 後端回的是寫回 SKILL.md 之後重讀的值，照它更新畫面，不要拿送出去的草稿當結果。
-      setApps(requiredApps(data.requires_app))
+      setSelected(requiredApps(data.requires_app))
       setTools([...data.allowed_tools])
       setServers([...data.mcp_servers])
       setNotice("已儲存")
@@ -135,7 +137,7 @@ function EditForm({ skill }: { skill: SkillDetail }) {
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    const patch = skillUpdatePatch(skill, { requires_app: apps, allowed_tools: tools, mcp_servers: servers })
+    const patch = skillUpdatePatch(skill, { requires_app: selected, allowed_tools: tools, mcp_servers: servers })
     // 一個欄位都沒變就不要送：後端會回 400「No fields to update」（`api/skills.py` 273–274）。
     if (!patch) {
       setNotice("沒有變動，不需要儲存")
@@ -144,7 +146,9 @@ function EditForm({ skill }: { skill: SkillDetail }) {
     save.mutate(patch)
   }
 
-  const options = appOptions(requiredApps(skill.requires_app))
+  // 選項＝後端宣告的 app，再併上 SKILL.md 已經寫了、但後端沒宣告的（例如 `debug-skill` 的 `admin`），
+  // 不然按一次儲存就會把原本的設定洗掉。
+  const options = appOptions(apps, requiredApps(skill.requires_app))
 
   return (
     <form className="space-y-4 rounded-lg border p-4" onSubmit={submit}>
@@ -157,12 +161,12 @@ function EditForm({ skill }: { skill: SkillDetail }) {
             <div key={app} className="flex items-center gap-2">
               <Checkbox
                 id={`app-${app}`}
-                checked={apps.includes(app)}
+                checked={selected.includes(app)}
                 onCheckedChange={(checked) =>
-                  setApps(checked === true ? [...apps, app] : apps.filter((a) => a !== app))
+                  setSelected(checked === true ? [...selected, app] : selected.filter((a) => a !== app))
                 }
               />
-              <Label htmlFor={`app-${app}`}>{appLabel(app)}</Label>
+              <Label htmlFor={`app-${app}`}>{appLabel(apps, app)}</Label>
             </div>
           ))}
         </div>
@@ -200,6 +204,8 @@ export default function SkillDetailPage() {
   const [metaOpen, setMetaOpen] = React.useState(false)
 
   const query = useQuery({ queryKey: skillKeys.detail(name), queryFn: () => getSkill(name), enabled: name !== "" })
+  // app 選項與中文名以後端為準（`GET /api/config/apps`）；抓不到就只剩目前已選的那些，顯示 id。
+  const appsQuery = useQuery({ queryKey: configAppKeys.all, queryFn: listConfigApps })
 
   const remove = useMutation({
     mutationFn: () => deleteSkill(name),
@@ -270,7 +276,7 @@ export default function SkillDetailPage() {
         <Field label="模組">{skill.has_module ? "有" : "無"}</Field>
       </dl>
 
-      <EditForm key={skill.name} skill={skill} />
+      <EditForm key={skill.name} skill={skill} apps={appsQuery.data ?? []} />
 
       <section className="space-y-2">
         <h2 className="text-base font-medium">提示詞</h2>
@@ -297,7 +303,10 @@ export default function SkillDetailPage() {
         ) : (
           <ul className="space-y-1">
             {skill.scripts.map((s) => {
-              const info = skill.script_tools.find((t) => t.path === s || t.name === s.replace(/^scripts\//, "").replace(/\.(py|sh)$/, ""))
+              // `script_tools[].path` 是相對 skills 根目錄的（`<skill>/scripts/x.py`，
+              // `script_runner.py` 95），`scripts[]` 是相對 skill 目錄的（`scripts/x.py`，
+              // `skills/__init__.py` 167–168），兩者永遠對不起來，所以只用 `name` 比。
+              const info = skill.script_tools.find((t) => t.name === s.replace(/^scripts\//, "").replace(/\.(py|sh)$/, ""))
               return (
                 <li key={s} className="text-sm">
                   <span className="font-mono">{s}</span>

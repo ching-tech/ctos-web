@@ -5214,6 +5214,47 @@ export const duplicateSlugHubFixtures: HubResultFixture[] = [
   },
 ]
 
+/**
+ * `GET /api/config/apps`（ching-tech-os `api/config_public.py` 19–22 →
+ * `modules.py` 的 `get_enabled_app_manifests()` 364–378）。
+ *
+ * 回的是**裸陣列**不是 `{apps: [...]}`，而且這支**不需要認證**。清單含 extends 與
+ * skill 貢獻的 app（`contributes.app` 走 `modules.py` 292–315），那些才是 SKILL.md
+ * 的 `requires_app` 真的會寫的值；skill 貢獻的多帶 `loader`／`css`，這一頁用不到。
+ */
+export interface ConfigAppFixture {
+  id: string
+  name: string
+  icon: string
+  loader?: { src: string; globalName: string }
+  css?: string
+}
+
+/** 照本機實測的形狀挑六筆：四個有頁面的、一個 skill 貢獻的（帶 loader／css）、一個側邊欄沒有的。 */
+export const configAppFixtures: ConfigAppFixture[] = [
+  { id: "knowledge-base", name: "知識庫", icon: "mdi-book-open-page-variant" },
+  { id: "project-management", name: "專案管理", icon: "mdi-clipboard-text" },
+  // 後端叫「廠商管理」，側邊欄叫「往來對象」——名稱以後端為準，這一筆就是拿來驗這件事的。
+  { id: "vendor-management", name: "廠商管理", icon: "mdi-handshake" },
+  { id: "inventory-management", name: "物料管理", icon: "mdi-package-variant" },
+  { id: "file-manager", name: "檔案管理", icon: "mdi-folder" },
+  {
+    id: "his-integration",
+    name: "HIS 整合",
+    icon: "mdi-hospital-box",
+    loader: { src: "/api/skills/his-integration/frontend/his-app.js", globalName: "HISIntegrationApp" },
+    css: "/api/skills/his-integration/frontend/his-app.css",
+  },
+]
+
+/** 單獨一支，讓需要 app 清單的頁各自掛（不綁在 mockApi 上，免得每一頁都多一次請求）。 */
+export async function mockConfigApps(page: Page, apps: ConfigAppFixture[] | "fail" = configAppFixtures) {
+  await page.route(`${API}/api/config/apps`, async (route) => {
+    if (apps === "fail") return route.fulfill({ status: 500, json: { detail: "模組清單讀取失敗" } })
+    await route.fulfill({ json: apps })
+  })
+}
+
 export interface SkillMockStore {
   /** 每一次 `PUT /api/skills/{name}` 的 body，用來驗「只送變動欄位」與「沒變動就不送」。 */
   puts: { name: string; body: Record<string, unknown> }[]

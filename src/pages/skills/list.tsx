@@ -9,30 +9,31 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ApiError } from "@/lib/api"
+import { configAppKeys, listConfigApps, type ConfigApp } from "@/lib/config-apps"
 import { titleForPath } from "@/lib/nav"
-import { appLabel } from "@/pages/skills/apps"
 import { listSkills, reloadSkills, requiredApps, skillKeys, type SkillSummary } from "@/lib/skills"
+import { appLabel } from "./apps"
 
 function errorText(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.detail : fallback
 }
 
 /** 需要的 app：清單語意是「任一」（`skills/__init__.py` 103–105），所以每個都列出來。 */
-function RequiresApp({ skill }: { skill: SkillSummary }) {
-  const apps = requiredApps(skill.requires_app)
-  if (apps.length === 0) return <span className="text-muted-foreground">不限</span>
+function RequiresApp({ skill, apps }: { skill: SkillSummary; apps: ConfigApp[] }) {
+  const needed = requiredApps(skill.requires_app)
+  if (needed.length === 0) return <span className="text-muted-foreground">不限</span>
   return (
     <span className="flex flex-wrap gap-1">
-      {apps.map((a) => (
+      {needed.map((a) => (
         <Badge key={a} variant="tint">
-          {appLabel(a)}
+          {appLabel(apps, a)}
         </Badge>
       ))}
     </span>
   )
 }
 
-function SkillCard({ skill }: { skill: SkillSummary }) {
+function SkillCard({ skill, apps }: { skill: SkillSummary; apps: ConfigApp[] }) {
   return (
     <li className="space-y-2 rounded-lg border p-4">
       <div className="flex items-start justify-between gap-2">
@@ -46,7 +47,7 @@ function SkillCard({ skill }: { skill: SkillSummary }) {
         <div className="flex items-center justify-between gap-2">
           <dt className="text-muted-foreground">需要的 app</dt>
           <dd>
-            <RequiresApp skill={skill} />
+            <RequiresApp skill={skill} apps={apps} />
           </dd>
         </div>
         <div className="flex items-center justify-between gap-2">
@@ -74,6 +75,10 @@ export default function SkillListPage() {
   const [hubOpen, setHubOpen] = React.useState(false)
 
   const query = useQuery({ queryKey: skillKeys.list(), queryFn: listSkills })
+  // app 的中文名以後端為準（`GET /api/config/apps`）：側邊欄那份只涵蓋有頁面的 app，
+  // 也缺 extends 與 skill 貢獻的。抓不到就退回顯示 app id，不擋整頁。
+  const appsQuery = useQuery({ queryKey: configAppKeys.all, queryFn: listConfigApps })
+  const apps = appsQuery.data ?? []
 
   const reload = useMutation({
     mutationFn: reloadSkills,
@@ -164,7 +169,7 @@ export default function SkillListPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <RequiresApp skill={skill} />
+                      <RequiresApp skill={skill} apps={apps} />
                     </TableCell>
                     <TableCell className="tabular-nums">{skill.tools_count}</TableCell>
                     <TableCell>{skill.has_prompt ? "有" : "無"}</TableCell>
@@ -180,7 +185,7 @@ export default function SkillListPage() {
 
           <ul className="space-y-2 md:hidden">
             {visible.map((skill) => (
-              <SkillCard key={skill.name} skill={skill} />
+              <SkillCard key={skill.name} skill={skill} apps={apps} />
             ))}
           </ul>
         </>

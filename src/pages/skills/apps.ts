@@ -1,30 +1,39 @@
-import { NAV_ITEMS } from "@/lib/nav"
+import type { ConfigApp } from "@/lib/config-apps"
 
 /**
- * `requires_app` 的候選 app：側邊欄那份清單（`lib/nav.ts`）裡有掛 `app` 的項目。
- * 後端沒有「列出所有 app id」的端點，app 權限的預設值寫在 `services/permissions.py`，
- * 所以選項來源就是前端自己這份。
+ * `requires_app` 的候選 app 來自後端的 `GET /api/config/apps`
+ * （`api/config_public.py` 19–22 → `modules.py` 364–378），不是側邊欄那份
+ * `lib/nav.ts`：
  *
- * 同一個 app 可能有兩個側邊欄項目（`inventory-management` 就掛在物料庫存與採購單底下），
- * 所以要去重，而且名稱取**第一個**出現的，否則選單會變成兩個一樣的勾選框、
- * 標籤還會顯示成後面那一項的名字。
+ * - 側邊欄只有「有頁面的」app，後端那支連 extends 與 skill 貢獻的
+ *   （`his-integration`、`nvr-viewer`、`voice`）都給，而這些正是 SKILL.md
+ *   裡真的會寫的 `requires_app`。
+ * - 中文名也以後端為準：`vendor-management` 後端叫「廠商管理」，
+ *   側邊欄叫「往來對象」，編輯權限時該看的是前者。
+ *
+ * 後端沒宣告的 id 仍然要留住（`debug-skill` 寫的 `admin` 就不在那 21 筆裡），
+ * 否則在網頁上按一次儲存就會把 SKILL.md 原本的設定洗掉。
  */
-export const NAV_APPS: string[] = [...new Set(NAV_ITEMS.flatMap((i) => (i.app ? [i.app] : [])))]
 
-const LABELS = new Map<string, string>()
-for (const item of NAV_ITEMS) {
-  if (item.app && !LABELS.has(item.app)) LABELS.set(item.app, item.title)
-}
-
-/** 有中文名就顯示中文名，沒有的（例如 SKILL.md 自己寫的 app id）原樣顯示。 */
-export function appLabel(app: string): string {
-  return LABELS.get(app) ?? app
+/** id → 顯示名稱；後端沒給名字就用 id 本身。 */
+export function appLabel(apps: ConfigApp[], id: string): string {
+  return apps.find((a) => a.id === id)?.name || id
 }
 
 /**
- * 選項＝側邊欄那份，再把目前已選、但不在清單裡的 app 併進來，
- * SKILL.md 裡寫了清單外的 app id 也不會因為選單沒有就被編輯動作洗掉。
+ * 選單要列的 app id：後端那份，再把「目前已選、但後端沒宣告」的併到後面。
+ *
+ * 後端已經用 `seen` 去重（`modules.py` 368–376），這裡再擋一次，
+ * 免得 `current` 裡有重複值時跑出兩個一模一樣的勾選框。
  */
-export function appOptions(current: string[]): string[] {
-  return [...NAV_APPS, ...current.filter((a) => !NAV_APPS.includes(a))]
+export function appOptions(apps: ConfigApp[], current: string[]): string[] {
+  const ids = apps.map((a) => a.id)
+  const seen = new Set(ids)
+  const extra: string[] = []
+  for (const id of current) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    extra.push(id)
+  }
+  return [...ids, ...extra]
 }

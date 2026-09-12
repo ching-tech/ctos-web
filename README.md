@@ -170,6 +170,7 @@ npm run build
 - `scheduler.test.ts` — 排程 API 單元測試（七支端點各一條，加 cron／interval 顯示文字、靜態排程多回的 `second`、diff 與 JSON 驗證）
 - `voice.ts` — 語音設定 API 客戶端（語音角色與 `config_schema`、可用範圍、取得／儲存／清除設定、試聽取 Blob；`voiceKeys`）
 - `voice.test.ts` — 語音設定 API 單元測試（六支端點各一條，含 403 與試聽的 429／503）
+- `config-apps.ts` — `GET /api/config/apps`（啟用模組宣告的 app 清單，**回裸陣列**且不需認證；含 extends 與 skill 貢獻的 app）
 - `skills.ts` — Skills API 客戶端（清單、明細、更新、移除、重新載入、Hub 的 sources／search／inspect／install、檔案與 reference 讀取；`requiredApps` 正規化與 `skillUpdatePatch` 只算變動欄位、`skillKeys`）
 - `skills.test.ts` — Skills API 單元測試（每支端點各一條、patch 的四種情況、`requires_app` 正規化、400／404／409 的 detail）
 
@@ -240,7 +241,8 @@ npm run build
 - `shares/index.tsx` — 分享管理頁（清單、管理員的「只看我的／全部」切換、複製網址、撤銷確認；桌面表格、手機卡片）
 - `skills/list.tsx` — Skills 清單頁（就地搜尋、需要的 app badge、工具數、提示詞、來源、模組；「重新載入」與「從 Hub 安裝」；桌面表格、手機卡片）
 - `skills/detail.tsx` — Skill 明細頁（提示詞 Markdown、references 點開才讀檔、腳本只列不執行、附帶檔案、`_meta.json` 摺疊、刪除確認；「權限與工具」表單編輯 `requires_app` 多選與工具／MCP servers 標籤）
-- `skills/apps.ts` — `requires_app` 的候選 app 與中文名（來源是 `lib/nav.ts`，去重並保留第一個名稱）
+- `skills/apps.ts` — `requires_app` 的候選 app 與名稱（來源是後端的 `GET /api/config/apps`，另保留後端沒宣告、但 SKILL.md 已經寫了的 id）
+- `skills/apps.test.ts` — 候選 app 的單元測試（名稱以後端為準、未知 id 要留住、清單抓不到時的退路）
 - `admin/users.tsx` — 使用者管理頁（使用者表格與「新增使用者」對話框；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH；每列「動作」選單含編輯、停用／啟用、重設密碼、清除密碼、刪除）
 - `scheduler/list.tsx` — 排程清單頁（名稱與來源 badge、觸發文字、執行器、啟用開關、下次與上次執行、失敗訊息與連續失敗次數；立即執行、編輯、刪除，確認對話框只掛一個）
 - `scheduler/editor.tsx` — 排程新增／編輯頁（觸發類型切換：cron 五欄加常用預設、interval 五個整數；執行器類型切換：agent 下拉加指令、skill／script 連動下拉加 JSON 輸入驗證；通知平台與接收者；編輯只送變動欄位）
@@ -354,9 +356,11 @@ Playwright 端對端測試：
 - **分享** — 路由 `/shares`（需 `share-manager` 權限，**後端預設關閉**，由管理員逐人開放；沒開的人側邊欄沒有這一項）。列出分享連結：資源類型 badge、標題（知識庫連 `/kb/:id`、專案連 `/projects/:id`；`nas_file` 顯示 `resource_id` 的路徑，因為後端的 `get_resource_title` 只回檔名）、完整網址與一鍵複製、到期（null 是永久，後端算好的 `is_expired` 為 true 時整列淡化並標「已過期」）、存取次數、建立時間。管理員多一個「只看我的／全部」切換，寫進網址 `?view=all`，切到全部時多一欄建立者，每一列都可以撤銷（包含別人的）。撤銷有確認對話框，後端 403「您沒有權限撤銷此連結」原樣顯示。建立連結不在這一頁，知識庫條目與檔案管理各自有建立對話框。
 
   兩件與後端有關的事：一是 `share-manager` 這道閘門**只有前端有**——`POST /api/share` 掛了 `require_app_permission("share-manager")`，但 `GET /api/share` 與 `DELETE /api/share/{token}` 只掛 `get_current_session`（`api/share.py` 142、176），登入就打得到；撤銷本身另有「建立者或管理員」檢查。二是 `project` 與 `project_attachment` 兩種資源後端沒有實作標題，一律回「未知資源」（`services/share.py` 430–431），原始資源被刪掉則是「（已刪除）」，前端照後端顯示，不自己編
-- **Skills** — 路由 `/skills`（僅管理員；`api/skills.py` 每一支都掛 `require_admin`）。清單有名稱、說明、需要的 app、工具數、有無提示詞、來源與有無模組，搜尋是就地過濾名稱與說明（這支端點沒有關鍵字參數），上方有「重新載入」（`POST /api/skills/reload`，回重新載入的數量）與「從 Hub 安裝」。明細頁顯示提示詞（知識庫那支 Markdown 元件）、references（點了才打 `GET /{name}/files/{path}`，`.md` 走 Markdown、其餘用 `<pre>`）、腳本、附帶檔案、授權／相容版本／來源與 `_meta.json`（只有從 Hub 裝的才有，摺疊顯示），並可編輯 `requires_app`（多選；清單語意是**任一**，`skills/__init__.py` 的 `has_required_app` 是 `any()` 不是 `all()`，選項來自 `lib/nav.ts` 那份 app 清單再併上 SKILL.md 已經寫了的）、`allowed_tools` 與 `mcp_servers`（標籤增刪）。送出只帶真的變動的欄位，一個都沒變就不送——後端 `model_dump(exclude_unset=True)` 收到空 body 會回 400「No fields to update」。移除有確認對話框（照 PR #29 的做法）。Hub 對話框可挑來源（`GET /hub/sources`，不挑就兩家一起搜）、搜尋、檢視 SKILL.md 與安裝，裝完重抓清單；雙來源其中一家掛掉時後端把訊息放在 `errors` 而不是整支失敗，前端照樣顯示。
+- **Skills** — 路由 `/skills`（僅管理員；`api/skills.py` 每一支都掛 `require_admin`）。清單有名稱、說明、需要的 app、工具數、有無提示詞、來源與有無模組，搜尋是就地過濾名稱與說明（這支端點沒有關鍵字參數），上方有「重新載入」（`POST /api/skills/reload`，回重新載入的數量）與「從 Hub 安裝」。明細頁顯示提示詞（知識庫那支 Markdown 元件）、references（點了才打 `GET /{name}/files/{path}`，`.md` 走 Markdown、其餘用 `<pre>`）、腳本、附帶檔案、授權／相容版本／來源與 `_meta.json`（只有從 Hub 裝的才有，摺疊顯示），並可編輯 `requires_app`（多選；清單語意是**任一**，`skills/__init__.py` 的 `has_required_app` 是 `any()` 不是 `all()`）、`allowed_tools` 與 `mcp_servers`（標籤增刪）。送出只帶真的變動的欄位，一個都沒變就不送——後端 `model_dump(exclude_unset=True)` 收到空 body 會回 400「No fields to update」。移除有確認對話框（照 PR #29 的做法）。Hub 對話框可挑來源（`GET /hub/sources`，不挑就兩家一起搜）、搜尋、檢視 SKILL.md 與安裝，裝完重抓清單；雙來源其中一家掛掉時後端把訊息放在 `errors` 而不是整支失敗，前端照樣顯示。
 
   Hub 的搜尋結果**同一個 slug 會有好幾筆**（不同作者各發一份；本機對 ClawHub 實搜「pdf」，二十筆裡有七筆的 slug 都是 `pdf`），所以每一列的識別碼用 ClawHub 給的 `id` 不是 slug，並把作者顯示出來。搜尋結果的 `version` 實測是 null，前端就不送版本，讓後端抓 latest。要注意這種同名的 skill 用 `hub/inspect` 與 `hub/install` 都只帶 slug，ClawHub 那一端會回 409，後端把它轉成 502／409 的 detail 原樣吐出來——這是後端契約的限制，前端只能把訊息顯示清楚。
+
+  `requires_app` 的選項與名稱來自後端的 `GET /api/config/apps`（`api/config_public.py` 19–22 → `modules.py` 364–378），不是側邊欄那份 `lib/nav.ts`：側邊欄只有「有頁面的」app，後端那支連 extends 與 skill 貢獻的（`his-integration`、`nvr-viewer`、`voice`）都給，而那些正是 SKILL.md 真的會寫的值；名稱也以後端為準（`vendor-management` 後端叫「廠商管理」，側邊欄叫「往來對象」）。本機實測回 21 筆，是**裸陣列**不是 `{apps: [...]}`，而且這支不需要認證。後端沒宣告、但 SKILL.md 已經寫了的 id（`debug-skill` 的 `admin`）會併到選項後面並保持勾選，否則管理員按一次儲存就會把原本的設定洗掉；清單抓不到時退回只列已選的 id，頁面照樣能用。
 
   `POST /{name}/scripts/{script}/run` **刻意沒有 UI**：那支等於讓網頁跑伺服器上的腳本，而且是整支 API 唯一只驗登入（`get_current_session`）的端點，要先綁工具權限（ching-tech-os #210）才會有畫面；這裡只把腳本名稱與說明列出來。
 

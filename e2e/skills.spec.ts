@@ -3,6 +3,7 @@ import {
   adminFixture,
   duplicateSlugHubFixtures,
   mockApi,
+  mockConfigApps,
   mockSkills,
   seedToken,
   skillDetailFixtures,
@@ -24,6 +25,7 @@ test.describe("清單", () => {
   test("列出 skill，需要的 app 清單每個都列出來", async ({ page }, testInfo) => {
     const unmocked = await trapUnmockedApi(page)
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills")
@@ -33,13 +35,13 @@ test.describe("清單", () => {
     const inventory = skillItem(page, testInfo, "inventory-helper")
     await expect(inventory.getByRole("link", { name: "inventory-helper" })).toHaveAttribute("href", "/skills/inventory-helper")
     await expect(inventory.getByText("查庫存餘額與調撥紀錄的助手說明。")).toBeVisible()
-    await expect(inventory.getByText("物料庫存", { exact: true })).toBeVisible()
+    await expect(inventory.getByText("物料管理", { exact: true })).toBeVisible()
     await expect(inventory.getByText("native", { exact: true })).toBeVisible()
 
     // requires_app 是清單時兩個 app 都要看得到（語意是「任一」）。
     const vendor = skillItem(page, testInfo, "vendor-brief")
-    await expect(vendor.getByText("往來對象", { exact: true })).toBeVisible()
-    await expect(vendor.getByText("專案", { exact: true })).toBeVisible()
+    await expect(vendor.getByText("廠商管理", { exact: true })).toBeVisible()
+    await expect(vendor.getByText("專案管理", { exact: true })).toBeVisible()
 
     // requires_app 為 null 顯示「不限」。
     await expect(skillItem(page, testInfo, "pdf-toolkit").getByText("不限")).toBeVisible()
@@ -49,6 +51,7 @@ test.describe("清單", () => {
 
   test("搜尋就地過濾名稱與說明", async ({ page }, testInfo) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills")
@@ -72,6 +75,7 @@ test.describe("清單", () => {
 
   test("重新載入回報數量並重抓清單", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills")
@@ -89,6 +93,7 @@ test.describe("明細", () => {
   test("顯示提示詞、腳本只列不執行，references 點了才顯示內容", async ({ page }) => {
     const unmocked = await trapUnmockedApi(page)
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page, { files: REFERENCE_FILES })
     await seedToken(page)
     await page.goto("/skills/inventory-helper")
@@ -117,6 +122,7 @@ test.describe("明細", () => {
 
   test("安裝資訊只有從 Hub 裝的才有，摺疊起來", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page)
     await seedToken(page)
 
@@ -132,6 +138,7 @@ test.describe("明細", () => {
 
   test("找不到的 skill 顯示後端的 404 detail", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills/nope")
@@ -142,12 +149,13 @@ test.describe("明細", () => {
 test.describe("編輯", () => {
   test("requires_app 多選送的是清單", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills/inventory-helper")
 
-    await expect(page.getByRole("checkbox", { name: "物料庫存" })).toBeChecked()
-    await page.getByRole("checkbox", { name: "往來對象" }).check()
+    await expect(page.getByRole("checkbox", { name: "物料管理" })).toBeChecked()
+    await page.getByRole("checkbox", { name: "廠商管理" }).check()
     await page.getByRole("button", { name: "儲存" }).click()
 
     await expect(page.getByRole("status")).toContainText("已儲存")
@@ -158,11 +166,12 @@ test.describe("編輯", () => {
 
   test("清空 requires_app 送 null", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills/inventory-helper")
 
-    await page.getByRole("checkbox", { name: "物料庫存" }).uncheck()
+    await page.getByRole("checkbox", { name: "物料管理" }).uncheck()
     await page.getByRole("button", { name: "儲存" }).click()
 
     await expect(page.getByRole("status")).toContainText("已儲存")
@@ -171,6 +180,7 @@ test.describe("編輯", () => {
 
   test("允許的工具用標籤增刪，只送有變的那一個欄位", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills/inventory-helper")
@@ -186,30 +196,70 @@ test.describe("編輯", () => {
 
   test("一個欄位都沒變就不送，免得吃後端的 400", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills/inventory-helper")
 
-    await expect(page.getByRole("checkbox", { name: "物料庫存" })).toBeChecked()
+    await expect(page.getByRole("checkbox", { name: "物料管理" })).toBeChecked()
     await page.getByRole("button", { name: "儲存" }).click()
     await expect(page.getByRole("status")).toContainText("沒有變動，不需要儲存")
     expect(store.puts).toEqual([])
 
     // 勾了又取消，回到原狀一樣不送。
-    await page.getByRole("checkbox", { name: "往來對象" }).check()
-    await page.getByRole("checkbox", { name: "往來對象" }).uncheck()
+    await page.getByRole("checkbox", { name: "廠商管理" }).check()
+    await page.getByRole("checkbox", { name: "廠商管理" }).uncheck()
     await page.getByRole("button", { name: "儲存" }).click()
     await expect(page.getByRole("status")).toContainText("沒有變動，不需要儲存")
     expect(store.puts).toEqual([])
   })
 
+  test("後端 app 清單沒宣告的 id 要留住，改別的欄位不會把它洗掉", async ({ page }) => {
+    await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
+    // `debug-skill` 的 SKILL.md 寫的就是 `admin`，那不在 `GET /api/config/apps` 的 21 筆裡。
+    const store = await mockSkills(page, {
+      skills: [{ ...skillDetailFixtures[0], name: "debug-skill", requires_app: "admin" }],
+    })
+    await seedToken(page)
+    await page.goto("/skills/debug-skill")
+
+    // 後端沒給名字就顯示 id 本身，而且要是勾起來的。
+    await expect(page.getByRole("checkbox", { name: "admin" })).toBeChecked()
+
+    // 只改工具，requires_app 不該被送出、也不該被清掉。
+    await page.getByRole("button", { name: "移除 Grep" }).click()
+    await page.getByRole("button", { name: "儲存" }).click()
+    await expect(page.getByRole("status")).toContainText("已儲存")
+    expect(store.puts).toEqual([{ name: "debug-skill", body: { allowed_tools: ["Read"] } }])
+    await expect(page.getByRole("checkbox", { name: "admin" })).toBeChecked()
+  })
+
+  test("app 清單抓不到時只剩已選的那些，頁面照樣能用", async ({ page }) => {
+    await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page, "fail")
+    const store = await mockSkills(page)
+    await seedToken(page)
+    await page.goto("/skills/inventory-helper")
+
+    // 沒有名字可查就顯示 app id，而且原本的值還在。
+    await expect(page.getByRole("checkbox", { name: "inventory-management" })).toBeChecked()
+    await expect(page.getByRole("checkbox", { name: "物料管理" })).toHaveCount(0)
+
+    await page.getByRole("checkbox", { name: "inventory-management" }).uncheck()
+    await page.getByRole("button", { name: "儲存" }).click()
+    await expect(page.getByRole("status")).toContainText("已儲存")
+    expect(store.puts).toEqual([{ name: "inventory-helper", body: { requires_app: null } }])
+  })
+
   test("後端擋下來時 detail 原樣顯示", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page, { updateError: "SKILL.md 沒有 frontmatter，無法寫回" })
     await seedToken(page)
     await page.goto("/skills/inventory-helper")
 
-    await page.getByRole("checkbox", { name: "往來對象" }).check()
+    await page.getByRole("checkbox", { name: "廠商管理" }).check()
     await page.getByRole("button", { name: "儲存" }).click()
     await expect(page.getByRole("status")).toContainText("SKILL.md 沒有 frontmatter，無法寫回")
   })
@@ -218,6 +268,7 @@ test.describe("編輯", () => {
 test.describe("刪除", () => {
   test("要先確認，確認後回清單且那一筆不見了", async ({ page }, testInfo) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills/pdf-toolkit")
@@ -241,6 +292,7 @@ test.describe("Hub", () => {
   test("搜尋、檢視、安裝，安裝完重抓清單", async ({ page }, testInfo) => {
     const unmocked = await trapUnmockedApi(page)
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page)
     await seedToken(page)
     await page.goto("/skills")
@@ -283,6 +335,7 @@ test.describe("Hub", () => {
 
   test("不指定來源時兩家一起搜，其中一家掛掉的訊息顯示出來", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page, { hubErrors: ["SkillHub: 連線逾時"] })
     await seedToken(page)
     await page.goto("/skills")
@@ -298,6 +351,7 @@ test.describe("Hub", () => {
 
   test("同一個 slug 不同作者：安裝確認只出現在按下去的那一列", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     const store = await mockSkills(page, { hubResults: duplicateSlugHubFixtures })
     await seedToken(page)
     await page.goto("/skills")
@@ -323,6 +377,7 @@ test.describe("Hub", () => {
 
   test("已安裝的 409 detail 原樣顯示", async ({ page }) => {
     await mockApi(page, { user: adminFixture })
+    await mockConfigApps(page)
     await mockSkills(page, { installConflict: true })
     await seedToken(page)
     await page.goto("/skills")
@@ -339,6 +394,7 @@ test.describe("Hub", () => {
 
 test("非管理員被擋在外面，側邊欄也沒有這一項", async ({ page }, testInfo) => {
   await mockApi(page) // userFixture 不是管理員
+  await mockConfigApps(page)
   await mockSkills(page)
   await seedToken(page)
 
