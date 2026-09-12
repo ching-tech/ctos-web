@@ -5391,3 +5391,57 @@ export async function mockSkills(
   await page.route(`${API}/api/skills/**`, dispatch)
   return store
 }
+
+/**
+ * 簡報產生（`api/presentation.py`）。
+ *
+ * `userFixture` 的 apps 沒有 `md2ppt`（後端 `services/permissions.py` 178 預設是開的，
+ * 但 e2e 的 fixture 是逐項列出來的），所以要進得去這一頁得用這一份。
+ */
+export const presentationUserFixture = {
+  ...userFixture,
+  permissions: {
+    ...userFixture.permissions,
+    apps: { ...userFixture.permissions.apps, md2ppt: true },
+  },
+}
+
+/** `PresentationResponse`（ching-tech-os `api/presentation.py` 37–46）。 */
+export interface PresentationResultFixture {
+  success: boolean
+  title: string
+  slides_count: number
+  nas_path: string
+  filename: string
+  format: string
+  message: string
+}
+
+export const presentationResultFixture: PresentationResultFixture = {
+  success: true,
+  title: "泵浦保養三步驟",
+  slides_count: 5,
+  nas_path: "ai-presentations/泵浦保養三步驟_20260912_101500.html",
+  filename: "泵浦保養三步驟_20260912_101500.html",
+  format: "html",
+  message: "已生成《泵浦保養三步驟》HTML 簡報，共 5 頁",
+}
+
+export async function mockPresentation(
+  page: Page,
+  opts: {
+    result?: PresentationResultFixture
+    /** 回錯誤而不是成功；detail 照後端原樣（例如 `api/presentation.py` 57–58 的「請提供 topic 或 outline_json」）。 */
+    error?: { status: number; detail: string }
+    /** 拖住回應，用來看等待狀態；不給就立刻回。 */
+    delayMs?: number
+  } = {},
+) {
+  await page.route(`${API}/api/presentation/generate`, async (route) => {
+    if (opts.delayMs) await new Promise((r) => setTimeout(r, opts.delayMs))
+    if (opts.error) {
+      return route.fulfill({ status: opts.error.status, json: { detail: opts.error.detail } })
+    }
+    return route.fulfill({ json: opts.result ?? presentationResultFixture })
+  })
+}

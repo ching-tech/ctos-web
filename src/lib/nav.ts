@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Bot, Brain, Building2, CalendarClock, FileTerminal, Folder, FolderKanban, Home, Package, Puzzle, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, Wrench, type LucideIcon } from "lucide-react"
+import { Bell, BookOpen, Bot, Brain, Building2, CalendarClock, FileTerminal, Folder, FolderKanban, Home, Package, Presentation, Puzzle, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, Wrench, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
@@ -17,6 +17,8 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "Prompt", path: "/prompts", icon: FileTerminal, app: "prompt-editor" },
   { title: "Agent", path: "/agents", icon: Wrench, app: "agent-settings" },
   { title: "AI Log", path: "/ai-log", icon: ScrollText, app: "ai-log" },
+  // 後端 md2ppt 預設開放（services/permissions.py 178），但 api/presentation.py 46–50 沒掛 app 閘，這一項只是入口。
+  { title: "簡報", path: "/presentation", icon: Presentation, app: "md2ppt" },
   // share-manager 後端預設關閉（services/permissions.py 177），沒開的人看不到這一項。
   { title: "分享", path: "/shares", icon: Share2, app: "share-manager" },
   // 訊息中心沒有 app 閘：後端只要登入（ching-tech-os api/messages.py 45）。
