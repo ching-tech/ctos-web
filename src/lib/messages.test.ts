@@ -57,6 +57,10 @@ describe("buildMessageQuery", () => {
   it("搜尋與頁碼", () => {
     expect(buildMessageQuery({ search: "登入", page: 3 })).toBe("?search=%E7%99%BB%E5%85%A5&page=3&limit=20")
   })
+
+  it("依使用者篩選帶 user_id", () => {
+    expect(buildMessageQuery({ userId: 3 })).toBe("?user_id=3&page=1&limit=20")
+  })
 })
 
 it("listMessages 打對網址", async () => {
@@ -95,6 +99,14 @@ describe("markRead", () => {
     const fn = stubFetch({ marked_count: 9 })
     await markRead({ all: true })
     const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(init.body).toBe('{"all":true}')
+  })
+
+  it("帶 userId 時 user_id 是查詢字串，不進請求體（api/messages.py 88–89）", async () => {
+    const fn = stubFetch({ marked_count: 5 })
+    await markRead({ all: true }, 3)
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe(`${API_BASE}/api/messages/mark-read?user_id=3`)
     expect(init.body).toBe('{"all":true}')
   })
 })

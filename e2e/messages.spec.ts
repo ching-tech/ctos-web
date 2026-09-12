@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { makeMessages, messageFixtures, mockApi, mockMessages, seedToken } from "./helpers"
+import { adminFixture, makeMessages, messageFixtures, mockApi, mockMessages, mockUserList, seedToken } from "./helpers"
 
 // 桌機表格與手機卡片同時在 DOM 裡，只有其中一份看得見；一律只挑看得見的那一份。
 function visible(page: Page, selector: string) {
@@ -64,6 +64,12 @@ test.describe("已登入", () => {
     await page.getByRole("button", { name: "清除篩選" }).click()
     await expect(page).toHaveURL(/\/messages$/)
     await expect(page.getByText("共 7 筆")).toBeVisible()
+  })
+
+  test("非管理員看不到使用者篩選下拉", async ({ page }) => {
+    await page.goto("/messages")
+    await expect(page.getByText("共 7 筆")).toBeVisible()
+    await expect(page.getByLabel("使用者", { exact: true })).toHaveCount(0)
   })
 
   test("勾選標為已讀後鈴鐺未讀數變少", async ({ page }) => {
@@ -159,6 +165,44 @@ test.describe("已登入", () => {
       await expect(table).toBeVisible()
       await expect(table.getByRole("row")).toHaveCount(messageFixtures.length + 1)
     }
+  })
+})
+
+test.describe("管理員", () => {
+  test.beforeEach(async ({ page }) => {
+    await mockApi(page, { user: adminFixture })
+    await mockMessages(page)
+    await mockUserList(page)
+    await seedToken(page)
+  })
+
+  test("使用者下拉選人後 GET 帶 user_id、寫進網址", async ({ page }) => {
+    await page.goto("/messages")
+    await expect(page.getByText("共 7 筆")).toBeVisible()
+
+    const req = page.waitForRequest((r) => r.url().includes("/api/messages?") && r.url().includes("user_id=2"))
+    await page.getByRole("combobox", { name: "使用者" }).click()
+    await page.getByRole("option", { name: "亞澤" }).click()
+    await req
+    await expect(page).toHaveURL(/user_id=2/)
+    // fixture 裡 user_id=2 的訊息只有 103–105 三筆（user_id 嚴格相等，不像 restrict_to_user 把
+    // 全系統訊息也算進來，services/message.py 142–146）。
+    await expect(page.getByText("共 3 筆")).toBeVisible()
+  })
+
+  test("全部標為已讀帶著所選使用者篩選", async ({ page }) => {
+    await page.goto("/messages?user_id=2")
+    await expect(page.getByText("共 3 筆")).toBeVisible()
+
+    await page.getByRole("button", { name: "全部標為已讀" }).click()
+    await expect(page.getByRole("alertdialog")).toContainText("亞澤")
+
+    const req = page.waitForRequest(
+      (r) => r.url().includes("/api/messages/mark-read") && r.url().includes("user_id=2"),
+    )
+    await page.getByRole("button", { name: "確定", exact: true }).click()
+    await req
+    await expect(page.getByRole("alertdialog")).toHaveCount(0)
   })
 })
 

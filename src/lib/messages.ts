@@ -66,6 +66,11 @@ export interface MessageFilters {
   search?: string
   /** 已讀狀態；undefined 代表不篩。 */
   isRead?: boolean
+  /**
+   * 依使用者篩選；只有管理員送出去有效——後端非管理員一律把這個條件丟掉
+   * （api/messages.py 38、51–57），不是回 4xx。
+   */
+  userId?: number
   /** 起日，`YYYY-MM-DD`（本地時區）。 */
   from?: string
   /** 迄日，`YYYY-MM-DD`（本地時區）。 */
@@ -130,6 +135,7 @@ export function buildMessageQuery(f: MessageFilters, limit = MESSAGE_PAGE_SIZE):
   if (f.category) params.set("category", f.category)
   if (f.search) params.set("search", f.search)
   if (f.isRead !== undefined) params.set("is_read", String(f.isRead))
+  if (f.userId !== undefined) params.set("user_id", String(f.userId))
   if (f.from) params.set("start_date", toDayStart(f.from))
   if (f.to) params.set("end_date", toDayEnd(f.to))
   params.set("page", String(f.page ?? 1))
@@ -149,8 +155,14 @@ export function getUnreadCount(): Promise<UnreadCountResponse> {
   return apiFetch<UnreadCountResponse>("/api/messages/unread-count")
 }
 
-export function markRead(body: MarkReadRequest): Promise<MarkReadResponse> {
-  return apiFetch<MarkReadResponse>("/api/messages/mark-read", {
+/**
+ * `user_id` 是查詢字串參數，不在請求體裡（api/messages.py 88–89）；只有搭配
+ * `all: true` 且是管理員時才生效，單純帶 `ids` 標記時後端不理會這個參數
+ * （services/message.py 268–290：`mark_all` 分支才用得到 `user_id`）。
+ */
+export function markRead(body: MarkReadRequest, userId?: number): Promise<MarkReadResponse> {
+  const qs = userId !== undefined ? `?user_id=${userId}` : ""
+  return apiFetch<MarkReadResponse>(`/api/messages/mark-read${qs}`, {
     method: "POST",
     body: JSON.stringify(body),
   })

@@ -4400,12 +4400,16 @@ function filterMessages(all: MessageFixture[], params: URLSearchParams): Message
   const category = params.get("category")
   const search = params.get("search")
   const isRead = params.get("is_read")
+  const userId = params.get("user_id")
   const startDate = params.get("start_date")
   const endDate = params.get("end_date")
   return all.filter((m) => {
     if (severities.length > 0 && !severities.includes(m.severity)) return false
     if (sources.length > 0 && !sources.includes(m.source)) return false
     if (category && m.category !== category) return false
+    // user_id 嚴格相等（services/message.py 143–146），不像 restrict_to_user 那樣把
+    // user_id 為 null 的全系統訊息也算進來。
+    if (userId !== null && String(m.user_id) !== userId) return false
     if (isRead !== null && m.is_read !== (isRead === "true")) return false
     if (startDate && new Date(m.created_at) < new Date(startDate)) return false
     if (endDate && new Date(m.created_at) > new Date(endDate)) return false
@@ -4440,7 +4444,14 @@ export async function mockMessages(page: Page, opts: { messages?: MessageFixture
       if (!body.ids && !body.all) {
         return route.fulfill({ status: 400, json: { detail: "必須提供 ids 或設定 all=true" } })
       }
-      const targets = body.all ? messages : messages.filter((m) => (body.ids ?? []).includes(m.id))
+      // user_id 是查詢字串參數，只有 all=true 才會用到（services/message.py 268–290）；
+      // 帶 ids 時後端完全不理會這個參數。
+      const userId = new URL(route.request().url()).searchParams.get("user_id")
+      const targets = body.all
+        ? userId
+          ? messages.filter((m) => m.user_id === Number(userId) || m.user_id === null)
+          : messages
+        : messages.filter((m) => (body.ids ?? []).includes(m.id))
       let marked = 0
       for (const m of targets) {
         if (!m.is_read) { m.is_read = true; marked += 1 }
