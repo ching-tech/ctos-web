@@ -88,6 +88,16 @@ npm run e2e
 
 AI 助手的 Socket.IO 也不連真後端：Playwright 的 webServer 跑的是 `npm run build:e2e`（帶 `VITE_E2E=1`，輸出到 `dist-e2e/`）加 `npm run preview:e2e`，這時 `src/lib/socket.ts` 換成假 socket，把送出的事件記進 `window.__sentEvents`，並開 `window.__CTOS_SOCKET_MOCK__.receive(event, payload)` 讓測試模擬後端推事件。正式 `npm run build` 沒有這個旗標，假 socket 整段會被 tree-shake 掉；輸出目錄分開，跑 e2e 不會把 `dist/` 蓋成假 socket 版。
 
+#### 多個 worktree 平行跑 e2e（`E2E_PORT`）
+
+`playwright.config.ts` 的 preview port 預設 4173，可用環境變數覆寫：
+
+```bash
+E2E_PORT=4180 npx playwright test
+```
+
+`E2E_PORT` 同時決定 `baseURL` 與 `webServer` 起的 port，每個 worktree 平行跑之前先各自挑一個空 port（見下方 flaky 測試一節的 `/proc/<pid>/cwd` 檢查）。`webServer.reuseExistingServer` 預設是 `false`（每次都起新的 server），只有明確設 `E2E_REUSE_SERVER=1` 才會重用 port 上既有的 server。
+
 ### 遇到 flaky 測試怎麼處理（2026-09-12 起的慣例）
 
 不准用「重跑一次就綠了」帶過。順序固定：
@@ -97,7 +107,14 @@ AI 助手的 Socket.IO 也不連真後端：Playwright 的 webServer 跑的是 `
 3. 用**同一條併發指令**在修後跑一次，要 0 失敗。修前沒有失敗數字，修後的全綠證明不了任何事。
 4. PR 描述寫根因兩行、修前／修後的數字。
 
-另外：`playwright.config.ts` 的 preview port 寫死 4173 且 `reuseExistingServer`，兩個 worktree 同時跑會接手對方的 build（#27）。並行跑之前先 `ss -ltn | grep 4173` 確認沒人用。
+另外：`playwright.config.ts` 的 preview port 舊版寫死 4173 且 `reuseExistingServer: !process.env.CI`，兩個 worktree 同時跑會接手對方的 build（#27，2026-09-12 已修：port 改吃 `E2E_PORT`，`reuseExistingServer` 預設關閉，見上方「多個 worktree 平行跑 e2e」一節）。即使改用 `E2E_PORT` 各自挑 port，平行跑之前仍建議先確認目標 port 沒人用、且用的人是誰：
+
+```bash
+ss -ltnp | grep <port>          # 看誰在聽這個 port（PID）
+readlink /proc/<pid>/cwd        # 確認是不是別的 worktree 殘留的 process
+```
+
+只看 `ss -ltn` 只知道 port 被佔用，看不出是不是自己這個 worktree 的 server；`/proc/<pid>/cwd` 才能確認那個 process 是從哪個目錄起的，避免誤殺別人正在跑的測試、或誤判「這個 port 是我的」。
 
 ### 建置與預覽
 
