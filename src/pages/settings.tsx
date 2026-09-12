@@ -8,6 +8,7 @@ import { ApiError } from "@/lib/api"
 import { bindNas, unbindNas } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
 import { ApiTokensCard } from "@/pages/settings/api-tokens"
+import { PasswordCard } from "@/pages/settings/password"
 
 function NasBindingCard() {
   const { user, refresh } = useAuth()
@@ -69,6 +70,7 @@ export default function SettingsPage() {
           <div className="text-muted-foreground">平台密碼</div><div>{user.has_password ? "已設定平台密碼" : "尚未設定平台密碼"}</div>
         </CardContent>
       </Card>
+      <PasswordCard />
       <NasBindingCard />
       <ApiTokensCard />
     </div>

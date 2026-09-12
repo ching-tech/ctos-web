@@ -59,6 +59,8 @@ export async function mockApi(
     patSession?: boolean
     /** 第一次 DELETE 回 500，之後照常成功；用來驗錯誤訊息會不會被下一次成功清掉。 */
     failRevokeOnce?: boolean
+    /** 目前密碼「正確」的那一組；填別的會拿到後端的 `success:false` 與 error（api/auth.py 596–601）。 */
+    currentPassword?: string
   } = {},
 ) {
   const user = opts.user === undefined ? { ...userFixture } : opts.user
@@ -123,6 +125,23 @@ export async function mockApi(
     if (index === -1) return route.fulfill({ status: 404, json: { detail: "token 不存在" } })
     apiTokens.splice(index, 1)
     return route.fulfill({ json: { success: true } })
+  })
+  // `POST /api/auth/change-password`（api/auth.py 566–631）：失敗也是 200，只有 body 不一樣。
+  const currentPassword = opts.currentPassword ?? "old12345"
+  await page.route(`${API}/api/auth/change-password`, async (route) => {
+    const body = route.request().postDataJSON() as { current_password?: string; new_password: string }
+    const hasPassword = Boolean(user?.has_password)
+    if (hasPassword && !body.current_password) {
+      return route.fulfill({ json: { success: false, error: "請輸入目前密碼" } })
+    }
+    if (hasPassword && body.current_password !== currentPassword) {
+      return route.fulfill({ json: { success: false, error: "目前密碼錯誤" } })
+    }
+    if (body.new_password.length < 8) {
+      return route.fulfill({ json: { success: false, error: "密碼需至少 8 個字元" } })
+    }
+    if (user) user.has_password = true
+    return route.fulfill({ json: { success: true, error: null } })
   })
   await page.route(`${API}/api/user/me`, (route) => {
     const auth = route.request().headers()["authorization"]
