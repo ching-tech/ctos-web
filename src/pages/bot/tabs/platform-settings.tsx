@@ -3,14 +3,12 @@ import * as React from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -166,11 +164,25 @@ function ProactivePushSwitch({ platform, enabled }: { platform: Platform; enable
 /** 卡片下方的兩個動作：測試連線與清除資料庫設定。訊息放在按鈕列下方，佔整張卡的寬度。 */
 function PlatformActions({ platform }: { platform: Platform }) {
   const queryClient = useQueryClient()
+  // 確認對話框的開關由 state 控制（照 settings/api-tokens.tsx 的作法，也就是 #26／#29 的修法）：
+  // 內容整塊用 `confirming &&` 包住，關掉時直接從樹上拿掉，Radix 的離場動畫才不會留下
+  // 一個「已經關了但還在 DOM 裡」的遮罩，吃掉緊接著的下一次點擊。
+  const [confirming, setConfirming] = React.useState(false)
   const test = useMutation({ mutationFn: () => testBotConnection(platform) })
   const clear = useMutation({
     mutationFn: () => deleteBotSettings(platform),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: botSettingsKeys.platform(platform) }),
+    // 只有成功才關對話框。失敗要把後端的 detail 留在對話框裡讓人看到，
+    // 關掉的話訊息會跟著整塊內容一起從樹上消失。
+    onSuccess: () => {
+      setConfirming(false)
+      void queryClient.invalidateQueries({ queryKey: botSettingsKeys.platform(platform) })
+    },
   })
+
+  function openConfirm() {
+    clear.reset()
+    setConfirming(true)
+  }
 
   return (
     <div className="space-y-2 border-t pt-3">
@@ -178,24 +190,44 @@ function PlatformActions({ platform }: { platform: Platform }) {
         <Button variant="outline" disabled={test.isPending} onClick={() => test.mutate()}>
           測試連線
         </Button>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline">清除資料庫設定</Button>
-          </AlertDialogTrigger>
+        <Button variant="outline" onClick={openConfirm}>
+          清除資料庫設定
+        </Button>
+      </div>
+
+      <AlertDialog
+        open={confirming}
+        onOpenChange={(open) => {
+          // 送出中不讓 Esc／點外面關掉，免得按鈕在請求還沒回來時就消失。
+          if (!open && !clear.isPending) setConfirming(false)
+        }}
+      >
+        {confirming && (
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>確定清除 {PLATFORM_LABEL[platform]} 的資料庫設定？</AlertDialogTitle>
               <AlertDialogDescription>
-                清除後改用 .env 的值；若 .env 也沒有設定，這個 Bot 會停止運作。
+                清除後改用 .env 的值；若 .env 也沒有設定，這個 Bot 會停止運作。主動推送設定也會重設為預設值。
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {clear.isError && (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{errorText(clear.error, "清除失敗，請稍後再試")}</AlertDescription>
+              </Alert>
+            )}
             <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction onClick={() => clear.mutate()}>確定</AlertDialogAction>
+              <AlertDialogCancel disabled={clear.isPending}>取消</AlertDialogCancel>
+              {/*
+                用一般的 Button 而不是 AlertDialogAction：Action 按下去的同一刻就把對話框關掉，
+                按鈕會在請求還在路上時就從 DOM 消失，錯誤訊息也就沒地方顯示。
+              */}
+              <Button disabled={clear.isPending} onClick={() => clear.mutate()}>
+                確定
+              </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
-        </AlertDialog>
-      </div>
+        )}
+      </AlertDialog>
 
       {/* 後端連線失敗也是 200 加 success:false（api/bot_settings.py 165–184），訊息原樣顯示。 */}
       {test.data && (
@@ -206,11 +238,6 @@ function PlatformActions({ platform }: { platform: Platform }) {
       {test.isError && (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{errorText(test.error, "測試失敗，請稍後再試")}</AlertDescription>
-        </Alert>
-      )}
-      {clear.isError && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{errorText(clear.error, "清除失敗，請稍後再試")}</AlertDescription>
         </Alert>
       )}
     </div>

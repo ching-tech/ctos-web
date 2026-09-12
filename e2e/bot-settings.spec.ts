@@ -19,12 +19,17 @@ async function setup(
     admin?: boolean
     test?: Parameters<typeof mockBotSettings>[1]["test"]
     failUpdate?: string
+    failDelete?: string
   } = {},
 ) {
   const unmocked = await trapUnmockedApi(page)
   await mockApi(page, { user: opts.admin === false ? userFixture : adminFixture })
   await mockBot(page)
-  const settings = await mockBotSettings(page, { test: opts.test, failUpdate: opts.failUpdate })
+  const settings = await mockBotSettings(page, {
+    test: opts.test,
+    failUpdate: opts.failUpdate,
+    failDelete: opts.failDelete,
+  })
   await seedToken(page)
   return { ...settings, unmocked }
 }
@@ -156,6 +161,29 @@ test("清除資料庫設定：要先確認，取消不送請求；確認後退�
   await expect(line.getByText("aaaa...zzzz")).toHaveCount(0)
   await expect(line.getByText("未設定", { exact: true })).toBeVisible()
   await expect(line.getByText("—", { exact: true })).toBeVisible()
+})
+
+test("清除失敗：對話框留著，後端 detail 顯示在對話框裡，欄位狀態沒變", async ({ page }) => {
+  await setup(page, { failDelete: "資料庫暫時連不上" })
+  await page.goto("/bot?tab=settings")
+
+  const line = lineCard(page)
+  await line.getByRole("button", { name: "清除資料庫設定" }).click()
+  const dialog = page.getByRole("alertdialog")
+  await dialog.getByRole("button", { name: "確定" }).click()
+
+  // 對話框留在畫面上，錯誤就顯示在裡面（而不是關掉之後才在卡片上冒出來）。
+  await expect(dialog.getByRole("alert")).toHaveText("資料庫暫時連不上")
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole("button", { name: "確定" })).toBeVisible()
+
+  // 對話框開著時，Radix 會把背景內容從無障礙樹拿掉，所以欄位狀態等關掉再驗。
+  await dialog.getByRole("button", { name: "取消" }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(line.getByText("aaaa...zzzz")).toBeVisible()
+  // 關掉之後遮罩沒有留在畫面上吃掉下一次點擊（#26／#29 那個坑）。
+  await line.getByRole("button", { name: "測試連線" }).click()
+  await expect(line.getByRole("alert")).toBeVisible()
 })
 
 test("非管理員：看不到平台設定分頁，直接帶 ?tab=settings 也退回綁定", async ({ page }) => {

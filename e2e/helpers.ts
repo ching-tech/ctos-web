@@ -5512,6 +5512,8 @@ export async function mockBotSettings(
     test?: Partial<Record<"line" | "telegram", { success: boolean; message: string }>>
     /** PUT 一律回 400，模擬後端拒絕。 */
     failUpdate?: string
+    /** DELETE 一律回 500，模擬清除失敗。 */
+    failDelete?: string
   } = {},
 ) {
   const state: Record<"line" | "telegram", BotSettingsFixture> = {
@@ -5564,6 +5566,7 @@ export async function mockBotSettings(
       }
 
       if (method === "DELETE") {
+        if (opts.failDelete) return route.fulfill({ status: 500, json: { detail: opts.failDelete } })
         const before = Object.values(state[platform].fields).filter((f) => f.source === "database").length
         state[platform].fields = structuredClone(BOT_SETTINGS_ENV_DEFAULTS[platform])
         return route.fulfill({ json: { deleted: before } })
