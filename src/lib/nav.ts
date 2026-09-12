@@ -1,4 +1,4 @@
-import { BookOpen, Bot, Building2, FolderKanban, Home, Package, ScrollText, Settings, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
+import { BookOpen, Bot, Building2, Folder, FolderKanban, Home, Package, ScrollText, Settings, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
@@ -6,6 +6,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "首頁", path: "/", icon: Home },
   { title: "AI 助手", path: "/assistant", icon: Sparkles, app: "ai-assistant" },
   { title: "知識庫", path: "/kb", icon: BookOpen, app: "knowledge-base" },
+  { title: "檔案", path: "/files", icon: Folder, app: "file-manager" },
   { title: "專案", path: "/projects", icon: FolderKanban, app: "project-management" },
   { title: "往來對象", path: "/parties", icon: Building2, app: "vendor-management" },
   // 倉庫頁（/warehouses）不佔側邊欄，從物料清單的「倉庫」按鈕進去

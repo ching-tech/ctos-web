@@ -24,6 +24,9 @@ export default defineConfig({
     // 免得把正式 `npm run build` 的 dist/ 蓋成含假 socket 的版本。
     command: "npm run build:e2e && npm run preview:e2e -- --host 127.0.0.1 --port 4173",
     url: "http://127.0.0.1:4173",
+    // 檔案頁連線對話框的 host 預設值來自 build 時的環境變數；e2e 一律給假主機，
+    // 不讓真的 NAS 位址進 repo，測試也才有固定值可比對。
+    env: { VITE_NAS_HOST: "nas.test.invalid" },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
