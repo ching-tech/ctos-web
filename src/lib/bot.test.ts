@@ -5,6 +5,7 @@ import {
   blockUser,
   getUser,
   listFiles,
+  listGroupFiles,
   listGroups,
   listMessages,
   PLATFORM_LABEL,
@@ -192,5 +193,15 @@ describe("getUser", () => {
     // 這支沒 JOIN users（services/bot_line/admin.py 193–206），綁定名字一律 null，只有 user_id 有值。
     expect(user.user_id).toBe(7)
     expect(user.bound_username).toBeNull()
+  })
+})
+
+describe("listGroupFiles", () => {
+  it("打專用端點 /api/bot/groups/:id/files，群組在路徑上、只帶 page／page_size／file_type", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ items: [], total: 0 }), { status: 200, headers: { "content-type": "application/json" } }))
+    vi.stubGlobal("fetch", fn)
+    await listGroupFiles("grp-1", { page: 2, fileType: "image" })
+    const url = (fn.mock.calls[0] as unknown as [string])[0]
+    expect(url).toBe(`${API_BASE}/api/bot/groups/grp-1/files?page=2&page_size=30&file_type=image`)
   })
 })

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as React from "react"
-import { Link, useNavigate, useParams } from "react-router"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ApiError } from "@/lib/api"
 import {
   bindGroupProject,
@@ -39,6 +40,17 @@ import {
   type ProjectFilters,
   type ProjectListItem,
 } from "@/lib/projects"
+import GroupFilesTab from "./tabs/group-files"
+
+// 明細分頁寫進網址 `?tab=`，預設分頁不寫。
+const TAB_VALUES = ["overview", "files"] as const
+type TabValue = (typeof TAB_VALUES)[number]
+const TAB_LABEL: Record<TabValue, string> = { overview: "總覽", files: "檔案" }
+
+function tabFromParams(params: URLSearchParams): TabValue {
+  const raw = params.get("tab")
+  return (TAB_VALUES as readonly string[]).includes(raw ?? "") ? (raw as TabValue) : "overview"
+}
 
 // 綁定專案下拉的「未綁定」值；後端沒有空字串的 project_id，用固定字串當 sentinel。
 const UNBOUND = "unbound"
@@ -79,6 +91,18 @@ export default function BotGroupDetailPage() {
   const { id = "" } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = tabFromParams(searchParams)
+
+  function setTab(value: string) {
+    const next = new URLSearchParams(searchParams)
+    if (value === "overview") next.delete("tab")
+    else next.set("tab", value)
+    // 換分頁時把上一個分頁的頁碼與類型篩選丟掉，免得帶著別人的狀態過去。
+    next.delete("page")
+    next.delete("fileType")
+    setSearchParams(next, { replace: true })
+  }
 
   const detailQuery = useQuery({ queryKey: botKeys.group(id), queryFn: () => getGroup(id), retry: false })
 
@@ -165,138 +189,157 @@ export default function BotGroupDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">資訊</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl>
-              <SummaryRow term="成員數" value={group.member_count ?? "—"} />
-              <SummaryRow term="狀態" value={group.is_active ? "使用中" : "已離開"} />
-              <SummaryRow term="加入時間" value={group.joined_at ? new Date(group.joined_at).toLocaleString("zh-TW") : "—"} />
-              {group.left_at && <SummaryRow term="離開時間" value={new Date(group.left_at).toLocaleString("zh-TW")} />}
-              <SummaryRow
-                term="AI 回覆"
-                value={
-                  <Switch
-                    aria-label="AI 回覆"
-                    checked={group.allow_ai_response}
-                    disabled={aiMutation.isPending}
-                    onCheckedChange={(checked) => aiMutation.mutate(checked)}
-                  />
-                }
-              />
-              <SummaryRow
-                term="專案"
-                value={
-                  <div className="flex flex-col items-end gap-1">
-                    <Select
-                      value={group.project_id ?? UNBOUND}
-                      onValueChange={(v) => projectMutation.mutate(v)}
-                      disabled={projectsQuery.isError || projectMutation.isPending}
-                    >
-                      <SelectTrigger aria-label="綁定專案" size="sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={UNBOUND}>未綁定</SelectItem>
-                        {sortProjectsForBinding(projectsQuery.data?.items ?? []).map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {projectOptionLabel(p)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {group.project_id && (
-                      <Link
-                        to={`/projects/${group.project_id}`}
-                        className="text-xs text-primary underline-offset-4 hover:underline"
+      <Tabs value={tab} onValueChange={setTab}>
+        {/* 窄螢幕讓 TabsList 自己橫向捲動，不要把整頁撐寬。 */}
+        <div className="overflow-x-auto">
+          <TabsList>
+            {TAB_VALUES.map((v) => (
+              <TabsTrigger key={v} value={v}>
+                {TAB_LABEL[v]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+
+        <TabsContent value="overview" className="space-y-4 pt-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">資訊</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl>
+                <SummaryRow term="成員數" value={group.member_count ?? "—"} />
+                <SummaryRow term="狀態" value={group.is_active ? "使用中" : "已離開"} />
+                <SummaryRow term="加入時間" value={group.joined_at ? new Date(group.joined_at).toLocaleString("zh-TW") : "—"} />
+                {group.left_at && <SummaryRow term="離開時間" value={new Date(group.left_at).toLocaleString("zh-TW")} />}
+                <SummaryRow
+                  term="AI 回覆"
+                  value={
+                    <Switch
+                      aria-label="AI 回覆"
+                      checked={group.allow_ai_response}
+                      disabled={aiMutation.isPending}
+                      onCheckedChange={(checked) => aiMutation.mutate(checked)}
+                    />
+                  }
+                />
+                <SummaryRow
+                  term="專案"
+                  value={
+                    <div className="flex flex-col items-end gap-1">
+                      <Select
+                        value={group.project_id ?? UNBOUND}
+                        onValueChange={(v) => projectMutation.mutate(v)}
+                        disabled={projectsQuery.isError || projectMutation.isPending}
                       >
-                        {group.project_name || "—"}
-                      </Link>
-                    )}
-                    {projectsQuery.isError && (
-                      <p role="alert" className="text-xs text-destructive">
-                        無法載入專案清單
-                      </p>
-                    )}
-                    {projectMutation.isError && (
-                      <p role="alert" className="text-xs text-destructive">
-                        {projectMutation.error instanceof ApiError ? projectMutation.error.detail : "更新失敗，請稍後再試"}
-                      </p>
-                    )}
-                  </div>
-                }
-              />
-            </dl>
-          </CardContent>
-        </Card>
+                        <SelectTrigger aria-label="綁定專案" size="sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={UNBOUND}>未綁定</SelectItem>
+                          {sortProjectsForBinding(projectsQuery.data?.items ?? []).map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {projectOptionLabel(p)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {group.project_id && (
+                        <Link
+                          to={`/projects/${group.project_id}`}
+                          className="text-xs text-primary underline-offset-4 hover:underline"
+                        >
+                          {group.project_name || "—"}
+                        </Link>
+                      )}
+                      {projectsQuery.isError && (
+                        <p role="alert" className="text-xs text-destructive">
+                          無法載入專案清單
+                        </p>
+                      )}
+                      {projectMutation.isError && (
+                        <p role="alert" className="text-xs text-destructive">
+                          {projectMutation.error instanceof ApiError ? projectMutation.error.detail : "更新失敗，請稍後再試"}
+                        </p>
+                      )}
+                    </div>
+                  }
+                />
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">最近訊息</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {messagesQuery.isError ? (
+                <Alert variant="destructive" role="alert">
+                  <AlertDescription>
+                    {messagesQuery.error instanceof ApiError ? messagesQuery.error.detail : "載入失敗，請稍後再試"}
+                  </AlertDescription>
+                </Alert>
+              ) : messagesQuery.isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : messages.length === 0 ? (
+                <p className="text-muted-foreground">暫無訊息</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {messages.map((m) => (
+                    <li key={m.id} className="space-y-0.5 border-b pb-2 last:border-b-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{messageSender(m)}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("zh-TW")}</span>
+                      </div>
+                      <p className="break-words">{messageContent(m)}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">最近訊息</CardTitle>
+            <CardTitle className="text-base">群組管理</CardTitle>
           </CardHeader>
-          <CardContent>
-            {messagesQuery.isError ? (
+          <CardContent className="space-y-3">
+            {deleteMutation.isError && (
               <Alert variant="destructive" role="alert">
                 <AlertDescription>
-                  {messagesQuery.error instanceof ApiError ? messagesQuery.error.detail : "載入失敗，請稍後再試"}
+                  {deleteMutation.error instanceof ApiError ? deleteMutation.error.detail : "刪除失敗，請稍後再試"}
                 </AlertDescription>
               </Alert>
-            ) : messagesQuery.isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : messages.length === 0 ? (
-              <p className="text-muted-foreground">暫無訊息</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {messages.map((m) => (
-                  <li key={m.id} className="space-y-0.5 border-b pb-2 last:border-b-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{messageSender(m)}</span>
-                      <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("zh-TW")}</span>
-                    </div>
-                    <p className="break-words">{messageContent(m)}</p>
-                  </li>
-                ))}
-              </ul>
             )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">刪除群組</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>確定刪除這個群組？</AlertDialogTitle>
+                  <AlertDialogDescription>刪除群組將同時刪除所有訊息記錄</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => deleteMutation.mutate()}>確定</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">群組管理</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {deleteMutation.isError && (
-            <Alert variant="destructive" role="alert">
-              <AlertDescription>
-                {deleteMutation.error instanceof ApiError ? deleteMutation.error.detail : "刪除失敗，請稍後再試"}
-              </AlertDescription>
-            </Alert>
-          )}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive">刪除群組</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>確定刪除這個群組？</AlertDialogTitle>
-                <AlertDialogDescription>刪除群組將同時刪除所有訊息記錄</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteMutation.mutate()}>確定</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
+        <TabsContent value="files">
+          <GroupFilesTab groupId={id} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

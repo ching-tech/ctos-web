@@ -137,12 +137,26 @@ export interface FileFilter {
   groupId?: string
 }
 
+// 群組明細的檔案分頁：群組在路徑上，只剩頁碼與類型。
+export interface GroupFileFilter {
+  page: number
+  fileType?: string
+}
+
 export interface GroupPatch {
   allow_ai_response?: boolean
   name?: string
   is_active?: boolean
   project_id?: string | null
 }
+
+/** 檔案類型篩選的選項（後端 `file_type` 的四個值，檔案分頁與群組檔案分頁共用）。 */
+export const FILE_TYPE_OPTIONS = [
+  { value: "image", label: "圖片" },
+  { value: "video", label: "影片" },
+  { value: "audio", label: "音訊" },
+  { value: "file", label: "檔案" },
+] as const
 
 export const PLATFORM_LABEL = { line: "Line", telegram: "Telegram" } as const satisfies Record<Platform, string>
 export function platformLabel(p: Platform): string {
@@ -258,6 +272,21 @@ export function listFiles(f: FileFilter): Promise<BotFileListResponse> {
   return apiFetch<BotFileListResponse>(`/api/bot/files?${params.toString()}`)
 }
 
+/**
+ * 群組檔案（`api/linebot_router.py` 773–799）。與 `GET /api/bot/files?group_id=…`
+ * 走的是同一支 `list_files`（`services/bot_line/file_handler.py` 348–424）與同一個
+ * `LineFileListResponse`，只是專用端點把 group 放在路徑上，也不收 `user_id` 與
+ * `platform_type`——群組本身就決定了平台，所以在這個畫面上兩者等價。
+ * `page_size` 後端預設 50，這裡照畫面固定 30。
+ */
+export function listGroupFiles(groupId: string, f: GroupFileFilter): Promise<BotFileListResponse> {
+  const params = new URLSearchParams()
+  params.set("page", String(f.page))
+  params.set("page_size", "30")
+  if (f.fileType) params.set("file_type", f.fileType)
+  return apiFetch<BotFileListResponse>(`/api/bot/groups/${groupId}/files?${params.toString()}`)
+}
+
 export async function deleteFile(id: string): Promise<void> {
   await apiFetch<unknown>(`/api/bot/files/${id}`, { method: "DELETE" })
 }
@@ -292,6 +321,7 @@ export const botKeys = {
   blocked: (f: ListFilter) => ["bot", "blocked", f] as const,
   messages: (f: MessageFilter) => ["bot", "messages", f] as const,
   files: (f: FileFilter) => ["bot", "files", f] as const,
+  groupFiles: (groupId: string, f: GroupFileFilter) => ["bot", "files", "group", groupId, f] as const,
 }
 
 /** 檔案顯示名稱：沒有檔名就用類型＋id 前 8 碼 */

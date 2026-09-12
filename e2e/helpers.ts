@@ -1382,6 +1382,27 @@ export async function mockBot(
     },
   )
 
+  // ── 群組檔案（專用端點 `api/linebot_router.py` 773–799） ──
+  // 與 `/api/bot/files?group_id=` 走同一支 `list_files`，只是 group 在路徑上，
+  // 也不收 `user_id` 與 `platform_type`；回的是同一個 `LineFileListResponse`。
+  await page.route(
+    (url) => sameOrigin(url) && /\/api\/bot\/groups\/[^/]+\/files$/.test(url.pathname),
+    async (route) => {
+      if (route.request().method() !== "GET") return route.fallback()
+      const reqUrl = new URL(route.request().url())
+      const segs = reqUrl.pathname.split("/")
+      const groupId = segs[segs.length - 2]
+      const params = reqUrl.searchParams
+      let filtered = files.filter((f) => f.bot_group_id === groupId)
+      const fileType = params.get("file_type")
+      if (fileType) filtered = filtered.filter((f) => f.file_type === fileType)
+      const pageNum = Number(params.get("page") ?? "1")
+      const pageSize = Number(params.get("page_size") ?? "50")
+      const start = (pageNum - 1) * pageSize
+      await route.fulfill({ json: { items: filtered.slice(start, start + pageSize), total: filtered.length } })
+    },
+  )
+
   // ── 檔案列表 ──
   await page.route(
     (url) => sameOrigin(url) && url.pathname === `${prefix}/api/bot/files`,
