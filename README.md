@@ -88,6 +88,17 @@ npm run e2e
 
 AI 助手的 Socket.IO 也不連真後端：Playwright 的 webServer 跑的是 `npm run build:e2e`（帶 `VITE_E2E=1`，輸出到 `dist-e2e/`）加 `npm run preview:e2e`，這時 `src/lib/socket.ts` 換成假 socket，把送出的事件記進 `window.__sentEvents`，並開 `window.__CTOS_SOCKET_MOCK__.receive(event, payload)` 讓測試模擬後端推事件。正式 `npm run build` 沒有這個旗標，假 socket 整段會被 tree-shake 掉；輸出目錄分開，跑 e2e 不會把 `dist/` 蓋成假 socket 版。
 
+### 遇到 flaky 測試怎麼處理（2026-09-12 起的慣例）
+
+不准用「重跑一次就綠了」帶過。順序固定：
+
+1. **先做出可重現的失敗**。單獨重跑通常重現不了，用併發把競態逼出來：`npx playwright test <spec> --repeat-each 40 --workers 10 --project=desktop`，要看到穩定的失敗次數（例如 8／280）才算重現；重現不了就從程式碼推論根因並寫明「本機重現不了」。
+2. 找根因，修在元件層（例如 #26：每列各自的 AlertDialog 退場動畫留下 overlay 吃掉下一次點擊）。只有 spec 本身寫錯才改 spec。
+3. 用**同一條併發指令**在修後跑一次，要 0 失敗。修前沒有失敗數字，修後的全綠證明不了任何事。
+4. PR 描述寫根因兩行、修前／修後的數字。
+
+另外：`playwright.config.ts` 的 preview port 寫死 4173 且 `reuseExistingServer`，兩個 worktree 同時跑會接手對方的 build（#27）。並行跑之前先 `ss -ltn | grep 4173` 確認沒人用。
+
 ### 建置與預覽
 
 ```bash
