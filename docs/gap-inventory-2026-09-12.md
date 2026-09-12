@@ -56,6 +56,10 @@ webhook、`/api/internal/*`、`/api/health`、`/api/config/*` 不是畫面，不
 
 以上四件之後才是：公開分享頁要不要搬、AI 助手附件與語音、知識庫 rebuild-index、Bot 使用者明細。
 
+## 線上路徑回 404 是正常的（2026-09-12 查證）
+
+`https://os.ching-tech.com/ai-log` 這類深層路徑直接打會回 HTTP 404，內容卻是 app 本身。這是 GitHub Pages 的 SPA fallback：`deploy.yml` 有 `cp dist/index.html dist/404.html`，Pages 找不到檔案就回 `404.html`，React Router 接手後畫面正常。**不要拿狀態碼當證據去「修」它。** 副作用：任何用狀態碼判死活的監控會對深層路徑誤報；之後接監控要判內容（例如頁面含 app 的 root 節點）不判碼，或只監控 `/`。
+
 ## 驗收怎麼打（給接手的人）
 
 - **一律打本機後端，不打正式機。** 正式機（`https://ching-tech.ddns.net/ctos`）在 2026-09-12 部署完成之前沒有 erp 模組的路由，`/api/parties`、`/api/items`、`/api/purchase-orders` 都是 `application/json` 的 404；打過去只會誤以為前端寫錯。就算部署完成，正式機也不是驗收環境。
