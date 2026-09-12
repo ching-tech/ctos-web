@@ -6,6 +6,25 @@ function visible(page: Page, selector: string) {
   return page.locator(selector).filter({ visible: true })
 }
 
+/**
+ * 點進明細，等那一支請求真的回來、明細真的上場，再把明細的範圍交回去。
+ *
+ * 不能點完就直接斷言欄位：清單與明細的文字重疊（同一個帳號、同一句失敗原因），
+ * 明細還在載入時比對會比到還沒換掉的清單，變成 strict mode 撞兩個以上的元素；
+ * 機器同時在跑好幾個 worker 時，mock 的回應也可能慢過 expect 預設的 5 秒。
+ * 用 `waitForResponse` 當同步點（吃 test timeout，不吃 expect 的 5 秒），
+ * 再等 `login-record-detail` 出現，之後所有斷言都限定在明細裡面。
+ */
+async function openDetail(page: Page, id: number) {
+  const response = page.waitForResponse((r) => new URL(r.url()).pathname.endsWith(`/api/login-records/${id}`))
+  await visible(page, `a[href="/login-records/${id}"]`).click()
+  await expect(page).toHaveURL(new RegExp(`/login-records/${id}$`))
+  await response
+  const detail = page.getByTestId("login-record-detail")
+  await expect(detail).toBeVisible()
+  return detail
+}
+
 /** fixture 裡 user_id=2 的三筆（501 成功、502 失敗、503 成功）是一般使用者看得到的全部。 */
 test.describe("一般使用者", () => {
   test.beforeEach(async ({ page }) => {
@@ -84,27 +103,27 @@ test.describe("一般使用者", () => {
 
   test("明細頁列出全部欄位，經緯度有值才顯示", async ({ page }) => {
     await page.goto("/login-records")
-    await visible(page, 'a[href="/login-records/501"]').click()
-    await expect(page).toHaveURL(/\/login-records\/501$/)
-    // 側邊欄的使用者選單也有帳號，明細的斷言限定在主要內容區。
-    await expect(page.getByRole("main").getByText("yazelin", { exact: true })).toBeVisible()
-    await expect(page.getByText("192.0.2.10", { exact: true })).toBeVisible()
-    await expect(page.getByText("臺灣／桃園", { exact: true })).toBeVisible()
-    await expect(page.getByText("24.993600, 121.301000")).toBeVisible()
-    await expect(page.getByText("fp-desktop-aaa")).toBeVisible()
-    await expect(page.getByText("sess-501")).toBeVisible()
-    await expect(page.getByText("桌機", { exact: true })).toBeVisible()
-    await expect(page.getByText(/Chrome\/141\.0/)).toBeVisible()
+    const detail = await openDetail(page, 501)
+    await expect(detail.getByText("yazelin", { exact: true })).toBeVisible()
+    await expect(detail.getByText("192.0.2.10", { exact: true })).toBeVisible()
+    await expect(detail.getByText("臺灣／桃園", { exact: true })).toBeVisible()
+    await expect(detail.getByText("24.993600, 121.301000")).toBeVisible()
+    await expect(detail.getByText("fp-desktop-aaa")).toBeVisible()
+    await expect(detail.getByText("sess-501")).toBeVisible()
+    await expect(detail.getByText("桌機", { exact: true })).toBeVisible()
+    await expect(detail.getByText(/Chrome\/141\.0/)).toBeVisible()
 
     // 502 沒有經緯度，那一列整個不出現；失敗原因會顯示
-    await page.getByRole("link", { name: "回清單" }).click()
-    await visible(page, 'a[href="/login-records/502"]').click()
-    await expect(page.getByText("經緯度")).toHaveCount(0)
-    await expect(page.getByText("密碼錯誤")).toBeVisible()
+    await detail.getByRole("link", { name: "回清單" }).click()
+    const failed = await openDetail(page, 502)
+    await expect(failed.getByText("經緯度")).toHaveCount(0)
+    await expect(failed.getByText("密碼錯誤")).toBeVisible()
   })
 
   test("看不到的紀錄回 404 的空狀態", async ({ page }) => {
+    const response = page.waitForResponse((r) => new URL(r.url()).pathname.endsWith("/api/login-records/504"))
     await page.goto("/login-records/504")
+    expect((await response).status()).toBe(404)
     await expect(page.getByText("找不到這筆登入紀錄")).toBeVisible()
   })
 
@@ -150,9 +169,13 @@ test.describe("管理員", () => {
   })
 
   test("沒有 user_id 的失敗紀錄也看得到明細", async ({ page }) => {
+    const response = page.waitForResponse((r) => new URL(r.url()).pathname.endsWith("/api/login-records/505"))
     await page.goto("/login-records/505")
-    await expect(page.getByText("no-such-user", { exact: true })).toBeVisible()
-    await expect(page.getByText("帳號不存在")).toBeVisible()
-    await expect(page.getByText("198.51.100.200", { exact: true })).toBeVisible()
+    await response
+    const detail = page.getByTestId("login-record-detail")
+    await expect(detail).toBeVisible()
+    await expect(detail.getByText("no-such-user", { exact: true })).toBeVisible()
+    await expect(detail.getByText("帳號不存在")).toBeVisible()
+    await expect(detail.getByText("198.51.100.200", { exact: true })).toBeVisible()
   })
 })

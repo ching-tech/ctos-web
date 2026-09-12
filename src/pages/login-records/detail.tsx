@@ -62,7 +62,9 @@ export default function LoginRecordDetailPage() {
   const hasGeoPoint = r.geo_latitude !== null && r.geo_longitude !== null
 
   return (
-    <div className="space-y-4">
+    // testid 讓測試等「明細真的上場了」再斷言欄位：清單與明細的文字會重疊（同一個帳號、
+    // 同一句失敗原因），機器忙的時候明細還在載入就去比對，會比到還沒卸載的清單。
+    <div className="space-y-4" data-testid="login-record-detail">
       <div className="space-y-1">
         <Link to="/login-records" className="text-sm text-primary underline-offset-4 hover:underline">
           回清單
