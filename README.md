@@ -124,6 +124,9 @@ npm run build
 - `token.ts` — localStorage token 管理（取得、存儲、清除）
 - `types.ts` — TypeScript 型別定義
 - `nav.ts` — 側邊欄導航項目
+- `preferences.ts` — 偏好設定 API 客戶端（`GET`／`PUT /api/user/preferences`，主題只收 dark／light）
+- `preferences.test.ts` — 偏好設定 API 單元測試
+- `theme-preference.tsx` — 把 `ThemeProvider` 的主題接到後端偏好（登入後拿一次、切換時 PUT、400 退回原值）
 - `utils.ts` — 工具函式
 - `kb.ts` — 知識庫 API 客戶端（清單／詳情／建立／編輯／刪除／附件／分享／版本歷史）
 - `kb.test.ts` — 知識庫 API 單元測試
@@ -159,6 +162,7 @@ npm run build
 - `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁，掛上各區塊元件）
 - `settings/api-tokens.tsx` — 設定頁「API 權杖」區塊（清單、建立對話框、一次性權杖畫面、撤銷確認）
 - `settings/password.tsx` — 設定頁「密碼」區塊（變更或首次設定平台密碼）
+- `settings/preferences.tsx` — 設定頁「偏好」區塊（主題亮色／暗色）
 - `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
@@ -239,6 +243,7 @@ Playwright 端對端測試：
 - `settings.spec.ts` — 設定頁測試
 - `settings-tokens.spec.ts` — 設定頁「API 權杖」測試（清單、建立與一次性權杖、撤銷確認、PAT session 的 403）
 - `settings-password.spec.ts` — 設定頁「密碼」測試（成功、目前密碼錯、兩次不一致前端擋、NAS 使用者沒有目前密碼欄）
+- `settings-preferences.spec.ts` — 設定頁「偏好」測試（讀取帶入、切換送 PUT、400 退回原值）
 - `shell.spec.ts` — 應用殼層測試（含首頁知識庫最近更新）
 - `home.spec.ts` — 首頁 dashboard 測試（今日 AI 用量／Bot 概況卡片依權限顯示、統計數字、stats 請求帶 `start_date`）
 - `kb-list.spec.ts` — 知識庫清單測試
@@ -275,7 +280,7 @@ Playwright 端對端測試：
 
 - `ctos-web.token` — 後端 session token（UUID，用於後續 API 請求）
 - `ctos-web.user` — 使用者資訊 JSON（顯示名稱、管理員旗標等）
-- `ctos-web.theme` — 主題偏好（`"dark"`、`"light"` 或 `"system"`）
+- `ctos-web.theme` — 主題偏好（`"dark"`、`"light"` 或 `"system"`）。`"dark"` 與 `"light"` 會同步到後端的 `/api/user/preferences`，登入後以後端的值為準；`"system"` 只存在本機
 
 ### Session 清除
 
@@ -292,7 +297,7 @@ Playwright 端對端測試：
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
 - **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
 - **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）、「進行中專案」與「逾期里程碑」（依 `project-management` 權限）、「採購待收貨」（依 `inventory-management` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片
-- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「密碼」區塊變更或首次設定平台密碼（`POST /api/auth/change-password`）。已有平台密碼的人要填目前密碼，NAS 認證、還沒設密碼的人（`has_password` 為 false）沒有這一欄，改成提示設定後兩種都能登。這支端點**失敗也回 200**，只有 body 的 `success` 與 `error` 會變，前端照 body 判斷而不是看狀態碼；強度規則留在後端，前端只擋「兩次一致」與最少 8 碼。改完密碼**不會**讓其他裝置的 session 或 API 權杖失效。「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示
+- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「密碼」區塊變更或首次設定平台密碼（`POST /api/auth/change-password`）。已有平台密碼的人要填目前密碼，NAS 認證、還沒設密碼的人（`has_password` 為 false）沒有這一欄，改成提示設定後兩種都能登。這支端點**失敗也回 200**，只有 body 的 `success` 與 `error` 會變，前端照 body 判斷而不是看狀態碼；強度規則留在後端，前端只擋「兩次一致」與最少 8 碼。改完密碼**不會**讓其他裝置的 session 或 API 權杖失效。「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示。「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示。「偏好」區塊選主題（亮色／暗色），與側邊欄的切換鈕是同一份 `ThemeProvider` 狀態。登入後跟後端要一次（`GET /api/user/preferences`），之後不管從哪裡切都 PUT 回去；後端回 400 就退回上一個存住的值並把 detail 顯示出來。側邊欄多出來的「跟隨系統」後端沒有地方存，選它就不送，設定頁會說明
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
 - **檔案** — 路由 `/files`（需 `file-manager` 權限，預設開放）。進頁面先打 `GET /api/nas/connections`，有現成連線就沿用第一筆，沒有才開連線對話框（主機預設值來自 `VITE_NAS_HOST`）。連線 token 只放記憶體（後端 30 分鐘，操作會自動延長），不進 localStorage。之後每支 NAS 端點都帶 `X-NAS-Token`，缺連線或過期時 `lib/nas.ts` 的 fetch 包裝層攔下來，清掉連線、開對話框，連好再把原請求重試一次。根目錄列的是共享資料夾（`GET /api/nas/shares`，`browse?path=/` 後端會回 400），往下是 `GET /api/nas/browse`；桌面表格、手機卡片，`?path=` 寫進網址，重新整理停在同一層。搜尋只在共享資料夾底下可用（後端 `_parse_path` 不接受空路徑），結果的 `path` 後端不含 share 名稱，前端接回去才點得進。圖片、PDF 與文字（txt／md／csv／json／log）在預覽面板顯示，其他類型只給下載；預覽與下載都用 header 取 blob，NAS token 不進網址。工具列有「上傳」（多檔，逐檔送，做完重抓清單）與「新資料夾」，每一列的「動作」選單有重新命名、刪除（資料夾多一個遞迴勾選，後端沒勾會回 400）與分享連結；這些寫入類動作只在共享資料夾底下的瀏覽清單出現（根目錄列的是 share，後端 `_parse_path` 不接受空路徑；搜尋結果跨資料夾，改完要重抓的不是同一份清單）。分享連結要 `share-manager` 權限（後端預設關閉）而且檔案要落在 `VITE_NAS_SHARE_MOUNTS` 設定的前綴底下：`POST /api/share` 的 `nas_file` 會把 `resource_id` 丟給 `validate_nas_file_path()`，檔案管理器的 SMB 路徑（以 `/` 開頭但不是 `/tmp/`、`/mnt/`）會被 `path_manager` 判成 NAS zone 直接拒絕，所以要先換成掛載點路徑

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client"
 import { RouterProvider } from "react-router"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/lib/auth-context"
+import { ThemePreferenceProvider } from "@/lib/theme-preference"
 import { router } from "@/routes"
 import "./index.css"
 
@@ -14,7 +15,10 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider defaultTheme="dark" storageKey="ctos-web.theme">
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RouterProvider router={router} />
+          {/* 主題接後端偏好設定：登入後拿一次、之後切換就 PUT 回去 */}
+          <ThemePreferenceProvider>
+            <RouterProvider router={router} />
+          </ThemePreferenceProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

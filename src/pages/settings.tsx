@@ -9,6 +9,7 @@ import { bindNas, unbindNas } from "@/lib/auth"
 import { useAuth } from "@/lib/auth-context"
 import { ApiTokensCard } from "@/pages/settings/api-tokens"
 import { PasswordCard } from "@/pages/settings/password"
+import { PreferencesCard } from "@/pages/settings/preferences"
 
 function NasBindingCard() {
   const { user, refresh } = useAuth()
@@ -73,6 +74,7 @@ export default function SettingsPage() {
       <PasswordCard />
       <NasBindingCard />
       <ApiTokensCard />
+      <PreferencesCard />
     </div>
   )
 }
