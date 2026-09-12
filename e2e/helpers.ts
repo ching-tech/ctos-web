@@ -4344,3 +4344,317 @@ export async function mockMessages(page: Page, opts: { messages?: MessageFixture
 
   return { messages }
 }
+
+// ============================================================
+// Prompt 編輯器與 Agent 設定（/api/ai/prompts、/api/ai/agents、/api/ai/test、/api/ai/providers/status）
+// 欄位對照 ching-tech-os `models/ai.py` 98–216、328–342 與 `services/ai_router.py` 310–322。
+// ============================================================
+
+/** `AiPromptResponse`（models/ai.py 119–129）。 */
+export interface AiPromptFixture {
+  id: string
+  name: string
+  display_name: string | null
+  category: string | null
+  content: string
+  description: string | null
+  variables: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+/** `AiAgentResponse`（models/ai.py 183–197）扣掉 `system_prompt`（由 mock 依 `system_prompt_id` 組出來）。 */
+export interface AiAgentDetailFixture {
+  id: string
+  name: string
+  display_name: string | null
+  description: string | null
+  model: string
+  system_prompt_id: string | null
+  is_active: boolean
+  tools: string[] | null
+  settings: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+/** 一般使用者，兩支 app 都開（後端預設是 False，要管理員開）。 */
+export const aiManagementUserFixture = {
+  ...userFixture,
+  permissions: {
+    ...userFixture.permissions,
+    apps: { ...userFixture.permissions.apps, "prompt-editor": true, "agent-settings": true, "ai-log": true },
+  },
+}
+
+export const aiPromptFixtures: AiPromptFixture[] = [
+  {
+    id: "pr-1", name: "web-chat-default", display_name: "預設對話助手", category: "system",
+    content: "你是內部系統的助理，回答時先講結論再補理由。",
+    description: "網頁對話的預設提示詞",
+    variables: { user_name: "使用者顯示名稱", today: "今天日期" },
+    created_at: "2026-08-01T09:00:00", updated_at: "2026-09-01T09:00:00",
+  },
+  {
+    id: "pr-2", name: "linebot-group", display_name: "群組助理 Prompt", category: "linebot",
+    content: "你在群組裡回話，一次回一件事。",
+    description: "群組 bot 的系統提示詞",
+    variables: null,
+    created_at: "2026-08-02T09:00:00", updated_at: "2026-09-02T09:00:00",
+  },
+  {
+    id: "pr-3", name: "summarizer", display_name: "對話摘要助手", category: "task",
+    content: "把對話濃縮成三點。",
+    description: null,
+    variables: null,
+    created_at: "2026-08-03T09:00:00", updated_at: "2026-09-03T09:00:00",
+  },
+]
+
+export const aiAgentDetailFixtures: AiAgentDetailFixture[] = [
+  {
+    id: "agt-1", name: "web-chat", display_name: "網頁對話", description: "網頁端的通用助理",
+    model: "claude-sonnet", system_prompt_id: "pr-1", is_active: true,
+    tools: ["WebSearch", "Read"], settings: { temperature: 0.2 },
+    created_at: "2026-08-01T09:00:00", updated_at: "2026-09-01T09:00:00",
+  },
+  {
+    id: "agt-2", name: "linebot-group", display_name: "群組助理", description: null,
+    model: "claude-haiku", system_prompt_id: "pr-2", is_active: true,
+    tools: null, settings: null,
+    created_at: "2026-08-02T09:00:00", updated_at: "2026-09-02T09:00:00",
+  },
+  {
+    id: "agt-3", name: "night-report", display_name: "夜間報表", description: "排程用，平常關著",
+    model: "claude-haiku", system_prompt_id: null, is_active: false,
+    tools: null, settings: null,
+    created_at: "2026-08-03T09:00:00", updated_at: "2026-09-03T09:00:00",
+  },
+]
+
+/** `services/ai_router.py` 310–322 的 `provider_status()`。 */
+export const providerStatusFixture = {
+  mode: "auto",
+  providers: {
+    claude: { ready: true },
+    codex: { ready: false, adapter_binary: true, codex_binary: false, circuit: { state: "closed", consecutive_failures: 0 } },
+  },
+  usage: {
+    state: "fresh", utilization: 0.42, five_hour: 0.1, seven_day: 0.42,
+    fetched_at: "2026-09-12T01:00:00+00:00", last_attempt_at: "2026-09-12T01:00:00+00:00",
+    last_error: null, consecutive_failures: 0,
+  },
+}
+
+export interface AiManagementRequest {
+  method: string
+  path: string
+  body: unknown
+}
+
+export async function mockAiManagement(
+  page: Page,
+  opts: {
+    prompts?: AiPromptFixture[]
+    agents?: AiAgentDetailFixture[]
+    /** `POST /api/ai/test` 的回應（`AiTestResponse`）。預設是成功配 log_id。 */
+    testResponse?: { success: boolean; response: string | null; error: string | null; duration_ms: number | null; log_id: string | null }
+    /** providers/status 回 403（非管理員打到時後端的行為）。 */
+    providerStatusForbidden?: boolean
+    /** 寫入類請求一律回 403，模擬有讀權限沒寫權限。 */
+    writeForbidden?: string
+  } = {},
+) {
+  const prompts: AiPromptFixture[] = (opts.prompts ?? aiPromptFixtures).map((p) => ({ ...p }))
+  const agents: AiAgentDetailFixture[] = (opts.agents ?? aiAgentDetailFixtures).map((a) => ({ ...a }))
+  const requests: AiManagementRequest[] = []
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  let nextId = 100
+
+  function record(route: Parameters<Parameters<Page["route"]>[1]>[0]) {
+    const req = route.request()
+    let body: unknown = null
+    try {
+      body = req.postDataJSON()
+    } catch { /* GET／DELETE 沒有 body */ }
+    requests.push({ method: req.method(), path: new URL(req.url()).pathname, body })
+  }
+
+  /** 寫入類端點共用的 403 分支（`require_app_permission` 擋下來時後端回的形狀）。 */
+  function forbidden() {
+    return { status: 403, json: { detail: opts.writeForbidden } }
+  }
+
+  function promptListItem(p: AiPromptFixture) {
+    const { id, name, display_name, category, description, updated_at } = p
+    return { id, name, display_name, category, description, updated_at }
+  }
+
+  function agentListItem(a: AiAgentDetailFixture) {
+    const { id, name, display_name, model, is_active, tools, updated_at } = a
+    return { id, name, display_name, model, is_active, tools, updated_at }
+  }
+
+  function agentDetail(a: AiAgentDetailFixture) {
+    const prompt = a.system_prompt_id ? (prompts.find((p) => p.id === a.system_prompt_id) ?? null) : null
+    return { ...a, system_prompt: prompt }
+  }
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/providers/status`,
+    async (route) => {
+      record(route)
+      if (opts.providerStatusForbidden) return route.fulfill({ status: 403, json: { detail: "需要管理員權限" } })
+      await route.fulfill({ json: providerStatusFixture })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/test`,
+    async (route) => {
+      record(route)
+      if (opts.writeForbidden) return route.fulfill(forbidden())
+      await route.fulfill({
+        json: opts.testResponse ?? { success: true, response: "1+1 等於 2。", error: null, duration_ms: 1234, log_id: "log-01" },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/prompts`,
+    async (route) => {
+      record(route)
+      if (route.request().method() === "POST") {
+        if (opts.writeForbidden) return route.fulfill(forbidden())
+        const body = route.request().postDataJSON() as Partial<AiPromptFixture> & { name: string; content: string }
+        if (prompts.some((p) => p.name === body.name)) {
+          return route.fulfill({ status: 400, json: { detail: `Prompt 名稱 '${body.name}' 已存在` } })
+        }
+        const created: AiPromptFixture = {
+          id: `pr-${nextId++}`,
+          name: body.name,
+          display_name: body.display_name ?? null,
+          category: body.category ?? null,
+          content: body.content,
+          description: body.description ?? null,
+          variables: body.variables ?? null,
+          created_at: "2026-09-12T02:00:00",
+          updated_at: "2026-09-12T02:00:00",
+        }
+        prompts.unshift(created)
+        return route.fulfill({ json: created })
+      }
+      const category = new URL(route.request().url()).searchParams.get("category")
+      const items = (category ? prompts.filter((p) => p.category === category) : prompts).map(promptListItem)
+      await route.fulfill({ json: { items, total: items.length } })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/ai/prompts/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      record(route)
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const index = prompts.findIndex((p) => p.id === id)
+      const method = route.request().method()
+      if (method === "GET") {
+        if (index === -1) return route.fulfill({ status: 404, json: { detail: "Prompt 不存在" } })
+        return route.fulfill({ json: prompts[index] })
+      }
+      if (opts.writeForbidden) return route.fulfill(forbidden())
+      if (index === -1) return route.fulfill({ status: 404, json: { detail: "Prompt 不存在" } })
+      if (method === "PUT") {
+        const patch = route.request().postDataJSON() as Partial<AiPromptFixture>
+        prompts[index] = { ...prompts[index], ...patch, updated_at: "2026-09-12T03:00:00" }
+        return route.fulfill({ json: prompts[index] })
+      }
+      // DELETE：被 agent 引用時後端回 400
+      if (agents.some((a) => a.system_prompt_id === id)) {
+        return route.fulfill({ status: 400, json: { detail: "此 Prompt 正被 Agent 使用，無法刪除" } })
+      }
+      prompts.splice(index, 1)
+      await route.fulfill({ json: { success: true } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/agents`,
+    async (route) => {
+      record(route)
+      if (route.request().method() === "POST") {
+        if (opts.writeForbidden) return route.fulfill(forbidden())
+        const body = route.request().postDataJSON() as Partial<AiAgentDetailFixture> & { name: string; model: string }
+        if (agents.some((a) => a.name === body.name)) {
+          return route.fulfill({ status: 400, json: { detail: `Agent 名稱 '${body.name}' 已存在` } })
+        }
+        const created: AiAgentDetailFixture = {
+          id: `agt-${nextId++}`,
+          name: body.name,
+          display_name: body.display_name ?? null,
+          description: body.description ?? null,
+          model: body.model,
+          system_prompt_id: body.system_prompt_id ?? null,
+          is_active: body.is_active ?? true,
+          tools: body.tools ?? null,
+          settings: body.settings ?? null,
+          created_at: "2026-09-12T02:00:00",
+          updated_at: "2026-09-12T02:00:00",
+        }
+        agents.unshift(created)
+        return route.fulfill({ json: agentDetail(created) })
+      }
+      const items = agents.map(agentListItem)
+      await route.fulfill({ json: { items, total: items.length } })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/ai/agents/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return rest.length > 0 && !rest.startsWith("by-name/")
+    },
+    async (route) => {
+      record(route)
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      const index = agents.findIndex((a) => a.id === id)
+      const method = route.request().method()
+      if (method === "GET") {
+        if (index === -1) return route.fulfill({ status: 404, json: { detail: "Agent 不存在" } })
+        return route.fulfill({ json: agentDetail(agents[index]) })
+      }
+      if (opts.writeForbidden) return route.fulfill(forbidden())
+      if (index === -1) return route.fulfill({ status: 404, json: { detail: "Agent 不存在" } })
+      if (method === "PUT") {
+        const patch = route.request().postDataJSON() as Partial<AiAgentDetailFixture>
+        agents[index] = { ...agents[index], ...patch, updated_at: "2026-09-12T03:00:00" }
+        return route.fulfill({ json: agentDetail(agents[index]) })
+      }
+      agents.splice(index, 1)
+      await route.fulfill({ json: { success: true } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname.startsWith(`${prefix}/api/ai/agents/by-name/`),
+    async (route) => {
+      record(route)
+      const name = decodeURIComponent(new URL(route.request().url()).pathname.split("/").pop()!)
+      const found = agents.find((a) => a.name === name)
+      if (!found) return route.fulfill({ status: 404, json: { detail: "Agent 不存在" } })
+      await route.fulfill({ json: agentDetail(found) })
+    },
+  )
+
+  return { prompts, agents, requests }
+}
