@@ -12,14 +12,14 @@ export const userFixture = {
   id: 2, username: "yazelin", display_name: "亞澤", is_admin: false, role: "user",
   account_role: "user", auth_type: "session", has_password: true, nas_username: "yazelin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true },
+    apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true, "memory-manager": true },
     knowledge: { global_write: false, global_delete: false },
   },
 }
 export const adminFixture = {
   ...userFixture, id: 1, username: "admin", display_name: "管理員", is_admin: true, role: "admin", account_role: "admin",
   permissions: {
-    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true },
+    apps: { "knowledge-base": true, "ai-log": true, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true, "memory-manager": true },
     knowledge: { global_write: true, global_delete: true },
   },
 }
@@ -789,6 +789,7 @@ export const defaultAppNames: Record<string, string> = {
   "vendor-management": "廠商管理",
   "inventory-management": "物料管理",
   "file-manager": "檔案管理",
+  "memory-manager": "記憶管理",
 }
 
 export const adminUserFixtures: AdminUserFixture[] = [
@@ -849,7 +850,7 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[]; 
     async (route) =>
       route.fulfill({
         json: {
-          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true },
+          apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true, "project-management": true, "ai-assistant": true, "vendor-management": true, "inventory-management": true, "file-manager": true, "memory-manager": true },
           knowledge: { global_write: false, global_delete: false },
           app_names: defaultAppNames,
         },
@@ -3862,4 +3863,183 @@ export async function mockNas(
   )
 
   return control
+}
+
+// ============================================================
+// 記憶管理（欄位逐一對後端 models/linebot.py 296–328 的 MemoryResponse）
+// ============================================================
+
+export interface MemoryFixture {
+  id: string
+  title: string
+  content: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  /** 建立者的 bot_users.id；個人記憶沒有這一欄（services/bot_line/memory.py 98–123），一律 null。 */
+  created_by: string | null
+  created_by_name: string | null
+}
+
+/** 掛在哪個對象底下：key 是 bot_groups.id／bot_users.id，對得上 botGroupFixtures／botUserFixtures。 */
+export interface MemoryStoreFixture {
+  group: Record<string, MemoryFixture[]>
+  user: Record<string, MemoryFixture[]>
+}
+
+// grp-1 兩筆（一筆啟用、一筆停用且內容很長，用來驗折疊），grp-2 沒有記憶；
+// usr-1 一筆，usr-2 沒有記憶。內容全是杜撰的。
+export const memoryFixtures: MemoryStoreFixture = {
+  group: {
+    "grp-1": [
+      {
+        id: "mem-1", title: "出貨前先報數量", content: "要出貨前先在群組回報品項與數量，等對方確認再安排車。",
+        is_active: true, created_at: "2026-09-01T09:00:00", updated_at: "2026-09-01T09:00:00",
+        created_by: "usr-1", created_by_name: "王小明",
+      },
+      {
+        id: "mem-2", title: "報價一律附工期",
+        content: "報價回覆一律附上預計工期與交期，工期以工作天計算，不含例假日；若對方只問單價，也要主動補上工期，避免後續對交期認知不一致。標準品照公告價回，非標準品要先確認規格再報，規格沒講清楚就先問清楚，不要自己假設。金額超過十萬的案子，回覆時加一句請對方確認付款條件；需要現場勘查的，先問可以配合的時段，不要直接約時間。對方催進度時先講目前做到哪一段、下一段預計什麼時候好，不要只回「處理中」。這一條是內部規定，回覆時不必說明出處。",
+        is_active: false, created_at: "2026-08-20T09:00:00", updated_at: "2026-08-25T09:00:00",
+        created_by: null, created_by_name: null,
+      },
+    ],
+    "grp-2": [],
+  },
+  user: {
+    "usr-1": [
+      {
+        id: "mem-3", title: "稱呼", content: "叫我小明就好，不用加職稱。",
+        is_active: true, created_at: "2026-09-02T09:00:00", updated_at: "2026-09-02T09:00:00",
+        created_by: null, created_by_name: null,
+      },
+    ],
+    "usr-2": [],
+  },
+}
+
+function cloneMemoryStore(store: MemoryStoreFixture): MemoryStoreFixture {
+  const copy: MemoryStoreFixture = { group: {}, user: {} }
+  for (const kind of ["group", "user"] as const) {
+    for (const [id, list] of Object.entries(store[kind])) copy[kind][id] = list.map((m) => ({ ...m }))
+  }
+  return copy
+}
+
+/**
+ * 攔記憶這一組：`GET/POST /api/bot/groups/{id}/memories`、`GET/POST /api/bot/users/{id}/memories`、
+ * `PUT/DELETE /api/bot/memories/{id}`。對象不在 `knownGroupIds`／`knownUserIds` 裡就照後端回
+ * 404「Group not found」／「User not found」（api/linebot_router.py 1026–1029、1074–1076）；
+ * 記憶 id 找不到是 404「Memory not found」（同檔 1122、1136）。
+ *
+ * 路徑和 `mockBot` 不會互吃：那邊的群組明細與使用者封鎖路由都排除了帶子路徑的 URL。
+ */
+export async function mockMemory(
+  page: Page,
+  opts: {
+    memories?: MemoryStoreFixture
+    knownGroupIds?: string[]
+    knownUserIds?: string[]
+    /** 建立群組記憶時後端記下的建立者（api/linebot_router.py 1050–1052）。 */
+    createdBy?: { id: string; name: string } | null
+    /** 第一次 PUT 回 500，之後照常成功；用來驗錯誤訊息。 */
+    failUpdateOnce?: boolean
+  } = {},
+) {
+  const store = cloneMemoryStore(opts.memories ?? memoryFixtures)
+  const knownGroupIds = opts.knownGroupIds ?? botGroupFixtures.map((g) => g.id)
+  const knownUserIds = opts.knownUserIds ?? botUserFixtures.map((u) => u.id)
+  const createdBy = opts.createdBy === undefined ? { id: "usr-1", name: "王小明" } : opts.createdBy
+  let updateFailuresLeft = opts.failUpdateOnce ? 1 : 0
+  let nextId = 100
+
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+
+  function listOf(kind: "group" | "user", id: string): MemoryFixture[] {
+    if (!store[kind][id]) store[kind][id] = []
+    return store[kind][id]
+  }
+
+  function findMemory(id: string): { list: MemoryFixture[]; index: number } | null {
+    for (const kind of ["group", "user"] as const) {
+      for (const list of Object.values(store[kind])) {
+        const index = list.findIndex((m) => m.id === id)
+        if (index !== -1) return { list, index }
+      }
+    }
+    return null
+  }
+
+  for (const kind of ["group", "user"] as const) {
+    const segment = kind === "group" ? "groups" : "users"
+    const known = kind === "group" ? knownGroupIds : knownUserIds
+    const notFound = kind === "group" ? "Group not found" : "User not found"
+    await page.route(
+      (url) => {
+        if (!sameOrigin(url)) return false
+        const p = `${prefix}/api/bot/${segment}/`
+        if (!url.pathname.startsWith(p)) return false
+        const rest = url.pathname.slice(p.length).split("/")
+        return rest.length === 2 && rest[1] === "memories"
+      },
+      async (route) => {
+        const segs = new URL(route.request().url()).pathname.split("/")
+        const targetId = segs[segs.length - 2]
+        if (!known.includes(targetId)) return route.fulfill({ status: 404, json: { detail: notFound } })
+        const list = listOf(kind, targetId)
+        if (route.request().method() === "POST") {
+          const body = route.request().postDataJSON() as { title: string; content: string }
+          const created: MemoryFixture = {
+            id: `mem-${nextId++}`,
+            title: body.title,
+            content: body.content,
+            is_active: true,
+            created_at: "2026-09-12T09:00:00",
+            updated_at: "2026-09-12T09:00:00",
+            created_by: kind === "group" ? (createdBy?.id ?? null) : null,
+            created_by_name: kind === "group" ? (createdBy?.name ?? null) : null,
+          }
+          // 後端 ORDER BY created_at DESC，新的排最前面。
+          list.unshift(created)
+          return route.fulfill({ json: created })
+        }
+        return route.fulfill({ json: { items: list, total: list.length } })
+      },
+    )
+  }
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const p = `${prefix}/api/bot/memories/`
+      if (!url.pathname.startsWith(p)) return false
+      const rest = url.pathname.slice(p.length)
+      return rest.length > 0 && !rest.includes("/")
+    },
+    async (route) => {
+      const method = route.request().method()
+      const id = new URL(route.request().url()).pathname.split("/").pop()!
+      if (method === "PUT" && updateFailuresLeft > 0) {
+        updateFailuresLeft -= 1
+        return route.fulfill({ status: 500, json: { detail: "資料庫暫時連不上" } })
+      }
+      const found = findMemory(id)
+      if (!found) return route.fulfill({ status: 404, json: { detail: "Memory not found" } })
+      if (method === "DELETE") {
+        found.list.splice(found.index, 1)
+        return route.fulfill({ json: { status: "ok", message: "記憶已刪除" } })
+      }
+      if (method === "PUT") {
+        const body = route.request().postDataJSON() as Partial<MemoryFixture>
+        const patch = Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined))
+        found.list[found.index] = { ...found.list[found.index], ...patch, updated_at: "2026-09-12T10:00:00" }
+        return route.fulfill({ json: found.list[found.index] })
+      }
+      return route.fallback()
+    },
+  )
+
+  return store
 }

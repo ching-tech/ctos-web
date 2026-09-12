@@ -160,6 +160,8 @@ npm run build
 - `api-tokens.test.ts` — PAT API 與 scope 名稱對照單元測試
 - `nas.ts` — NAS 檔案 API 客戶端（連線／連線列表／斷線、共享資料夾、瀏覽、搜尋、讀檔與下載、上傳／新資料夾／重新命名／刪除、`nas_file` 分享連結；記憶體連線狀態與 `X-NAS-Token` 注入、連線失效的攔截與重試、路徑與大小時間格式化、分享路徑對照 `toShareResourceId`、`nasKeys`）
 - `nas.test.ts` — NAS API 單元測試（每支端點、連線失效攔截與重試、路徑工具、分享路徑對照）
+- `memory.ts` — Bot 記憶 API 客戶端（群組／個人記憶清單與新增、更新、刪除；`memoryKeys`）
+- `memory.test.ts` — 記憶 API 單元測試（六支端點各一條）
 
 ### `src/pages/`
 
@@ -192,6 +194,9 @@ npm run build
 - `bot/tabs/blocklist.tsx` — 黑名單分頁（封鎖使用者清單、解除封鎖）
 - `bot/tabs/messages.tsx` — 訊息分頁（群組或使用者訊息清單、對話篩選）
 - `bot/tabs/files.tsx` — 檔案分頁（檔案清單、下載、刪除、群組與類型篩選、NAS／已過期狀態）
+- `memory/index.tsx` — 記憶管理頁（群組／個人兩分頁、選對象、新增與編輯對話框、刪除確認）
+- `memory/target-list.tsx` — 左側對象清單（平台 badge、就地搜尋、翻頁；手機收進抽屜）
+- `memory/memory-list.tsx` — 記憶卡片（啟用開關、長內容折疊、建立時間與建立者）
 - `projects/list.tsx` — 專案清單頁（狀態篩選、搜尋、分頁；桌面表格、手機卡片；逾期里程碑數標紅；admin 才有新增）
 - `projects/editor.tsx` — 專案新增／編輯頁（名稱、客戶、狀態、負責人選單、起迄日、描述；新增限 admin，編輯限 admin 或成員）
 - `projects/detail.tsx` — 專案明細頁（主檔與進度表頭、刪除、五個分頁籤，tab 寫進網址）
@@ -274,6 +279,7 @@ Playwright 端對端測試：
 - `items.spec.ts` — 物料清單／明細庫存與異動兩分頁／調整與調撥／新增編輯／倉庫頁／權限擋下測試
 - `purchasing.spec.ts` — 採購單清單篩選／新增行項／明細收貨與取消／首頁待收貨卡／權限擋下測試
 - `files.spec.ts` — 檔案頁測試（空狀態與連線、沿用既有連線、連線失敗訊息、瀏覽與麵包屑、搜尋、預覽、連線過期自動重連重試、中斷、權限擋下；上傳、新資料夾、重新命名含 409、刪除含遞迴、分享連結的權限與 `resource_id`）
+- `memory.spec.ts` — 記憶管理測試（群組分頁列記憶與折疊、空狀態、新增、編輯、停用與 500 錯誤、刪除確認、個人分頁與搜尋、對象不存在的 404 detail、權限擋下）
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -313,6 +319,7 @@ Playwright 端對端測試：
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
 - **檔案** — 路由 `/files`（需 `file-manager` 權限，預設開放）。進頁面先打 `GET /api/nas/connections`，有現成連線就沿用第一筆，沒有才開連線對話框（主機預設值來自 `VITE_NAS_HOST`）。連線 token 只放記憶體（後端 30 分鐘，操作會自動延長），不進 localStorage。之後每支 NAS 端點都帶 `X-NAS-Token`，缺連線或過期時 `lib/nas.ts` 的 fetch 包裝層攔下來，清掉連線、開對話框，連好再把原請求重試一次。根目錄列的是共享資料夾（`GET /api/nas/shares`，`browse?path=/` 後端會回 400），往下是 `GET /api/nas/browse`；桌面表格、手機卡片，`?path=` 寫進網址，重新整理停在同一層。搜尋只在共享資料夾底下可用（後端 `_parse_path` 不接受空路徑），結果的 `path` 後端不含 share 名稱，前端接回去才點得進。圖片、PDF 與文字（txt／md／csv／json／log）在預覽面板顯示，其他類型只給下載；預覽與下載都用 header 取 blob，NAS token 不進網址。工具列有「上傳」（多檔，逐檔送，做完重抓清單）與「新資料夾」，每一列的「動作」選單有重新命名、刪除（資料夾多一個遞迴勾選，後端沒勾會回 400）與分享連結；這些寫入類動作只在共享資料夾底下的瀏覽清單出現（根目錄列的是 share，後端 `_parse_path` 不接受空路徑；搜尋結果跨資料夾，改完要重抓的不是同一份清單）。分享連結要 `share-manager` 權限（後端預設關閉）而且檔案要落在 `VITE_NAS_SHARE_MOUNTS` 設定的前綴底下：`POST /api/share` 的 `nas_file` 會把 `resource_id` 丟給 `validate_nas_file_path()`，檔案管理器的 SMB 路徑（以 `/` 開頭但不是 `/tmp/`、`/mnt/`）會被 `path_manager` 判成 NAS zone 直接拒絕，所以要先換成掛載點路徑
 
+- **記憶** — 路由 `/memory`（需 `memory-manager` 權限，後端預設開放；記憶端點本身只驗登入，前端仍用 `RequireApp` 擋入口）。兩個分頁「群組」「個人」寫進網址 `?tab=`，選到的對象寫進 `?target=`；左側清單沿用 Bot 頁的群組（`/api/bot/groups`）與使用者（`/api/bot/users-with-binding`）資料層，每頁 20 筆、附平台 badge，搜尋是就地過濾當頁（這兩支端點沒有關鍵字參數），手機寬度收進抽屜。右側列該對象的記憶：標題、內容（純文字，超出三行折起來）、啟用開關（`PUT` 只送 `is_active`）、編輯與刪除，上方「新增記憶」。記憶和 bot 用的是同一份：`services/linebot_ai.py` 組系統提示詞時只讀 `is_active = true` 的那些，所以停用等於 bot 讀不到。刪除的確認對話框照 PR #29 的做法（只掛一個、關掉直接卸載、等請求落地才關）。後端 404 的 detail（`Group not found`／`User not found`／`Memory not found`）原樣顯示
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細、依使用者篩選）
 - **使用者管理** — 路由 `/admin/users`（僅管理員）。清單有帳號、顯示名稱、角色、狀態、密碼（已設定／NAS）、最後登入，停用的使用者整列淡化。每列「權限」按鈕開 Sheet 調 app／知識庫權限（PATCH 只送變動的鍵，即時生效）；每列「動作」選單有編輯（顯示名稱、Email、角色）、停用／啟用、重設密碼、清除密碼與刪除，清除密碼與刪除各有確認對話框。清單上方的「新增使用者」對話框收帳號、密碼、顯示名稱與角色，後端一律把新帳號設成 `must_change_password=true`，成功後提示首次登入需改密碼。後端擋自己的四條（降級、停用、清除密碼、刪除）在自己那一列直接停用選項並寫出原因，不等 400。其餘 400 的 `detail` 原樣顯示。編輯表單的 Email 留空代表不變更：清單端點 `AdminUserInfo` 沒有回 email，後端 `update_user_info` 也只有收到 `None` 才跳過該欄
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載
