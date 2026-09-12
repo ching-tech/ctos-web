@@ -1,5 +1,4 @@
-import { API_BASE, apiFetch } from "./api"
-import { getToken } from "./token"
+import { API_BASE, apiFetch, withToken } from "./api"
 import type { ShareLink } from "./types"
 
 export type { ShareLink }
@@ -158,11 +157,6 @@ export function createShareLink(id: string, opts: { expires_in: "1h" | "24h" | "
     method: "POST",
     body: JSON.stringify({ resource_type: "knowledge", resource_id: id, expires_in: opts.expires_in, password: opts.password || undefined }),
   })
-}
-
-function withToken(url: string): string {
-  const t = getToken()
-  return t ? `${url}?token=${encodeURIComponent(t)}` : url
 }
 
 function encodeSegments(path: string): string {
