@@ -138,6 +138,8 @@ npm run build
 - `erp.ts` — 往來與物料模組 API 客戶端（往來對象清單／明細／主檔／合併；聯絡人與地址的新增／更新／刪除；物料清單／明細／主檔、倉庫清單與主檔、庫存查詢與調整／調撥；採購單清單／明細／建立／更新／收貨／取消；角色、採購單狀態與庫存異動原因的中文與 tint 對照、別名解析、Decimal 金額與數量格式化、timestamptz 轉本地時間、未收量計算、待收貨排序、`erpKeys`）
 - `erp.test.ts` — 往來對象與物料對照表、別名解析、金額與數量格式化、採購單狀態規則與未收量、逾期判斷與待收貨排序單元測試
 - `users.ts` — 使用者選單（`GET /api/user/list`，登入即可讀，供負責人與成員下拉用）
+- `api-tokens.ts` — 個人存取權杖（PAT）API 客戶端（列表／建立／撤銷、scope 對照 app 名稱、`apiTokenKeys`）
+- `api-tokens.test.ts` — PAT API 與 scope 名稱對照單元測試
 
 ### `src/pages/`
 
@@ -148,7 +150,8 @@ npm run build
 - `home/ai-usage-card.tsx` — 首頁「今日 AI 用量」卡片（依本地今天日期查 stats：呼叫次數／成功率／平均耗時／Token 進出）
 - `home/bot-summary-card.tsx` — 首頁「Bot 概況」卡片（群組數／黑名單數／我的 Line／Telegram 綁定狀態）
 - `home/pending-receipts-card.tsx` — 首頁「採購待收貨」卡片（`ordered` 與 `partial` 的單數，列預計到貨最近的五張，逾期標紅）
-- `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁）
+- `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁，掛上各區塊元件）
+- `settings/api-tokens.tsx` — 設定頁「API 權杖」區塊（清單、建立對話框、一次性權杖畫面、撤銷確認）
 - `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
@@ -221,6 +224,7 @@ Playwright 端對端測試：
 
 - `login.spec.ts` — 登入流程測試
 - `settings.spec.ts` — 設定頁測試
+- `settings-tokens.spec.ts` — 設定頁「API 權杖」測試（清單、建立與一次性權杖、撤銷確認、PAT session 的 403）
 - `shell.spec.ts` — 應用殼層測試（含首頁知識庫最近更新）
 - `home.spec.ts` — 首頁 dashboard 測試（今日 AI 用量／Bot 概況卡片依權限顯示、統計數字、stats 請求帶 `start_date`）
 - `kb-list.spec.ts` — 知識庫清單測試
@@ -273,7 +277,7 @@ Playwright 端對端測試：
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
 - **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
 - **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）、「進行中專案」與「逾期里程碑」（依 `project-management` 權限）、「採購待收貨」（依 `inventory-management` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片
-- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁
+- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細、依使用者篩選）
