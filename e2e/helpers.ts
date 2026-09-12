@@ -57,6 +57,8 @@ export async function mockApi(
     apiTokens?: ApiTokenFixture[]
     /** 以 PAT 換發／撤銷 token 時後端回 403（api/auth.py 486–490、532–536）。 */
     patSession?: boolean
+    /** 第一次 DELETE 回 500，之後照常成功；用來驗錯誤訊息會不會被下一次成功清掉。 */
+    failRevokeOnce?: boolean
   } = {},
 ) {
   const user = opts.user === undefined ? { ...userFixture } : opts.user
@@ -104,7 +106,12 @@ export async function mockApi(
     }
     return route.fulfill({ json: { success: true, tokens: apiTokens } })
   })
+  let revokeFailuresLeft = opts.failRevokeOnce ? 1 : 0
   await page.route(`${API}/api/auth/tokens/*`, async (route) => {
+    if (revokeFailuresLeft > 0) {
+      revokeFailuresLeft -= 1
+      return route.fulfill({ status: 500, json: { detail: "資料庫暫時連不上" } })
+    }
     if (opts.patSession) {
       return route.fulfill({
         status: 403,

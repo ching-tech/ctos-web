@@ -123,11 +123,13 @@ function CreateTokenDialog() {
   const [created, setCreated] = React.useState<ApiTokenCreateResponse | null>(null)
 
   // 可勾的範圍＝登入者有權限的 app，順序照側邊欄；`inventory-management` 在側邊欄出現兩次，去重。
+  // 管理員一律放行（`canAccessApp` 不看 permissions.apps），所以不能只列 permissions.apps 有的鍵：
+  // 權限表空的管理員會一個選項都沒有，只剩「全部不勾＝不限縮」可用。
   const scopeOptions = React.useMemo(() => {
     const owned = Object.keys(user?.permissions?.apps ?? {})
     const navApps = [...new Set(NAV_ITEMS.map((i) => i.app).filter((a): a is string => Boolean(a)))]
     const ordered = [...new Set([...navApps, ...owned])]
-    return ordered.filter((app) => owned.includes(app) && canAccessApp(user, app))
+    return ordered.filter((app) => canAccessApp(user, app) && (user?.is_admin || owned.includes(app)))
   }, [user])
 
   const mutation = useMutation({
@@ -259,12 +261,18 @@ function CreateTokenDialog() {
   )
 }
 
-function TokenRow({ token, onError }: { token: ApiTokenInfo; onError: (message: string) => void }) {
+function TokenRow({ token, onNotice }: { token: ApiTokenInfo; onNotice: (message: string | null) => void }) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: () => revokeApiToken(token.id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: apiTokenKeys.list }),
-    onError: (e) => onError(errorText(e, "撤銷失敗，請稍後再試")),
+    // 每次重試都先把上一次的錯誤訊息清掉，成功之後也要清，
+    // 否則撤銷失敗的訊息會一直掛在那裡，看起來像剛剛那次也失敗了。
+    onMutate: () => onNotice(null),
+    onSuccess: () => {
+      onNotice(null)
+      void queryClient.invalidateQueries({ queryKey: apiTokenKeys.list })
+    },
+    onError: (e) => onNotice(errorText(e, "撤銷失敗，請稍後再試")),
   })
 
   return (
@@ -352,7 +360,7 @@ export function ApiTokensCard() {
         {query.data && query.data.tokens.length > 0 && (
           <div className="space-y-3">
             {query.data.tokens.map((t) => (
-              <TokenRow key={t.id} token={t} onError={setNotice} />
+              <TokenRow key={t.id} token={t} onNotice={setNotice} />
             ))}
           </div>
         )}
