@@ -175,6 +175,8 @@ npm run build
 - `config-apps.ts` — `GET /api/config/apps`（啟用模組宣告的 app 清單，**回裸陣列**且不需認證；含 extends 與 skill 貢獻的 app）
 - `skills.ts` — Skills API 客戶端（清單、明細、更新、移除、重新載入、Hub 的 sources／search／inspect／install、檔案與 reference 讀取；`requiredApps` 正規化與 `skillUpdatePatch` 只算變動欄位、`skillKeys`）
 - `skills.test.ts` — Skills API 單元測試（每支端點各一條、patch 的四種情況、`requires_app` 正規化、400／404／409 的 detail）
+- `login-records.ts` — 登入紀錄 API 客戶端（清單／最近／統計／明細，篩選轉 query、裝置類型與地點顯示、成功率計算；`loginRecordKeys`）
+- `login-records.test.ts` — 登入紀錄 API 單元測試（四支端點各一條，含 `success=false` 與日期邊界）
 
 ### `src/pages/`
 
@@ -214,6 +216,8 @@ npm run build
 - `memory/memory-list.tsx` — 記憶卡片（啟用開關、長內容折疊、建立時間與建立者）
 - `messages/list.tsx` — 訊息中心清單頁（多選篩選寫進網址、桌面表格與手機卡片、勾選與全部標已讀、分頁）
 - `messages/detail.tsx` — 訊息明細頁（摘要、內容保留換行、附加資料摺疊 `<pre>`、進頁面補標已讀）
+- `login-records/list.tsx` — 登入紀錄清單頁（統計卡與天數選單、結果／使用者名稱／IP／日期區間篩選寫進網址、桌面表格與手機卡片、失敗列標色、分頁）
+- `login-records/detail.tsx` — 登入紀錄明細頁（登入、來源與裝置三張卡，經緯度有值才顯示，User Agent 全文）
 - `projects/list.tsx` — 專案清單頁（狀態篩選、搜尋、分頁；桌面表格、手機卡片；逾期里程碑數標紅；admin 才有新增）
 - `projects/editor.tsx` — 專案新增／編輯頁（名稱、客戶、狀態、負責人選單、起迄日、描述；新增限 admin，編輯限 admin 或成員）
 - `projects/detail.tsx` — 專案明細頁（主檔與進度表頭、刪除、五個分頁籤，tab 寫進網址）
@@ -313,6 +317,7 @@ Playwright 端對端測試：
 - `shares.spec.ts` — 分享管理測試（一般使用者清單、空狀態、已過期淡化、管理員切換 `?view=all` 與建立者欄、複製網址、撤銷確認、撤銷被拒的 detail、權限擋下）
 - `messages.spec.ts` — 訊息中心測試（鈴鐺未讀數與 99+、多選篩選寫進網址、勾選與全部標已讀、明細與自動標已讀、分頁、未登入被擋；桌機與手機）
 - `skills.spec.ts` — Skills 設定測試（清單與就地搜尋、重新載入、明細的提示詞與 references、安裝資訊摺疊、404 detail、`requires_app` 多選與清空、工具標籤、沒變動不送 PUT、刪除確認、Hub 搜尋／檢視／安裝與重抓清單、409 detail、非管理員擋下）
+- `login-records.spec.ts` — 登入紀錄測試（統計卡與天數選單、篩選寫進網址、失敗列標示、明細與經緯度、看不到的紀錄回 404、分頁、非管理員沒有使用者名稱篩選且有提示、管理員看得到全部；桌機與手機）
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -383,6 +388,9 @@ Playwright 端對端測試：
 
 - **訊息中心** — 路由 `/messages`，只要登入就進得去（後端 `api/messages.py` 只掛 `get_current_session`，沒有 app 閘）。Header 右側的鈴鐺顯示未讀數（超過 99 顯示 `99+`），點了帶著 `?is_read=false` 進未讀清單。清單有嚴重程度與來源兩個多選（同名參數重複帶，後端收 `list[...]`）、已讀狀態、關鍵字與日期區間，全部寫進網址；表格列嚴重程度、來源、分類、標題、時間與已讀狀態，未讀列加粗，手機寬度改卡片。可勾選多筆「標為已讀」，也可以「全部標為已讀」（有確認對話框，不受目前篩選影響）。`/messages/:id` 明細顯示標題、內容（純文字保留換行）、可摺疊的附加資料 `<pre>`、時間、嚴重程度與來源；後端讀明細**不會**順手標已讀，所以進頁面後由前端補送一次 `mark-read {ids:[id]}`。鈴鐺的未讀數用 React Query 輪詢（每分鐘一次加視窗重新取得焦點），沒有接 socket——後端雖然有 `message:unread_count` 事件，但 ctos-web 目前只在 AI 助手頁連 socket，要即時再改接
 
+- **登入紀錄** — 路由 `/login-records`，只要登入就進得去（後端 `api/login_records.py` 只掛 `get_current_session`，沒有 app 閘）。**非管理員一律只看得到自己的**：後端的 `_scoped_user_id` 把 `user_id` 換成自己的，`username` 篩選也直接丟掉，所以這一頁對非管理員只顯示使用者名稱以外的篩選，標題旁寫明「只顯示你自己的登入紀錄」。清單有結果（成功／失敗）、使用者名稱（管理員才有，後端是**等值**比對）、IP（等值，後端轉 `::inet`）與日期區間，全部寫進網址；欄位是時間、使用者、結果 badge、失敗原因、IP、地點（國家／城市）、裝置類型與瀏覽器，失敗的列整列標色，手機寬度改卡片。上方統計卡照 `GET /api/login-records/stats` 的欄位畫：登入次數、成功率（`success_count`／`total`）、失敗次數、不同 IP 數與不同裝置數，天數可選 7／30／90 並寫進網址；統計端點只收 `user_id` 與 `days`，不吃清單的篩選，所以卡片旁邊寫明這件事。`/login-records/:id` 明細列出後端 `LoginRecordResponse` 的全部欄位（含 user_agent、裝置指紋、session id、作業系統），經緯度兩個都有值才出現那一列；看不到的紀錄後端回 404 而不是 403（不洩漏存在），前端顯示「找不到這筆登入紀錄」。
+
+  一件與後端有關的事：`GET /api/login-records/stats` 目前在真後端會 500。`services/login_record.py` 的 `($1 || ' days')::INTERVAL` 把 `days` 當文字串接，但傳進去的是 int，asyncpg 直接丟 `DataError: invalid input for query argument $1: 30 (expected str, got int)`，兩個分支（有沒有 `user_id`）都一樣。前端已經照錯誤降級（統計卡換成一則錯誤提示，清單、篩選與明細照常運作），後端修好（傳 `str(days)` 或改用 `make_interval(days => $1)`）就會自己好起來，不必再動前端。
 
 ## 相關文件
 

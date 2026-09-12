@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Bot, Brain, Building2, CalendarClock, FileTerminal, Folder, FolderKanban, Home, Package, Presentation, Puzzle, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, Wrench, type LucideIcon } from "lucide-react"
+import { Bell, BookOpen, Bot, Brain, Building2, CalendarClock, FileTerminal, Folder, FolderKanban, Home, LogIn, Package, Presentation, Puzzle, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, Wrench, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
@@ -27,6 +27,8 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "排程", path: "/scheduler", icon: CalendarClock, adminOnly: true },
   // Skills 的每一支端點都掛 require_admin（ching-tech-os `api/skills.py`），所以整頁只給管理員。
   { title: "Skills", path: "/skills", icon: Puzzle, adminOnly: true },
+  // 登入紀錄也沒有 app 閘：後端只要登入，非管理員看到的是自己的（api/login_records.py 25–29）。
+  { title: "登入紀錄", path: "/login-records", icon: LogIn },
   { title: "使用者管理", path: "/admin/users", icon: Users, adminOnly: true },
   { title: "設定", path: "/settings", icon: Settings },
 ]

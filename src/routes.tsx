@@ -19,6 +19,8 @@ import KbDetailPage from "@/pages/kb/detail"
 import KbEditorPage from "@/pages/kb/editor"
 import KbListPage from "@/pages/kb/list"
 import LoginPage from "@/pages/login"
+import LoginRecordDetailPage from "@/pages/login-records/detail"
+import LoginRecordListPage from "@/pages/login-records/list"
 import MemoryPage from "@/pages/memory"
 import MessageDetailPage from "@/pages/messages/detail"
 import MessageListPage from "@/pages/messages/list"
@@ -107,6 +109,9 @@ export const router = createBrowserRouter([
           { path: "scheduler/:id/edit", element: <RequireAdmin><SchedulerEditorPage /></RequireAdmin> },
           { path: "skills", element: <RequireAdmin><SkillListPage /></RequireAdmin> },
           { path: "skills/:name", element: <RequireAdmin><SkillDetailPage /></RequireAdmin> },
+          // 登入紀錄沒有 app 閘，後端只要求登入；非管理員被限縮成只看自己（ching-tech-os api/login_records.py 25–29）。
+          { path: "login-records", element: <LoginRecordListPage /> },
+          { path: "login-records/:id", element: <LoginRecordDetailPage /> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
           { path: "settings", element: <SettingsPage /> },
         ],
