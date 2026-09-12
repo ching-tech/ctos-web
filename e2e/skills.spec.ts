@@ -1,6 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test"
 import {
   adminFixture,
+  duplicateSlugHubFixtures,
   mockApi,
   mockSkills,
   seedToken,
@@ -293,6 +294,31 @@ test.describe("Hub", () => {
     await expect(page.getByText("發票辨識")).toBeVisible()
     await expect(page.getByText("會議紀錄")).toBeVisible()
     await expect(page.getByRole("alert")).toContainText("SkillHub: 連線逾時")
+  })
+
+  test("同一個 slug 不同作者：安裝確認只出現在按下去的那一列", async ({ page }) => {
+    await mockApi(page, { user: adminFixture })
+    const store = await mockSkills(page, { hubResults: duplicateSlugHubFixtures })
+    await seedToken(page)
+    await page.goto("/skills")
+
+    await page.getByRole("button", { name: "從 Hub 安裝" }).click()
+    await page.getByRole("textbox", { name: "搜尋 Hub" }).fill("pdf")
+    await page.getByRole("button", { name: "搜尋" }).click()
+
+    // 兩列的 slug 一樣，作者不一樣。
+    await expect(page.getByText("作者 甲作者")).toBeVisible()
+    await expect(page.getByText("作者 乙作者")).toBeVisible()
+
+    const second = page.getByRole("listitem").filter({ hasText: "乙作者" })
+    await second.getByRole("button", { name: "安裝", exact: true }).click()
+    // 只有一個確認區塊，而且在第二列裡。
+    await expect(page.getByRole("button", { name: "確定安裝" })).toHaveCount(1)
+    await expect(second.getByRole("button", { name: "確定安裝" })).toBeVisible()
+
+    await second.getByRole("button", { name: "確定安裝" }).click()
+    // 搜尋結果的 version 是 null，前端就不送 version，讓後端抓 latest。
+    expect(store.installed).toEqual([{ name: "pdf", source: "clawhub" }])
   })
 
   test("已安裝的 409 detail 原樣顯示", async ({ page }) => {

@@ -5180,20 +5180,38 @@ function skillSummaryOf(d: SkillDetailFixture): SkillSummaryFixture {
 
 /** `POST /hub/search` 的結果列：後端把 Hub 的 JSON 原樣轉發，只保證補上 `source`（335–336、348）。 */
 export interface HubResultFixture {
+  /** ClawHub 的全域唯一 id；同一個 slug 可能有好幾個作者各發一份，只有這個分得開。 */
+  id?: string
   slug: string
   displayName?: string
   summary?: string
-  version?: string
+  /** 實測 ClawHub 搜尋結果這一欄是 null，版本由後端在 install 時抓 latest。 */
+  version?: string | null
   source: "clawhub" | "skillhub"
   owner?: { handle: string; displayName?: string }
 }
 
 export const hubResultFixtures: HubResultFixture[] = [
   {
-    slug: "invoice-reader", displayName: "發票辨識", summary: "把發票掃描檔轉成表格。",
+    id: "clawhub:aaa1", slug: "invoice-reader", displayName: "發票辨識", summary: "把發票掃描檔轉成表格。",
     version: "2.1.0", source: "clawhub", owner: { handle: "demo-owner", displayName: "示範作者" },
   },
-  { slug: "meeting-notes", displayName: "會議紀錄", summary: "把錄音逐字稿整理成重點。", version: "0.9.0", source: "skillhub" },
+  { id: "skillhub:bbb2", slug: "meeting-notes", displayName: "會議紀錄", summary: "把錄音逐字稿整理成重點。", version: "0.9.0", source: "skillhub" },
+]
+
+/**
+ * 同一個 slug、不同作者的兩筆——ClawHub 真的會這樣回（搜「pdf」一次二十筆裡有七筆 slug 都是 `pdf`），
+ * 而且 `version` 是 null。用來擋「安裝確認跳在每一筆同名的列上」這個回歸。
+ */
+export const duplicateSlugHubFixtures: HubResultFixture[] = [
+  {
+    id: "clawhub:dup1", slug: "pdf", displayName: "Pdf", summary: "甲作者的 PDF 工具。",
+    version: null, source: "clawhub", owner: { handle: "owner-jia", displayName: "甲作者" },
+  },
+  {
+    id: "clawhub:dup2", slug: "pdf", displayName: "Pdf", summary: "乙作者的 PDF 工具。",
+    version: null, source: "clawhub", owner: { handle: "owner-yi", displayName: "乙作者" },
+  },
 ]
 
 export interface SkillMockStore {

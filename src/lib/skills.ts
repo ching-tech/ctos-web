@@ -96,16 +96,21 @@ export interface HubSourceInfo {
  * 1294–1301 就是逐個 fallback），所以全部可選。
  */
 export interface HubSearchResult {
+  /** ClawHub 給的全域唯一 id（形如 `clawhub:kd7bm…`）。同一個 slug 可能有好幾個作者各發一份，只有這個是唯一的。 */
+  id?: string
   slug?: string
   name?: string
   displayName?: string
   summary?: string
   description?: string
-  version?: string
+  /** 實測 ClawHub 的搜尋結果這一欄是 null，版本要由後端在 install 時抓 latest。 */
+  version?: string | null
   score?: number
-  updatedAt?: string
+  /** ClawHub 給的是 epoch 毫秒，不是字串。 */
+  updatedAt?: string | number
   source?: HubSourceId
   owner?: { handle?: string; displayName?: string } | null
+  ownerHandle?: string
 }
 
 /** 指定 source 時只有 `query` 與 `results`（337）；不指定時多 `sources` 與 `errors`（360–364）。 */
@@ -196,7 +201,7 @@ export function hubInspect(slug: string, source: HubSourceId): Promise<HubInspec
 }
 
 /** `version` 不給就裝 Hub 上的 latest（`api/skills.py` 448）。 */
-export function hubInstall(name: string, source: HubSourceId, version?: string): Promise<HubInstallResponse> {
+export function hubInstall(name: string, source: HubSourceId, version?: string | null): Promise<HubInstallResponse> {
   const body: { name: string; source: HubSourceId; version?: string } = { name, source }
   if (version) body.version = version
   return apiFetch<HubInstallResponse>("/api/skills/hub/install", { method: "POST", body: JSON.stringify(body) })
