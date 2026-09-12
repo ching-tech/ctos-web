@@ -281,59 +281,67 @@ export default function MemoryPage() {
         </section>
       </div>
 
+      {/*
+        跟下面的確認對話框同一個道理（#26、#29）：內容整塊用 `editing &&` 包住，關掉就直接從樹上拿掉。
+        留著跑離場動畫的那一百毫秒裡 Radix 還沒卸掉 DialogContent，React 又會把 textarea 的
+        `defaultValue`（也就是它的 textContent）同步成表單值，剛存好的那段字於是同時出現在對話框
+        與列表卡片上，e2e 用文字找元素就撞成兩個（見 #32）。
+      */}
       <Dialog
         open={editing !== null}
         onOpenChange={(open) => {
           if (!open && !saveMutation.isPending) setEditing(null)
         }}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editing?.memory ? "編輯記憶" : "新增記憶"}</DialogTitle>
-          </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveMutation.mutate({ memory: editing?.memory ?? null, title: form.title.trim(), content: form.content })
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="memory-title">標題</Label>
-              <Input
-                id="memory-title"
-                required
-                maxLength={MEMORY_TITLE_MAX}
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                placeholder="例如：出貨前先報數量"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="memory-content">內容</Label>
-              <Textarea
-                id="memory-content"
-                required
-                rows={6}
-                value={form.content}
-                onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-                placeholder="要 bot 記住的規則，寫成它照著做得到的一句話。"
-              />
-            </div>
+        {editing && (
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editing?.memory ? "編輯記憶" : "新增記憶"}</DialogTitle>
+            </DialogHeader>
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                saveMutation.mutate({ memory: editing?.memory ?? null, title: form.title.trim(), content: form.content })
+              }}
+            >
+              <div className="space-y-2">
+                <Label htmlFor="memory-title">標題</Label>
+                <Input
+                  id="memory-title"
+                  required
+                  maxLength={MEMORY_TITLE_MAX}
+                  value={form.title}
+                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="例如：出貨前先報數量"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="memory-content">內容</Label>
+                <Textarea
+                  id="memory-content"
+                  required
+                  rows={6}
+                  value={form.content}
+                  onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+                  placeholder="要 bot 記住的規則，寫成它照著做得到的一句話。"
+                />
+              </div>
 
-            {saveMutation.isError && (
-              <Alert variant="destructive" role="alert">
-                <AlertDescription>{errorText(saveMutation.error, "儲存失敗，請稍後再試")}</AlertDescription>
-              </Alert>
-            )}
+              {saveMutation.isError && (
+                <Alert variant="destructive" role="alert">
+                  <AlertDescription>{errorText(saveMutation.error, "儲存失敗，請稍後再試")}</AlertDescription>
+                </Alert>
+              )}
 
-            <DialogFooter>
-              <Button type="submit" disabled={saveMutation.isPending}>
-                儲存
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
+              <DialogFooter>
+                <Button type="submit" disabled={saveMutation.isPending}>
+                  儲存
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        )}
       </Dialog>
 
       {/*
