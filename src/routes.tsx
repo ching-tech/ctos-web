@@ -16,6 +16,7 @@ import KbDetailPage from "@/pages/kb/detail"
 import KbEditorPage from "@/pages/kb/editor"
 import KbListPage from "@/pages/kb/list"
 import LoginPage from "@/pages/login"
+import MemoryPage from "@/pages/memory"
 import PartyDetailPage from "@/pages/parties/detail"
 import PartyEditorPage from "@/pages/parties/editor"
 import PartyListPage from "@/pages/parties/list"
@@ -70,6 +71,7 @@ export const router = createBrowserRouter([
           { path: "purchase-orders/:id/edit", element: <RequireApp app="inventory-management"><PurchaseOrderEditorPage /></RequireApp> },
           { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
           { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
+          { path: "memory", element: <RequireApp app="memory-manager"><MemoryPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
           { path: "ai-log/:id", element: <RequireApp app="ai-log"><AiLogDetailPage /></RequireApp> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },

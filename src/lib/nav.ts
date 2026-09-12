@@ -1,4 +1,4 @@
-import { BookOpen, Bot, Building2, Folder, FolderKanban, Home, Package, ScrollText, Settings, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
+import { BookOpen, Bot, Brain, Building2, Folder, FolderKanban, Home, Package, ScrollText, Settings, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
@@ -13,6 +13,7 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "物料庫存", path: "/items", icon: Package, app: "inventory-management" },
   { title: "採購單", path: "/purchase-orders", icon: ShoppingCart, app: "inventory-management" },
   { title: "Bot 管理", path: "/bot", icon: Bot, app: "linebot" },
+  { title: "記憶", path: "/memory", icon: Brain, app: "memory-manager" },
   { title: "AI Log", path: "/ai-log", icon: ScrollText, app: "ai-log" },
   { title: "使用者管理", path: "/admin/users", icon: Users, adminOnly: true },
   { title: "設定", path: "/settings", icon: Settings },
