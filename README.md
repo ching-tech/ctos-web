@@ -116,6 +116,19 @@ readlink /proc/<pid>/cwd        # 確認是不是別的 worktree 殘留的 proce
 
 只看 `ss -ltn` 只知道 port 被佔用，看不出是不是自己這個 worktree 的 server；`/proc/<pid>/cwd` 才能確認那個 process 是從哪個目錄起的，避免誤殺別人正在跑的測試、或誤判「這個 port 是我的」。
 
+### API 缺口盤點（可重跑）
+
+`docs/gap-inventory-2026-09-12.md` 那份盤點的方法已寫成腳本，之後每一輪都用同一把尺量：
+
+```bash
+# 本機後端起在某個 port 之後
+npm run api-gap -- http://127.0.0.1:<port>/openapi.json
+# 或用存下來的 openapi.json；--json 輸出機器可讀
+node scripts/api-gap-inventory.mjs --openapi ./openapi.json --src src --json
+```
+
+輸出三類：一、整個模組（openapi tag）沒有任何路徑被前端打到；二、`src/pages` 底下沒打到任何 `/api` 或含殼字樣的頁面檔；三、模組有打到但其中某些路徑沒有。比對規則：前端樣板裡 `/` 後的 `${…}` 只對應後端的 `{param}`，不吃字面子路徑；接在其他字元後的 `${…}` 視為 query 或尾巴、從那裡截斷；`{…path}` 尾段用前綴比對。webhook／internal／health 預設排除（`--ignore` 可覆寫）。
+
 ### 建置與預覽
 
 ```bash
