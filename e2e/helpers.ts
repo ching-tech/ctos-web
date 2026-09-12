@@ -682,8 +682,14 @@ export const adminUserFixtures: AdminUserFixture[] = [
   },
 ]
 
-/** 攔 /api/admin/users、/api/admin/default-permissions、PATCH /api/admin/users/:id/permissions（依 deep merge 回寫）。 */
-export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] } = {}) {
+/**
+ * 攔管理員這一組端點：GET／POST /api/admin/users、/api/admin/default-permissions、
+ * PATCH /api/admin/users/:id（編輯）、/status（停用啟用）、/permissions（deep merge 回寫）、
+ * POST /:id/reset-password、/:id/clear-password、DELETE /:id。
+ * 寫入都直接改 users 陣列，後續的 GET 會看到結果。
+ * `failCreate` 讓「帳號重複」那種 400 可以被測到（後端是 services/user.py 190 的 ValueError）。
+ */
+export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[]; failCreate?: string } = {}) {
   const users: AdminUserFixture[] = (opts.users ?? adminUserFixtures).map((u) => ({
     ...u,
     permissions: { apps: { ...u.permissions.apps }, knowledge: { ...u.permissions.knowledge } },
@@ -694,7 +700,26 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
 
   await page.route(
     (url) => sameOrigin(url) && url.pathname === `${prefix}/api/admin/users`,
-    async (route) => route.fulfill({ json: { users } }),
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fulfill({ json: { users } })
+      if (opts.failCreate) return route.fulfill({ status: 400, json: { detail: opts.failCreate } })
+      const body = route.request().postDataJSON() as { username: string; password: string; display_name: string | null; role: string }
+      const id = Math.max(0, ...users.map((u) => u.id)) + 1
+      users.push({
+        id,
+        username: body.username,
+        display_name: body.display_name,
+        is_admin: body.role === "admin",
+        // 後端建帳號時不寫 preferences，權限就是該角色的預設值
+        permissions: { apps: { "knowledge-base": true, "ai-log": false, linebot: true, settings: true }, knowledge: { global_write: false, global_delete: false } },
+        created_at: "2026-09-12T00:00:00",
+        last_login_at: null,
+        is_active: true,
+        role: body.role,
+        has_password: true,
+      })
+      await route.fulfill({ json: { success: true, id, username: body.username, display_name: body.display_name, role: body.role, error: null } })
+    },
   )
 
   await page.route(
@@ -719,6 +744,65 @@ export async function mockAdmin(page: Page, opts: { users?: AdminUserFixture[] }
       if (body.apps) Object.assign(user.permissions.apps, body.apps)
       if (body.knowledge) Object.assign(user.permissions.knowledge, body.knowledge)
       await route.fulfill({ json: { success: true, permissions: user.permissions } })
+    },
+  )
+
+  /** 依網址取出 :id 並找到那筆 fixture；找不到就照後端回 404。 */
+  function findUser(url: string, idIndexFromEnd: number) {
+    const parts = new URL(url).pathname.split("/")
+    return users.find((u) => u.id === Number(parts[parts.length - idIndexFromEnd]))
+  }
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/admin\/users\/[^/]+\/status$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const user = findUser(route.request().url(), 2)
+      if (!user) return route.fulfill({ status: 404, json: { detail: "使用者不存在" } })
+      const body = route.request().postDataJSON() as { is_active: boolean }
+      user.is_active = body.is_active
+      await route.fulfill({ json: { success: true, message: body.is_active ? "帳號已啟用" : "帳號已停用", error: null } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/admin\/users\/[^/]+\/reset-password$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const user = findUser(route.request().url(), 2)
+      if (!user) return route.fulfill({ status: 404, json: { detail: "使用者不存在" } })
+      const body = route.request().postDataJSON() as { new_password: string }
+      if (body.new_password.length < 8) return route.fulfill({ status: 400, json: { detail: "密碼需至少 8 個字元" } })
+      user.has_password = true
+      await route.fulfill({ json: { success: true, message: "密碼已重設，使用者下次登入需要變更密碼", error: null } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/admin\/users\/[^/]+\/clear-password$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const user = findUser(route.request().url(), 2)
+      if (!user) return route.fulfill({ status: 404, json: { detail: "使用者不存在" } })
+      user.has_password = false
+      await route.fulfill({ json: { success: true, message: "密碼已清除，使用者將改為 NAS 認證登入", error: null } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/admin\/users\/[^/]+$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const method = route.request().method()
+      const user = findUser(route.request().url(), 1)
+      if (!user) return route.fulfill({ status: 404, json: { detail: "使用者不存在" } })
+      if (method === "DELETE") {
+        users.splice(users.indexOf(user), 1)
+        return route.fulfill({ json: { success: true, message: "使用者已永久刪除", error: null } })
+      }
+      const body = route.request().postDataJSON() as { display_name?: string; email?: string; role?: string }
+      if (body.display_name !== undefined) user.display_name = body.display_name
+      if (body.role !== undefined) {
+        user.role = body.role
+        user.is_admin = body.role === "admin"
+      }
+      await route.fulfill({ json: { success: true, message: "使用者資訊已更新", error: null } })
     },
   )
 
