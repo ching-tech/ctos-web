@@ -166,6 +166,8 @@ npm run build
 - `share.test.ts` — 分享連結 API 單元測試（view 參數、204 撤銷、token encode、403 detail、類型對照與標題規則）
 - `messages.ts` — 訊息中心 API 客戶端（清單／明細／未讀數／標已讀，篩選轉 query 含重複帶的陣列參數、嚴重程度與來源標籤與配色；`messageKeys`）
 - `messages.test.ts` — 訊息中心 API 單元測試（四支端點各一條，含陣列參數與日期邊界）
+- `scheduler.ts` — 排程 API 客戶端（清單／單筆／建立／更新／刪除／啟停用／立即執行七支端點，外加下拉用的最小 skill 清單；觸發與執行器顯示文字、只送變動欄位的 diff、JSON 輸入驗證、`schedulerKeys`）
+- `scheduler.test.ts` — 排程 API 單元測試（七支端點各一條，加 cron／interval 顯示文字、靜態排程多回的 `second`、diff 與 JSON 驗證）
 
 ### `src/pages/`
 
@@ -232,6 +234,8 @@ npm run build
 - `files/index.tsx` — 檔案頁（麵包屑、共享資料夾與資料夾瀏覽、目前路徑搜尋、預覽面板、連線資訊與連線對話框、上傳與新資料夾工具列、每列的動作選單；`?path=` 與 `?q=` 寫進網址）
 - `shares/index.tsx` — 分享管理頁（清單、管理員的「只看我的／全部」切換、複製網址、撤銷確認；桌面表格、手機卡片）
 - `admin/users.tsx` — 使用者管理頁（使用者表格與「新增使用者」對話框；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH；每列「動作」選單含編輯、停用／啟用、重設密碼、清除密碼、刪除）
+- `scheduler/list.tsx` — 排程清單頁（名稱與來源 badge、觸發文字、執行器、啟用開關、下次與上次執行、失敗訊息與連續失敗次數；立即執行、編輯、刪除，確認對話框只掛一個）
+- `scheduler/editor.tsx` — 排程新增／編輯頁（觸發類型切換：cron 五欄加常用預設、interval 五個整數；執行器類型切換：agent 下拉加指令、skill／script 連動下拉加 JSON 輸入驗證；通知平台與接收者；編輯只送變動欄位）
 
 ### `src/components/`
 
@@ -278,6 +282,7 @@ Playwright 端對端測試：
 - `assistant.spec.ts` — AI 助手測試（對話清單與新對話、送訊息的 `ai_chat_event` payload、typing／回覆／工具時間軸、錯誤 alert、改名與刪除、`?q=` 預填、斷線、權限擋下）
 - `permissions.spec.ts` — 依 app 權限顯示側邊欄／擋下受限路由、使用者管理頁切換權限
 - `admin-users.spec.ts` — 使用者管理的管理員動作（新增、400 detail、停用自己被前端擋下、編輯、停用別人、重設密碼、清除密碼、刪除、停用者淡化）
+- `scheduler.spec.ts` — 排程清單與編輯器測試（各欄與 badge、toggle 的 PATCH、立即執行的確認、cron／interval 新增的 body、JSON 輸入驗證、編輯只送變動、名稱重複的 409、系統來源不可改、刪除確認、非管理員擋下）
 - `bot-binding-groups.spec.ts` — Bot 綁定與群組清單測試
 - `bot-group-detail.spec.ts` — Bot 群組明細測試
 - `bot-users-blocklist.spec.ts` — Bot 使用者與黑名單分頁測試
@@ -338,6 +343,7 @@ Playwright 端對端測試：
 
   兩件與後端有關的事：一是 `share-manager` 這道閘門**只有前端有**——`POST /api/share` 掛了 `require_app_permission("share-manager")`，但 `GET /api/share` 與 `DELETE /api/share/{token}` 只掛 `get_current_session`（`api/share.py` 142、176），登入就打得到；撤銷本身另有「建立者或管理員」檢查。二是 `project` 與 `project_attachment` 兩種資源後端沒有實作標題，一律回「未知資源」（`services/share.py` 430–431），原始資源被刪掉則是「（已刪除）」，前端照後端顯示，不自己編
 - **使用者管理** — 路由 `/admin/users`（僅管理員）。清單有帳號、顯示名稱、角色、狀態、密碼（已設定／NAS）、最後登入，停用的使用者整列淡化。每列「權限」按鈕開 Sheet 調 app／知識庫權限（PATCH 只送變動的鍵，即時生效）；每列「動作」選單有編輯（顯示名稱、Email、角色）、停用／啟用、重設密碼、清除密碼與刪除，清除密碼與刪除各有確認對話框。清單上方的「新增使用者」對話框收帳號、密碼、顯示名稱與角色，後端一律把新帳號設成 `must_change_password=true`，成功後提示首次登入需改密碼。後端擋自己的四條（降級、停用、清除密碼、刪除）在自己那一列直接停用選項並寫出原因，不等 400。其餘 400 的 `detail` 原樣顯示。編輯表單的 Email 留空代表不變更：清單端點 `AdminUserInfo` 沒有回 email，後端 `update_user_info` 也只有收到 `None` 才跳過該欄
+- **排程** — 路由 `/scheduler`（僅管理員，後端 `/api/scheduler/*` 七支端點全部 `require_admin`）。這個模組舊桌面沒有畫面，bot 那邊靠 MCP 工具 `manage_scheduled_task`／`list_scheduled_tasks` 建排程，這一頁看到的是同一份資料。清單列名稱與來源 badge、觸發（cron 補齊五欄顯示，interval 換成「每 N 小時」）、執行器（agent 名或 `skill / script`）、啟用開關、下次執行、上次執行的成功／失敗 badge 與失敗訊息，連續失敗次數大於 0 標紅。動態排程可以立即執行、編輯、刪除，兩個動作各有確認對話框；立即執行的對話框寫明會馬上真的跑一次（agent 會呼叫 AI、腳本會真的執行並照設定推播），不是試跑。系統與模組排程是 `_collect_static_schedules` 從 APScheduler 的 job 組出來的唯讀資料，id 是 `uuid5` 造的假 id、不在資料表裡，所以 PUT／DELETE／toggle 都會落到 404「排程不存在」；前端直接把這幾列的開關鎖住、不給動作按鈕，直接打編輯網址也擋下來。`/scheduler/new`、`/scheduler/:id/edit` 的表單有觸發類型切換（cron 五欄加「每天 09:00」「每小時」「每週一 08:00」三個常用預設；interval 五個整數，全部 0 時後端當每 1 小時）、執行器類型切換（agent 選 `/api/ai/agents` 的名稱加一段指令；skill_script 的 skill 下拉連動 script 下拉，輸入資料是 JSON 字串，不合法就不讓送）與通知設定（LINE／Telegram、個人或群組、對象 id）。編輯只送變動欄位：後端 `model_dump(exclude_none=True)` 會把 null 丟掉，所以清空說明是送空字串而不是 null。建立時名稱重複後端回 409，detail 原樣顯示
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載
 - **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 不在本階段
 - **往來對象** — 路由 `/parties`（需 `vendor-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的名稱／簡稱／別名／統編／聯絡人姓名（模糊）與電話／手機（等值）搜尋，角色篩選送 `role=supplier|customer|both`，手機寬度改卡片；`/parties/new`、`/parties/:id/edit` 是主檔表單，新增時可一併帶一筆主要聯絡人與地址（後端 `PartyCreate` 支援）；`/parties/:id` 明細分五個分頁（聯絡人、地址、採購單、專案、知識庫），分頁寫進網址 `?tab=`。聯絡人與地址可以新增、編輯、刪除與「設為主要」（`is_primary=true` 由後端把同一家其他筆降級；刪除是硬刪除，刪掉主要那筆不自動指派新主要）。表頭有「問 AI」帶 `?q=` 前綴文字開 AI 助手、「合併」對話框（挑保留哪一筆，送 `POST /api/parties/merge`，後端角色取 OR、統編取 COALESCE、drop 的名稱與簡稱併進別名）與軟刪除。採購單分頁的 `/purchase-orders/:id` 連結先做，頁面在採購單那個 PR 才有

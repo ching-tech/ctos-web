@@ -4658,3 +4658,254 @@ export async function mockAiManagement(
 
   return { prompts, agents, requests }
 }
+
+/** `ScheduledTaskResponse`（ching-tech-os `models/scheduled_task.py` 107–124）。 */
+export interface ScheduledTaskFixture {
+  id: string
+  name: string
+  description: string | null
+  trigger_type: "cron" | "interval"
+  trigger_config: Record<string, string | number>
+  executor_type: "agent" | "skill_script"
+  executor_config: Record<string, unknown>
+  is_enabled: boolean
+  created_by: number | null
+  last_run_at: string | null
+  next_run_at: string | null
+  last_run_success: boolean | null
+  last_run_error: string | null
+  consecutive_failures: number
+  created_at: string
+  updated_at: string
+  source: "dynamic" | "system" | "module"
+}
+
+export const scheduledTaskFixtures: ScheduledTaskFixture[] = [
+  {
+    id: "3f1b6c2a-0001-4a11-8c11-aaaaaaaaaaaa",
+    name: "每日晨間摘要",
+    description: "早上九點把前一天的紀錄整理成一段話",
+    trigger_type: "cron",
+    trigger_config: { minute: "0", hour: "9", day: "*", month: "*", day_of_week: "*" },
+    executor_type: "agent",
+    executor_config: { agent_name: "web-chat-default", prompt: "整理昨天的紀錄" },
+    is_enabled: true,
+    created_by: 1,
+    last_run_at: "2026-09-11T01:00:00Z",
+    next_run_at: "2026-09-12T01:00:00Z",
+    last_run_success: true,
+    last_run_error: null,
+    consecutive_failures: 0,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-11T01:00:00Z",
+    source: "dynamic",
+  },
+  {
+    id: "3f1b6c2a-0002-4a11-8c11-bbbbbbbbbbbb",
+    name: "庫存水位巡檢",
+    description: null,
+    trigger_type: "interval",
+    trigger_config: { weeks: 0, days: 0, hours: 6, minutes: 0, seconds: 0 },
+    executor_type: "skill_script",
+    executor_config: { skill: "stock-watch", script: "check_levels.py", input: '{"threshold": 10}' },
+    is_enabled: false,
+    created_by: 1,
+    last_run_at: "2026-09-11T18:00:00Z",
+    next_run_at: null,
+    last_run_success: false,
+    last_run_error: "Script not found: stock-watch/check_levels.py",
+    consecutive_failures: 3,
+    created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-09-11T18:00:00Z",
+    source: "dynamic",
+  },
+  {
+    // 靜態排程：`_collect_static_schedules`（api/scheduler.py 246–283）用 job.id 當名稱，
+    // cron 只回非星號的欄位，executor_config 是空的。
+    id: "3f1b6c2a-0003-4a11-8c11-cccccccccccc",
+    name: "cleanup_expired_shares",
+    description: "清理過期分享連結",
+    trigger_type: "cron",
+    // `_parse_trigger` 是把 APScheduler 的欄位整包倒出來，實際會多一個 second。
+    trigger_config: { hour: "3", minute: "30", second: "0" },
+    executor_type: "agent",
+    executor_config: {},
+    is_enabled: true,
+    created_by: null,
+    last_run_at: null,
+    next_run_at: "2026-09-13T19:30:00Z",
+    last_run_success: null,
+    last_run_error: null,
+    consecutive_failures: 0,
+    created_at: "2026-09-12T00:00:00Z",
+    updated_at: "2026-09-12T00:00:00Z",
+    source: "system",
+  },
+  {
+    id: "3f1b6c2a-0004-4a11-8c11-dddddddddddd",
+    name: "linebot:refresh_groups",
+    description: "同步 LINE 群組名稱",
+    trigger_type: "interval",
+    trigger_config: { hours: 12 },
+    executor_type: "agent",
+    executor_config: {},
+    is_enabled: true,
+    created_by: null,
+    last_run_at: null,
+    next_run_at: "2026-09-12T12:00:00Z",
+    last_run_success: null,
+    last_run_error: null,
+    consecutive_failures: 0,
+    created_at: "2026-09-12T00:00:00Z",
+    updated_at: "2026-09-12T00:00:00Z",
+    source: "module",
+  },
+]
+
+/** `GET /api/ai/agents` 的 items（前端只用 id／name／display_name）。 */
+export const schedulerAgentFixtures = [
+  {
+    id: "9a7c1d10-0001-4b22-9d33-eeeeeeeeeeee",
+    name: "web-chat-default",
+    display_name: "網頁對話",
+    model: "sonnet",
+    is_active: true,
+    tools: null,
+    updated_at: "2026-09-01T00:00:00Z",
+  },
+  {
+    id: "9a7c1d10-0002-4b22-9d33-ffffffffffff",
+    name: "report-writer",
+    display_name: null,
+    model: "sonnet",
+    is_active: true,
+    tools: null,
+    updated_at: "2026-09-01T00:00:00Z",
+  },
+]
+
+/** `GET /api/skills` 的 skills（api/skills.py 181–205），這裡只留前端用得到的欄位。 */
+export const schedulerSkillFixtures = [
+  { name: "stock-watch", description: "庫存水位巡檢", scripts: ["check_levels.py", "export_csv.py"] },
+  { name: "daily-report", description: "每日報表", scripts: ["build.py"] },
+]
+
+/**
+ * 攔 `/api/scheduler/tasks`（七支端點）與下拉用的 `/api/ai/agents`、`/api/skills`。
+ * 狀態留在記憶體，同一個 page 內連續操作看得到結果。
+ */
+export async function mockScheduler(
+  page: Page,
+  opts: {
+    tasks?: ScheduledTaskFixture[]
+    agents?: typeof schedulerAgentFixtures
+    skills?: typeof schedulerSkillFixtures
+    /** POST 一律回這個 409 訊息（api/scheduler.py 83–86 的名稱重複）。 */
+    failCreate?: string
+  } = {},
+) {
+  const tasks: ScheduledTaskFixture[] = (opts.tasks ?? scheduledTaskFixtures).map((t) => ({
+    ...t,
+    trigger_config: { ...t.trigger_config },
+    executor_config: { ...t.executor_config },
+  }))
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+  const idFromUrl = (url: string, fromEnd: number) => {
+    const parts = new URL(url).pathname.split("/")
+    return parts[parts.length - fromEnd]
+  }
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/ai/agents`,
+    (route) =>
+      route.fulfill({ json: { items: opts.agents ?? schedulerAgentFixtures, total: (opts.agents ?? schedulerAgentFixtures).length } }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/skills`,
+    (route) => route.fulfill({ json: { skills: opts.skills ?? schedulerSkillFixtures } }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/scheduler/tasks`,
+    async (route) => {
+      if (route.request().method() !== "POST") return route.fulfill({ json: { tasks } })
+      if (opts.failCreate) return route.fulfill({ status: 409, json: { detail: opts.failCreate } })
+      const body = route.request().postDataJSON() as Partial<ScheduledTaskFixture>
+      const created: ScheduledTaskFixture = {
+        id: `3f1b6c2a-1${String(tasks.length).padStart(3, "0")}-4a11-8c11-999999999999`,
+        name: body.name!,
+        description: body.description ?? null,
+        trigger_type: body.trigger_type!,
+        trigger_config: body.trigger_config!,
+        executor_type: body.executor_type!,
+        executor_config: body.executor_config!,
+        is_enabled: body.is_enabled ?? true,
+        created_by: 1,
+        last_run_at: null,
+        next_run_at: body.is_enabled === false ? null : "2026-09-12T06:00:00Z",
+        last_run_success: null,
+        last_run_error: null,
+        consecutive_failures: 0,
+        created_at: "2026-09-12T05:00:00Z",
+        updated_at: "2026-09-12T05:00:00Z",
+        source: "dynamic",
+      }
+      tasks.push(created)
+      await route.fulfill({ status: 201, json: created })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/scheduler\/tasks\/[^/]+$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const id = idFromUrl(route.request().url(), 1)
+      const index = tasks.findIndex((t) => t.id === id)
+      // 靜態排程的假 id 不在資料表裡，PUT／DELETE 會落到 404（api/scheduler.py 136–138、177–179）。
+      if (index < 0 || tasks[index].source !== "dynamic") {
+        return route.fulfill({ status: 404, json: { detail: "排程不存在" } })
+      }
+      const method = route.request().method()
+      if (method === "DELETE") {
+        tasks.splice(index, 1)
+        return route.fulfill({ status: 204 })
+      }
+      if (method === "PUT") {
+        const body = route.request().postDataJSON() as Partial<ScheduledTaskFixture>
+        // 後端 `model_dump(exclude_none=True)`（api/scheduler.py 149）：null 會被丟掉。
+        for (const [k, v] of Object.entries(body)) {
+          if (v !== null) (tasks[index] as unknown as Record<string, unknown>)[k] = v
+        }
+        tasks[index].updated_at = "2026-09-12T05:30:00Z"
+      }
+      await route.fulfill({ json: tasks[index] })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/scheduler\/tasks\/[^/]+\/toggle$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const id = idFromUrl(route.request().url(), 2)
+      const task = tasks.find((t) => t.id === id && t.source === "dynamic")
+      if (!task) return route.fulfill({ status: 404, json: { detail: "排程不存在" } })
+      const body = route.request().postDataJSON() as { is_enabled: boolean }
+      task.is_enabled = body.is_enabled
+      task.next_run_at = body.is_enabled ? "2026-09-12T06:00:00Z" : null
+      await route.fulfill({ json: task })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && /^\/api\/scheduler\/tasks\/[^/]+\/run$/.test(url.pathname.slice(prefix.length)),
+    async (route) => {
+      const id = idFromUrl(route.request().url(), 2)
+      const task = tasks.find((t) => t.id === id && t.source === "dynamic")
+      if (!task) return route.fulfill({ status: 404, json: { detail: "排程不存在" } })
+      await route.fulfill({ status: 202, json: { message: `已送出執行: ${task.name}` } })
+    },
+  )
+
+  return { tasks }
+}

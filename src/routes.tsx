@@ -34,6 +34,8 @@ import PurchaseOrderListPage from "@/pages/purchase-orders/list"
 import ProjectDetailPage from "@/pages/projects/detail"
 import ProjectEditorPage from "@/pages/projects/editor"
 import ProjectListPage from "@/pages/projects/list"
+import SchedulerEditorPage from "@/pages/scheduler/editor"
+import SchedulerListPage from "@/pages/scheduler/list"
 import SettingsPage from "@/pages/settings"
 import SharesPage from "@/pages/shares"
 import WarehouseListPage from "@/pages/warehouses/list"
@@ -95,6 +97,9 @@ export const router = createBrowserRouter([
           // 訊息中心沒有 app 閘，後端只要求登入（ching-tech-os api/messages.py 45）。
           { path: "messages", element: <MessageListPage /> },
           { path: "messages/:id", element: <MessageDetailPage /> },
+          { path: "scheduler", element: <RequireAdmin><SchedulerListPage /></RequireAdmin> },
+          { path: "scheduler/new", element: <RequireAdmin><SchedulerEditorPage /></RequireAdmin> },
+          { path: "scheduler/:id/edit", element: <RequireAdmin><SchedulerEditorPage /></RequireAdmin> },
           { path: "admin/users", element: <RequireAdmin><AdminUsersPage /></RequireAdmin> },
           { path: "settings", element: <SettingsPage /> },
         ],
