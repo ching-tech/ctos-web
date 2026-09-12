@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useSearchParams } from "react-router"
+import { Link, useSearchParams } from "react-router"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -112,7 +112,11 @@ export default function BlocklistTab({ platform }: { platform: Platform | "" }) 
               <TableBody>
                 {items.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell>{u.display_name || "—"}</TableCell>
+                    <TableCell>
+                      <Link to={`/bot/users/${u.id}?from=blocklist`} className="text-primary underline-offset-4 hover:underline">
+                        {u.display_name || "未命名使用者"}
+                      </Link>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="tint">{platformLabel(u.platform_type)}</Badge>
                     </TableCell>

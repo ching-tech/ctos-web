@@ -206,6 +206,17 @@ export function listUsersWithBinding(f: ListFilter): Promise<BotUserListResponse
   return apiFetch<BotUserListResponse>(`/api/bot/users-with-binding?${offsetQuery(20, f)}`)
 }
 
+/**
+ * 單一使用者明細（`api/linebot_router.py` 699–709）。回的是與清單同一個
+ * `LineUserResponse`，但服務層 `services/bot_line/admin.py` 193–206 是
+ * `SELECT * FROM bot_users`，沒有 JOIN users，所以 `bound_username` 與
+ * `bound_display_name` 一律是 model 預設的 null——綁定與否只能看 `user_id`。
+ * 找不到回 404，detail 是 `User not found`。
+ */
+export function getUser(id: string): Promise<BotUser> {
+  return apiFetch<BotUser>(`/api/bot/users/${id}`)
+}
+
 export function listBlockedUsers(f: ListFilter): Promise<BotUserListResponse> {
   const params = new URLSearchParams()
   params.set("blocked", "true")
@@ -277,6 +288,7 @@ export const botKeys = {
   groups: (f: ListFilter) => ["bot", "groups", f] as const,
   group: (id: string) => ["bot", "group", id] as const,
   users: (f: ListFilter) => ["bot", "users", f] as const,
+  user: (id: string) => ["bot", "user", id] as const,
   blocked: (f: ListFilter) => ["bot", "blocked", f] as const,
   messages: (f: MessageFilter) => ["bot", "messages", f] as const,
   files: (f: FileFilter) => ["bot", "files", f] as const,

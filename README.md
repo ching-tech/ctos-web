@@ -175,7 +175,7 @@ npm run build
 - `assistant.ts` — AI 助手 API 客戶端（對話 CRUD、Socket.IO 事件型別、訊息過濾與時間標籤、query key）
 - `assistant.test.ts` — AI 助手 API 與事件處理單元測試
 - `socket.ts` — Socket.IO 單例客戶端（握手帶 `auth.token`、`clearSession` 時斷線；e2e build 換成假 socket）
-- `bot.ts` — Bot 管理 API 客戶端（綁定狀態、群組、使用者、黑名單、訊息、檔案；分頁與檔案下載 Helper）
+- `bot.ts` — Bot 管理 API 客戶端（綁定狀態、群組、使用者含單筆明細、黑名單、訊息、檔案；分頁與檔案下載 Helper）
 - `bot.test.ts` — Bot API 單元測試
 - `bot-settings.ts` — Bot 平台設定 API 客戶端（狀態、更新憑證、清除、測試連線；欄位／來源文案、PUT 只送有值的欄位、query key）
 - `bot-settings.test.ts` — Bot 平台設定 API 單元測試
@@ -235,11 +235,12 @@ npm run build
 - `ai-log/detail.tsx` — AI Log 明細頁（摘要、輸入／回應／解析結果、錯誤訊息、允許的工具、工具呼叫時間軸）
 - `bot/index.tsx` — Bot 管理殼頁（平台篩選、七個分頁籤；平台設定只有管理員看得到）
 - `bot/group-detail.tsx` — Bot 群組明細頁（資訊、最近訊息、刪除）
+- `bot/user-detail.tsx` — Bot 使用者明細頁（資訊、CTOS 綁定與記憶入口、封鎖／解除封鎖）
 - `bot/group-filter.tsx` — 群組篩選下拉共用元件（訊息／檔案分頁共用）
 - `bot/tabs/binding.tsx` — 綁定分頁（Line／Telegram 平台卡）
 - `bot/tabs/groups.tsx` — 群組分頁（群組清單、AI 回覆開關、狀態）
-- `bot/tabs/users.tsx` — 使用者分頁（使用者清單、CTOS 綁定、封鎖）
-- `bot/tabs/blocklist.tsx` — 黑名單分頁（封鎖使用者清單、解除封鎖）
+- `bot/tabs/users.tsx` — 使用者分頁（使用者清單、CTOS 綁定、封鎖；名稱連明細）
+- `bot/tabs/blocklist.tsx` — 黑名單分頁（封鎖使用者清單、解除封鎖；名稱連明細並帶 `?from=blocklist`）
 - `bot/tabs/messages.tsx` — 訊息分頁（群組或使用者訊息清單、對話篩選）
 - `bot/tabs/files.tsx` — 檔案分頁（檔案清單、下載、刪除、群組與類型篩選、NAS／已過期狀態）
 - `bot/tabs/platform-settings.tsx` — 平台設定分頁（僅管理員：Line／Telegram 憑證遮罩狀態與來源、更換欄位、主動推送開關、測試連線、清除資料庫設定）
@@ -338,6 +339,7 @@ Playwright 端對端測試：
 - `bot-binding-groups.spec.ts` — Bot 綁定與群組清單測試
 - `bot-group-detail.spec.ts` — Bot 群組明細測試
 - `bot-users-blocklist.spec.ts` — Bot 使用者與黑名單分頁測試
+- `bot-user-detail.spec.ts` — Bot 使用者明細測試（欄位與記憶連結、從明細封鎖、從黑名單進來的回去連結、404 detail）
 - `bot-messages-files.spec.ts` — Bot 訊息與檔案分頁測試
 - `bot-settings.spec.ts` — Bot 平台設定分頁測試（兩平台欄位狀態、更換單一欄位、主動推送開關、測試連線成功與失敗、清除確認與清除失敗時對話框留著、非管理員擋下）
 - `projects.spec.ts` — 專案清單／明細五分頁／新增編輯／權限擋下／知識庫編輯器專案入口測試
@@ -410,7 +412,7 @@ Playwright 端對端測試：
 
 - **使用者管理** — 路由 `/admin/users`（僅管理員）。清單有帳號、顯示名稱、角色、狀態、密碼（已設定／NAS）、最後登入，停用的使用者整列淡化。每列「權限」按鈕開 Sheet 調 app／知識庫權限（PATCH 只送變動的鍵，即時生效）；每列「動作」選單有編輯（顯示名稱、Email、角色）、停用／啟用、重設密碼、清除密碼與刪除，清除密碼與刪除各有確認對話框。清單上方的「新增使用者」對話框收帳號、密碼、顯示名稱與角色，後端一律把新帳號設成 `must_change_password=true`，成功後提示首次登入需改密碼。後端擋自己的四條（降級、停用、清除密碼、刪除）在自己那一列直接停用選項並寫出原因，不等 400。其餘 400 的 `detail` 原樣顯示。編輯表單的 Email 留空代表不變更：清單端點 `AdminUserInfo` 沒有回 email，後端 `update_user_info` 也只有收到 `None` 才跳過該欄
 - **排程** — 路由 `/scheduler`（僅管理員，後端 `/api/scheduler/*` 七支端點全部 `require_admin`）。這個模組舊桌面沒有畫面，bot 那邊靠 MCP 工具 `manage_scheduled_task`／`list_scheduled_tasks` 建排程，這一頁看到的是同一份資料。清單列名稱與來源 badge、觸發（cron 補齊五欄顯示，interval 換成「每 N 小時」）、執行器（agent 名或 `skill / script`）、啟用開關、下次執行、上次執行的成功／失敗 badge 與失敗訊息，連續失敗次數大於 0 標紅。動態排程可以立即執行、編輯、刪除，兩個動作各有確認對話框；立即執行的對話框寫明會馬上真的跑一次（agent 會呼叫 AI、腳本會真的執行並照設定推播），不是試跑。系統與模組排程是 `_collect_static_schedules` 從 APScheduler 的 job 組出來的唯讀資料，id 是 `uuid5` 造的假 id、不在資料表裡，所以 PUT／DELETE／toggle 都會落到 404「排程不存在」；前端直接把這幾列的開關鎖住、不給動作按鈕，直接打編輯網址也擋下來。`/scheduler/new`、`/scheduler/:id/edit` 的表單有觸發類型切換（cron 五欄加「每天 09:00」「每小時」「每週一 08:00」三個常用預設；interval 五個整數，全部 0 時後端當每 1 小時）、執行器類型切換（agent 選 `/api/ai/agents` 的名稱加一段指令；skill_script 的 skill 下拉連動 script 下拉，輸入資料是 JSON 字串，不合法就不讓送）與通知設定（LINE／Telegram、個人或群組、對象 id）。編輯只送變動欄位：後端 `model_dump(exclude_none=True)` 會把 null 丟掉，所以清空說明是送空字串而不是 null。建立時名稱重複後端回 409，detail 原樣顯示
-- **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載。第七個分頁「平台設定」只有管理員看得到（後端 `api/bot_settings.py` 四支都掛 `require_admin`），非管理員連 `?tab=settings` 也退回綁定分頁：Line／Telegram 各一張卡，每個欄位顯示遮罩值、來源 badge（資料庫／環境變數／未設定）與更新時間，「更換」開密碼型輸入框，送出只帶那一個欄位（空字串不送，免得把值清掉）；主動推送開關單獨送 PUT；「測試連線」用後端存著的憑證測，成功與失敗的 message 都原樣顯示；「清除資料庫設定」有確認對話框，講明清除後改用 .env 的值、.env 也沒有的話 Bot 會停，主動推送設定也會重設為預設值（後端 `DELETE FROM bot_settings WHERE platform = $1` 連開關那一列一起刪）；對話框的開關由 state 控制、確定鍵是一般 Button，送出中留在畫面上，失敗時對話框不關並把後端的 detail 顯示在裡面。後端永遠只回遮罩值，明文憑證不會出現在畫面、網址或快取裡
+- **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；使用者與黑名單兩個分頁的名稱都連到 `/bot/users/:id` 明細（從黑名單進去會帶 `?from=blocklist`，決定「回上一層」連回哪個分頁）：顯示平台、平台使用者 ID、狀態訊息、語言、好友、建立與更新時間，CTOS 綁定狀態，以及連到 `/memory?tab=user&target=<id>` 的記憶入口，封鎖與解除封鎖沿用清單那兩支 mutation。要注意 `GET /api/bot/users/{user_id}`（`api/linebot_router.py` 699–709）雖然和清單同一個 `LineUserResponse`，服務層卻是 `SELECT * FROM bot_users`（`services/bot_line/admin.py` 193–206），**沒有** `list_users_with_binding` 那個 `LEFT JOIN users`，所以 `bound_username` 與 `bound_display_name` 永遠是 model 預設的 null——明細頁的綁定狀態只能靠 `user_id`，顯示成「已綁定 CTOS 帳號 #N」。記憶分頁的值是 `tab=user`（顯示文字才是「個人」），連結不要寫成 `tab=personal`，那會被 `isTabValue` 擋掉退回群組分頁；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載。第七個分頁「平台設定」只有管理員看得到（後端 `api/bot_settings.py` 四支都掛 `require_admin`），非管理員連 `?tab=settings` 也退回綁定分頁：Line／Telegram 各一張卡，每個欄位顯示遮罩值、來源 badge（資料庫／環境變數／未設定）與更新時間，「更換」開密碼型輸入框，送出只帶那一個欄位（空字串不送，免得把值清掉）；主動推送開關單獨送 PUT；「測試連線」用後端存著的憑證測，成功與失敗的 message 都原樣顯示；「清除資料庫設定」有確認對話框，講明清除後改用 .env 的值、.env 也沒有的話 Bot 會停，主動推送設定也會重設為預設值（後端 `DELETE FROM bot_settings WHERE platform = $1` 連開關那一列一起刪）；對話框的開關由 state 控制、確定鍵是一般 Button，送出中留在畫面上，失敗時對話框不關並把後端的 detail 顯示在裡面。後端永遠只回遮罩值，明文憑證不會出現在畫面、網址或快取裡
 - **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 不在本階段
 - **往來對象** — 路由 `/parties`（需 `vendor-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的名稱／簡稱／別名／統編／聯絡人姓名（模糊）與電話／手機（等值）搜尋，角色篩選送 `role=supplier|customer|both`，手機寬度改卡片；`/parties/new`、`/parties/:id/edit` 是主檔表單，新增時可一併帶一筆主要聯絡人與地址（後端 `PartyCreate` 支援）；`/parties/:id` 明細分五個分頁（聯絡人、地址、採購單、專案、知識庫），分頁寫進網址 `?tab=`。聯絡人與地址可以新增、編輯、刪除與「設為主要」（`is_primary=true` 由後端把同一家其他筆降級；刪除是硬刪除，刪掉主要那筆不自動指派新主要）。表頭有「問 AI」帶 `?q=` 前綴文字開 AI 助手、「合併」對話框（挑保留哪一筆，送 `POST /api/parties/merge`，後端角色取 OR、統編取 COALESCE、drop 的名稱與簡稱併進別名）與軟刪除。採購單分頁的 `/purchase-orders/:id` 連結先做，頁面在採購單那個 PR 才有
 - **物料庫存** — 路由 `/items`（需 `inventory-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的料號／品名／規格／別名（都是 ILIKE），分類篩選送 `item_group`（等值比對，選項從當頁清單資料收集），欄位含預設供應商連結與各倉合計的總庫存，手機寬度改卡片；`/items/new`、`/items/:id/edit` 是主檔表單，預設供應商下拉打 `/api/parties?role=supplier&page_size=100`（後端 `list_parties` 的參數是 `role`，沒有 `is_supplier`），沒有 `vendor-management` 權限時下拉停用並提示；`/items/:id` 明細分庫存與異動兩個分頁，分頁寫進網址 `?tab=`。庫存分頁有各倉餘額表與「調整」（送 `POST /api/stock/adjust`，`reason` 固定 `adjust`，數量可正可負）、「調撥」（送 `POST /api/stock/transfer`）兩個對話框，後端擋下的負庫存、同倉調撥與非正數調撥都把 400 的 detail 原樣顯示；異動分頁列後端回的最近二十筆，原因用 tint badge。倉庫在 `/warehouses`，從物料清單的「倉庫」按鈕進去，不佔側邊欄，可新增與編輯，代碼撞名的 400 原樣顯示。數量欄位後端是 `Numeric(18,4)`，序列化成帶四位小數的字串，畫面上收掉尾數但保留真的有值的小數
