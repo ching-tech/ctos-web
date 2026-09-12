@@ -1,4 +1,4 @@
-import { Bell, BookOpen, Bot, Brain, Building2, Folder, FolderKanban, Home, Package, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, type LucideIcon } from "lucide-react"
+import { Bell, BookOpen, Bot, Brain, Building2, FileTerminal, Folder, FolderKanban, Home, Package, ScrollText, Settings, Share2, ShoppingCart, Sparkles, Users, Wrench, type LucideIcon } from "lucide-react"
 
 export interface NavItem { title: string; path: string; icon: LucideIcon; adminOnly?: boolean; app?: string }
 
@@ -14,6 +14,8 @@ export const NAV_ITEMS: NavItem[] = [
   { title: "採購單", path: "/purchase-orders", icon: ShoppingCart, app: "inventory-management" },
   { title: "Bot 管理", path: "/bot", icon: Bot, app: "linebot" },
   { title: "記憶", path: "/memory", icon: Brain, app: "memory-manager" },
+  { title: "Prompt", path: "/prompts", icon: FileTerminal, app: "prompt-editor" },
+  { title: "Agent", path: "/agents", icon: Wrench, app: "agent-settings" },
   { title: "AI Log", path: "/ai-log", icon: ScrollText, app: "ai-log" },
   // share-manager 後端預設關閉（services/permissions.py 177），沒開的人看不到這一項。
   { title: "分享", path: "/shares", icon: Share2, app: "share-manager" },

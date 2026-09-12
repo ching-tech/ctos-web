@@ -3,6 +3,9 @@ import { AppShell } from "@/components/app-shell"
 import { RequireAdmin, RequireApp } from "@/components/require-app"
 import { RequireAuth } from "@/components/require-auth"
 import AdminUsersPage from "@/pages/admin/users"
+import AgentDetailPage from "@/pages/agents/detail"
+import AgentEditorPage from "@/pages/agents/editor"
+import AgentListPage from "@/pages/agents/list"
 import AiLogDetailPage from "@/pages/ai-log/detail"
 import AiLogListPage from "@/pages/ai-log/list"
 import BotPage from "@/pages/bot"
@@ -19,6 +22,9 @@ import LoginPage from "@/pages/login"
 import MemoryPage from "@/pages/memory"
 import MessageDetailPage from "@/pages/messages/detail"
 import MessageListPage from "@/pages/messages/list"
+import PromptDetailPage from "@/pages/prompts/detail"
+import PromptEditorPage from "@/pages/prompts/editor"
+import PromptListPage from "@/pages/prompts/list"
 import PartyDetailPage from "@/pages/parties/detail"
 import PartyEditorPage from "@/pages/parties/editor"
 import PartyListPage from "@/pages/parties/list"
@@ -75,6 +81,14 @@ export const router = createBrowserRouter([
           { path: "bot", element: <RequireApp app="linebot"><BotPage /></RequireApp> },
           { path: "bot/groups/:id", element: <RequireApp app="linebot"><BotGroupDetailPage /></RequireApp> },
           { path: "memory", element: <RequireApp app="memory-manager"><MemoryPage /></RequireApp> },
+          { path: "prompts", element: <RequireApp app="prompt-editor"><PromptListPage /></RequireApp> },
+          { path: "prompts/new", element: <RequireApp app="prompt-editor"><PromptEditorPage /></RequireApp> },
+          { path: "prompts/:id", element: <RequireApp app="prompt-editor"><PromptDetailPage /></RequireApp> },
+          { path: "prompts/:id/edit", element: <RequireApp app="prompt-editor"><PromptEditorPage /></RequireApp> },
+          { path: "agents", element: <RequireApp app="agent-settings"><AgentListPage /></RequireApp> },
+          { path: "agents/new", element: <RequireApp app="agent-settings"><AgentEditorPage /></RequireApp> },
+          { path: "agents/:id", element: <RequireApp app="agent-settings"><AgentDetailPage /></RequireApp> },
+          { path: "agents/:id/edit", element: <RequireApp app="agent-settings"><AgentEditorPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
           { path: "ai-log/:id", element: <RequireApp app="ai-log"><AiLogDetailPage /></RequireApp> },
           { path: "shares", element: <RequireApp app="share-manager"><SharesPage /></RequireApp> },
