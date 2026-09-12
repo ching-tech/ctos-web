@@ -69,6 +69,12 @@ export async function mockApi(
     theme?: string
     /** PUT 一律回 400，模擬後端拒絕（api/user.py 277–281）。 */
     themeUpdateFails?: boolean
+    /**
+     * header 鈴鐺的未讀數（`GET /api/messages/unread-count`，api/messages.py 68–83）。
+     * 這支端點每一頁都會打，所以放進共用 mock；要測訊息中心本身請改用 `mockMessages`，
+     * 它註冊得比較晚會蓋過這裡（Playwright 由後註冊的 handler 先比對）。
+     */
+    unreadCount?: number
   } = {},
 ) {
   const user = opts.user === undefined ? { ...userFixture } : opts.user
@@ -164,6 +170,9 @@ export async function mockApi(
     }
     return route.fulfill({ json: { theme } })
   })
+  await page.route(`${API}/api/messages/unread-count`, (route) =>
+    route.fulfill({ json: { count: opts.unreadCount ?? 0 } }),
+  )
   await page.route(`${API}/api/user/me`, (route) => {
     const auth = route.request().headers()["authorization"]
     if (!auth || !user) return route.fulfill({ status: 401, json: { detail: "未授權" } })
@@ -4151,4 +4160,187 @@ export const shareUserFixture = {
     ...userFixture.permissions,
     apps: { ...userFixture.permissions.apps, "share-manager": true },
   },
+}
+
+/** `MessageResponse`（ching-tech-os models/message.py 42–55）。 */
+export interface MessageFixture {
+  id: number
+  created_at: string
+  severity: "debug" | "info" | "warning" | "error" | "critical"
+  source: "system" | "security" | "app" | "user"
+  category: string | null
+  title: string
+  content: string | null
+  metadata: Record<string, unknown> | null
+  user_id: number | null
+  session_id: string | null
+  is_read: boolean
+}
+
+/** 全部杜撰，沒有真實人名、群組名或廠商名。 */
+export const messageFixtures: MessageFixture[] = [
+  {
+    id: 101, created_at: "2026-09-12T01:30:00Z", severity: "critical", source: "system",
+    category: "storage", title: "資料庫磁碟空間低於 5%",
+    content: "資料分割區剩餘 4.2%。\n請盡快清理或擴充。", metadata: { device: "/dev/sda2", free_percent: 4.2 },
+    user_id: null, session_id: null, is_read: false,
+  },
+  {
+    id: 102, created_at: "2026-09-12T01:00:00Z", severity: "error", source: "app",
+    category: "sync", title: "物料同步作業失敗",
+    content: "同步在第 3 批中斷，錯誤代碼 E_TIMEOUT。", metadata: { batch: 3, code: "E_TIMEOUT" },
+    user_id: null, session_id: null, is_read: false,
+  },
+  {
+    id: 103, created_at: "2026-09-12T00:40:00Z", severity: "warning", source: "security",
+    category: "login", title: "偵測到異常登入嘗試",
+    content: "同一帳號在 10 分鐘內失敗 6 次。", metadata: { attempts: 6 },
+    user_id: 2, session_id: "sess-aaa", is_read: false,
+  },
+  {
+    id: 104, created_at: "2026-09-11T23:10:00Z", severity: "info", source: "security",
+    category: "login", title: "使用者登入成功",
+    content: "由內部網段登入。", metadata: null,
+    user_id: 2, session_id: "sess-bbb", is_read: false,
+  },
+  {
+    id: 105, created_at: "2026-09-11T22:00:00Z", severity: "info", source: "user",
+    category: "reminder", title: "有一張採購單待驗收",
+    content: null, metadata: null,
+    user_id: 2, session_id: null, is_read: true,
+  },
+  {
+    id: 106, created_at: "2026-09-10T09:00:00Z", severity: "debug", source: "system",
+    category: "startup", title: "服務啟動完成",
+    content: "耗時 3.1 秒。", metadata: { seconds: 3.1 },
+    user_id: null, session_id: null, is_read: true,
+  },
+  {
+    id: 107, created_at: "2026-09-09T08:30:00Z", severity: "warning", source: "app",
+    category: "quota", title: "知識庫附件容量已達八成",
+    content: null, metadata: null,
+    user_id: null, session_id: null, is_read: true,
+  },
+]
+
+/** 產 n 筆連號訊息，用來驗分頁；奇數筆未讀。 */
+export function makeMessages(n: number): MessageFixture[] {
+  const severities: MessageFixture["severity"][] = ["debug", "info", "warning", "error", "critical"]
+  const sources: MessageFixture["source"][] = ["system", "security", "app", "user"]
+  return Array.from({ length: n }, (_, i) => {
+    const num = i + 1
+    return {
+      id: 1000 + num,
+      created_at: new Date(Date.UTC(2026, 8, 12, 0, 0, 0) - num * 60_000).toISOString(),
+      severity: severities[i % severities.length],
+      source: sources[i % sources.length],
+      category: "batch",
+      title: `批次訊息 ${String(num).padStart(3, "0")}`,
+      content: `第 ${num} 則`,
+      metadata: null,
+      user_id: null,
+      session_id: null,
+      is_read: num % 2 === 0,
+    }
+  })
+}
+
+function messageListItem(m: MessageFixture) {
+  const { id, created_at, severity, source, category, title, is_read } = m
+  return { id, created_at, severity, source, category, title, is_read }
+}
+
+/** 照 ching-tech-os services/message.py 109–212 的 search_messages 做同樣的篩選。 */
+function filterMessages(all: MessageFixture[], params: URLSearchParams): MessageFixture[] {
+  const severities = params.getAll("severity")
+  const sources = params.getAll("source")
+  const category = params.get("category")
+  const search = params.get("search")
+  const isRead = params.get("is_read")
+  const startDate = params.get("start_date")
+  const endDate = params.get("end_date")
+  return all.filter((m) => {
+    if (severities.length > 0 && !severities.includes(m.severity)) return false
+    if (sources.length > 0 && !sources.includes(m.source)) return false
+    if (category && m.category !== category) return false
+    if (isRead !== null && m.is_read !== (isRead === "true")) return false
+    if (startDate && new Date(m.created_at) < new Date(startDate)) return false
+    if (endDate && new Date(m.created_at) > new Date(endDate)) return false
+    if (search) {
+      const needle = search.toLowerCase()
+      const hay = `${m.title}\n${m.content ?? ""}`.toLowerCase()
+      if (!hay.includes(needle)) return false
+    }
+    return true
+  })
+}
+
+/**
+ * 訊息中心的四支端點（ching-tech-os api/messages.py 29–146）。未讀數由 fixture 現況算，
+ * 所以標已讀之後鈴鐺的數字會跟著掉。註冊在 `mockApi` 之後才會蓋掉它的預設 unread-count。
+ */
+export async function mockMessages(page: Page, opts: { messages?: MessageFixture[] } = {}) {
+  const messages: MessageFixture[] = (opts.messages ?? messageFixtures).map((m) => ({ ...m }))
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/messages/unread-count`,
+    async (route) => route.fulfill({ json: { count: messages.filter((m) => !m.is_read).length } }),
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/messages/mark-read`,
+    async (route) => {
+      const body = route.request().postDataJSON() as { ids?: number[]; all?: boolean }
+      if (!body.ids && !body.all) {
+        return route.fulfill({ status: 400, json: { detail: "必須提供 ids 或設定 all=true" } })
+      }
+      const targets = body.all ? messages : messages.filter((m) => (body.ids ?? []).includes(m.id))
+      let marked = 0
+      for (const m of targets) {
+        if (!m.is_read) { m.is_read = true; marked += 1 }
+      }
+      await route.fulfill({ json: { marked_count: marked } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/messages`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      const filtered = filterMessages(messages, params)
+      const pageNum = Number(params.get("page") ?? "1")
+      const limit = Number(params.get("limit") ?? "20")
+      const start = (pageNum - 1) * limit
+      await route.fulfill({
+        json: {
+          items: filtered.slice(start, start + limit).map(messageListItem),
+          total: filtered.length,
+          page: pageNum,
+          limit,
+          total_pages: filtered.length > 0 ? Math.ceil(filtered.length / limit) : 1,
+        },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/messages/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      const rest = url.pathname.slice(detailPrefix.length)
+      return /^\d+$/.test(rest)
+    },
+    async (route) => {
+      const id = Number(new URL(route.request().url()).pathname.split("/").pop())
+      const found = messages.find((m) => m.id === id)
+      if (!found) return route.fulfill({ status: 404, json: { detail: `訊息 ${id} 不存在` } })
+      await route.fulfill({ json: { ...found } })
+    },
+  )
+
+  return { messages }
 }

@@ -164,6 +164,8 @@ npm run build
 - `memory.test.ts` — 記憶 API 單元測試（六支端點各一條）
 - `share.ts` — 分享連結管理 API 客戶端（清單 `view=mine｜all`、撤銷、資源類型中文對照、標題與落點連結、`shareKeys`；建立仍在 `kb.ts` 與 `nas.ts`）
 - `share.test.ts` — 分享連結 API 單元測試（view 參數、204 撤銷、token encode、403 detail、類型對照與標題規則）
+- `messages.ts` — 訊息中心 API 客戶端（清單／明細／未讀數／標已讀，篩選轉 query 含重複帶的陣列參數、嚴重程度與來源標籤與配色；`messageKeys`）
+- `messages.test.ts` — 訊息中心 API 單元測試（四支端點各一條，含陣列參數與日期邊界）
 
 ### `src/pages/`
 
@@ -199,6 +201,8 @@ npm run build
 - `memory/index.tsx` — 記憶管理頁（群組／個人兩分頁、選對象、新增與編輯對話框、刪除確認）
 - `memory/target-list.tsx` — 左側對象清單（平台 badge、就地搜尋、翻頁；手機收進抽屜）
 - `memory/memory-list.tsx` — 記憶卡片（啟用開關、長內容折疊、建立時間與建立者）
+- `messages/list.tsx` — 訊息中心清單頁（多選篩選寫進網址、桌面表格與手機卡片、勾選與全部標已讀、分頁）
+- `messages/detail.tsx` — 訊息明細頁（摘要、內容保留換行、附加資料摺疊 `<pre>`、進頁面補標已讀）
 - `projects/list.tsx` — 專案清單頁（狀態篩選、搜尋、分頁；桌面表格、手機卡片；逾期里程碑數標紅；admin 才有新增）
 - `projects/editor.tsx` — 專案新增／編輯頁（名稱、客戶、狀態、負責人選單、起迄日、描述；新增限 admin，編輯限 admin 或成員）
 - `projects/detail.tsx` — 專案明細頁（主檔與進度表頭、刪除、五個分頁籤，tab 寫進網址）
@@ -241,6 +245,7 @@ UI 元件與版面：
 - `theme-provider.tsx` — 主題提供者（深色／淺色切換）
 - `ui/` — shadcn/ui 元件（按鈕、卡片、輸入框、模態框等）
 - `pagination.tsx` — 分頁元件（上一頁／第 p／P 頁／下一頁，供清單頁重用）
+- `message-bell.tsx` — Header 未讀訊息鈴鐺（輪詢未讀數、>99 顯示 99+、連到未讀清單）
 - `ai-log/tool-calls.tsx` — 工具呼叫時間軸（AI Log 明細頁與 AI 助手共用）
 - `kb/attachments.tsx` — 附件清單（上傳、下載、刪除）
 - `kb/history-sheet.tsx` — 版本歷史側欄（歷史清單、舊版內容檢視）
@@ -284,6 +289,7 @@ Playwright 端對端測試：
 - `files.spec.ts` — 檔案頁測試（空狀態與連線、沿用既有連線、連線失敗訊息、瀏覽與麵包屑、搜尋、預覽、連線過期自動重連重試、中斷、權限擋下；上傳、新資料夾、重新命名含 409、刪除含遞迴、分享連結的權限與 `resource_id`）
 - `memory.spec.ts` — 記憶管理測試（群組分頁列記憶與折疊、空狀態、新增、編輯、停用與 500 錯誤、刪除確認、個人分頁與搜尋、對象不存在的 404 detail、權限擋下）
 - `shares.spec.ts` — 分享管理測試（一般使用者清單、空狀態、已過期淡化、管理員切換 `?view=all` 與建立者欄、複製網址、撤銷確認、撤銷被拒的 detail、權限擋下）
+- `messages.spec.ts` — 訊息中心測試（鈴鐺未讀數與 99+、多選篩選寫進網址、勾選與全部標已讀、明細與自動標已讀、分頁、未登入被擋；桌機與手機）
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -335,6 +341,8 @@ Playwright 端對端測試：
 - **往來對象** — 路由 `/parties`（需 `vendor-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的名稱／簡稱／別名／統編／聯絡人姓名（模糊）與電話／手機（等值）搜尋，角色篩選送 `role=supplier|customer|both`，手機寬度改卡片；`/parties/new`、`/parties/:id/edit` 是主檔表單，新增時可一併帶一筆主要聯絡人與地址（後端 `PartyCreate` 支援）；`/parties/:id` 明細分五個分頁（聯絡人、地址、採購單、專案、知識庫），分頁寫進網址 `?tab=`。聯絡人與地址可以新增、編輯、刪除與「設為主要」（`is_primary=true` 由後端把同一家其他筆降級；刪除是硬刪除，刪掉主要那筆不自動指派新主要）。表頭有「問 AI」帶 `?q=` 前綴文字開 AI 助手、「合併」對話框（挑保留哪一筆，送 `POST /api/parties/merge`，後端角色取 OR、統編取 COALESCE、drop 的名稱與簡稱併進別名）與軟刪除。採購單分頁的 `/purchase-orders/:id` 連結先做，頁面在採購單那個 PR 才有
 - **物料庫存** — 路由 `/items`（需 `inventory-management` 權限，預設開放；讀寫同一把權限，進得來就寫得動）。清單一個搜尋框打後端的料號／品名／規格／別名（都是 ILIKE），分類篩選送 `item_group`（等值比對，選項從當頁清單資料收集），欄位含預設供應商連結與各倉合計的總庫存，手機寬度改卡片；`/items/new`、`/items/:id/edit` 是主檔表單，預設供應商下拉打 `/api/parties?role=supplier&page_size=100`（後端 `list_parties` 的參數是 `role`，沒有 `is_supplier`），沒有 `vendor-management` 權限時下拉停用並提示；`/items/:id` 明細分庫存與異動兩個分頁，分頁寫進網址 `?tab=`。庫存分頁有各倉餘額表與「調整」（送 `POST /api/stock/adjust`，`reason` 固定 `adjust`，數量可正可負）、「調撥」（送 `POST /api/stock/transfer`）兩個對話框，後端擋下的負庫存、同倉調撥與非正數調撥都把 400 的 detail 原樣顯示；異動分頁列後端回的最近二十筆，原因用 tint badge。倉庫在 `/warehouses`，從物料清單的「倉庫」按鈕進去，不佔側邊欄，可新增與編輯，代碼撞名的 400 原樣顯示。數量欄位後端是 `Numeric(18,4)`，序列化成帶四位小數的字串，畫面上收掉尾數但保留真的有值的小數
 - **採購單** — 路由 `/purchase-orders`（需 `inventory-management` 權限，側邊欄排在物料庫存之後）。清單有狀態、供應商與專案三個篩選（都寫進網址），欄位含單號、供應商連結、專案、狀態 badge、下單日、預計到貨、行項數與金額，手機寬度改卡片；`/purchase-orders/new` 是單頭加一張可增列的行項表格（物料下拉打 `/api/items?page_size=100`，上面一個搜尋框把 `q` 帶給後端），單號由後端在同一交易產生（`PO-YYYYMM-NNN`）不用自己填；`/purchase-orders/:id/edit` 只改單頭（後端的 `PurchaseOrderUpdate` 沒有行項），狀態只收草稿與已下單。`/purchase-orders/:id` 明細有表頭主檔、「問 AI」與行項表（數量、單價、已收、未收）。收貨對話框每一行預設帶出全部未收量可改，填 0 的行這次不收，送 `POST /{id}/receive` 的 `{lines: [{line_id, qty}], warehouse_id}`；行項的 key 是 `line_id` 不是 `item_id`（同一張單可以有兩行同一個物料）；「全部收貨」送 `ReceiveRequest` 的 `all: true`。超收、倉別沒指定、已結案的單不能收貨，這些 400 都把 detail 原樣顯示。「取消採購單」有確認對話框，已收過貨的單後端會擋下來。已收貨與已取消的單不出現編輯、收貨與取消；部分到貨的單可以收貨與取消，但**不能編輯單頭**（`PurchaseOrderUpdate` 的 `status` 只收草稿與已下單，編輯頁一送出就會把狀態壓回已下單），直接打 `/purchase-orders/:id/edit` 也會被導回明細。清單端點只回 `line_count` 與 `total_amount`，沒有行項數量彙總，所以清單那一欄放的是行項數
+- **訊息中心** — 路由 `/messages`，只要登入就進得去（後端 `api/messages.py` 只掛 `get_current_session`，沒有 app 閘）。Header 右側的鈴鐺顯示未讀數（超過 99 顯示 `99+`），點了帶著 `?is_read=false` 進未讀清單。清單有嚴重程度與來源兩個多選（同名參數重複帶，後端收 `list[...]`）、已讀狀態、關鍵字與日期區間，全部寫進網址；表格列嚴重程度、來源、分類、標題、時間與已讀狀態，未讀列加粗，手機寬度改卡片。可勾選多筆「標為已讀」，也可以「全部標為已讀」（有確認對話框，不受目前篩選影響）。`/messages/:id` 明細顯示標題、內容（純文字保留換行）、可摺疊的附加資料 `<pre>`、時間、嚴重程度與來源；後端讀明細**不會**順手標已讀，所以進頁面後由前端補送一次 `mark-read {ids:[id]}`。鈴鐺的未讀數用 React Query 輪詢（每分鐘一次加視窗重新取得焦點），沒有接 socket——後端雖然有 `message:unread_count` 事件，但 ctos-web 目前只在 AI 助手頁連 socket，要即時再改接
+
 
 ## 相關文件
 
