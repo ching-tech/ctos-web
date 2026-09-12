@@ -82,8 +82,6 @@ export interface HistoryEntry {
   message: string
 }
 
-
-
 export interface ListFilters {
   q?: string
   scope?: Scope | ""

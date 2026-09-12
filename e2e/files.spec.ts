@@ -193,6 +193,42 @@ test("上傳多檔後清單更新", async ({ page }) => {
   ])
 })
 
+test("多檔上傳中間有人失敗：其他的照樣上去、清單重抓、錯誤指名是哪一個檔", async ({ page }) => {
+  const { nas } = await setup(page, { ...CONNECTED, failUploadFor: "壞檔.pdf" })
+  await page.goto(FOLDER_URL)
+  await expect(page.getByRole("button", { name: "配置圖.png", exact: true })).toBeVisible()
+
+  await page.getByLabel("選擇要上傳的檔案").setInputFiles([
+    { name: "好檔.pdf", mimeType: "application/pdf", buffer: Buffer.from("ok") },
+    { name: "壞檔.pdf", mimeType: "application/pdf", buffer: Buffer.from("bad") },
+  ])
+
+  // 失敗的那一個要指名道姓，而且清單照樣重抓、成功的那個看得到
+  await expect(page.getByRole("alert")).toHaveText("上傳失敗——壞檔.pdf：無權限上傳檔案")
+  await expect(page.getByRole("button", { name: "好檔.pdf", exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: "壞檔.pdf", exact: true })).toHaveCount(0)
+  // 中間失敗不會讓後面的檔案被跳過（這裡兩個都送出去了）
+  expect(nas.requests.filter((r) => r.path === "/api/nas/upload")).toHaveLength(2)
+})
+
+test("改名開著預覽的檔案，預覽跟著換過去", async ({ page }) => {
+  await setup(page, CONNECTED)
+  await page.goto(FOLDER_URL)
+
+  const panel = page.getByRole("region", { name: "檔案預覽" })
+  await page.getByRole("button", { name: "說明.md", exact: true }).click()
+  await expect(panel.getByText("這是杜撰的測試內容。")).toBeVisible()
+
+  await page.getByRole("button", { name: "說明.md 的動作" }).click()
+  await page.getByRole("menuitem", { name: "重新命名" }).click()
+  await page.getByLabel("新名稱").fill("說明-v2.md")
+  await page.getByRole("button", { name: "儲存" }).click()
+
+  await expect(page.getByRole("button", { name: "說明-v2.md", exact: true })).toBeVisible()
+  await expect(panel.getByRole("heading", { name: "說明-v2.md" })).toBeVisible()
+  await expect(panel.getByText("這是杜撰的測試內容。")).toBeVisible()
+})
+
 test("新資料夾送完整路徑，建好之後出現在清單", async ({ page }) => {
   const { nas } = await setup(page, CONNECTED)
   await page.goto(FOLDER_URL)

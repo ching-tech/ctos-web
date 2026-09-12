@@ -12,6 +12,17 @@ function errorText(error: unknown, fallback: string): string {
   return error instanceof ApiError ? error.detail : fallback
 }
 
+/** 哪幾個檔案上傳失敗、各自的原因；只丟最後一個錯誤的話，使用者不知道是哪一個沒上去。 */
+class UploadFailures extends Error {
+  failures: { name: string; reason: string }[]
+
+  constructor(failures: { name: string; reason: string }[]) {
+    super(failures.map((f) => `${f.name}：${f.reason}`).join("；"))
+    this.name = "UploadFailures"
+    this.failures = failures
+  }
+}
+
 /** 上傳與新資料夾。兩支都是做完重抓目前這一層的清單，不做逐檔進度。 */
 export function FilesToolbar({ path }: { path: string }) {
   const queryClient = useQueryClient()
@@ -24,9 +35,19 @@ export function FilesToolbar({ path }: { path: string }) {
   const upload = useMutation({
     mutationFn: async (files: File[]) => {
       // 一次一個檔：後端一支端點只收一個 file，多檔就逐一送。
-      for (const file of files) await uploadNasFile(path, file)
+      // 中間有人失敗也把剩下的送完，最後一次把失敗的檔名交代清楚。
+      const failures: { name: string; reason: string }[] = []
+      for (const file of files) {
+        try {
+          await uploadNasFile(path, file)
+        } catch (e) {
+          failures.push({ name: file.name, reason: errorText(e, "上傳失敗，請稍後再試") })
+        }
+      }
+      if (failures.length > 0) throw new UploadFailures(failures)
     },
-    onSuccess: refresh,
+    // 用 onSettled 不是 onSuccess：失敗那一批裡通常已經有幾個上去了，清單一定要重抓。
+    onSettled: refresh,
   })
 
   const mkdir = useMutation({
@@ -71,7 +92,11 @@ export function FilesToolbar({ path }: { path: string }) {
 
       {upload.isError && (
         <Alert variant="destructive" role="alert">
-          <AlertDescription>{errorText(upload.error, "上傳失敗，請稍後再試")}</AlertDescription>
+          <AlertDescription>
+            {upload.error instanceof UploadFailures
+              ? `上傳失敗——${upload.error.message}`
+              : errorText(upload.error, "上傳失敗，請稍後再試")}
+          </AlertDescription>
         </Alert>
       )}
 

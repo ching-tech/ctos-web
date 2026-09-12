@@ -349,6 +349,9 @@ export default function FilesPage() {
                           listPath={path}
                           shareResourceId={canShare && row.type === "file" ? toShareResourceId(row.path) : null}
                           onDeleted={() => setPreview((p) => (p?.path === row.path ? null : p))}
+                          onRenamed={(next) =>
+                            setPreview((p) => (p?.path === row.path ? { path: joinPath(path, next), name: next } : p))
+                          }
                         />
                       </TableCell>
                     ) : null}
@@ -393,6 +396,9 @@ export default function FilesPage() {
                     listPath={path}
                     shareResourceId={canShare && row.type === "file" ? toShareResourceId(row.path) : null}
                     onDeleted={() => setPreview((p) => (p?.path === row.path ? null : p))}
+                    onRenamed={(next) =>
+                      setPreview((p) => (p?.path === row.path ? { path: joinPath(path, next), name: next } : p))
+                    }
                   />
                 )}
               </li>

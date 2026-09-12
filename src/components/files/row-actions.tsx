@@ -33,6 +33,7 @@ export function FileRowActions({
   listPath,
   shareResourceId,
   onDeleted,
+  onRenamed,
 }: {
   path: string
   name: string
@@ -40,6 +41,8 @@ export function FileRowActions({
   listPath: string
   shareResourceId: string | null
   onDeleted: () => void
+  /** 改名成功後通知呼叫端，開著的預覽要跟著換路徑（否則預覽會指到不存在的舊檔名）。 */
+  onRenamed: (newName: string) => void
 }) {
   const queryClient = useQueryClient()
   const [dialog, setDialog] = React.useState<"rename" | "delete" | "share" | null>(null)
@@ -52,6 +55,7 @@ export function FileRowActions({
     mutationFn: () => renameNas(path, newName.trim()),
     onSuccess: () => {
       setDialog(null)
+      onRenamed(newName.trim())
       return refresh()
     },
   })

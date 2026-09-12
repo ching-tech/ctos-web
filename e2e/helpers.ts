@@ -3631,7 +3631,13 @@ function fullConnection(c: NasConnectionFixture) {
 
 export async function mockNas(
   page: Page,
-  opts: { tree?: NasNode[]; connections?: NasConnectionFixture[]; unreachableHost?: string } = {},
+  opts: {
+    tree?: NasNode[]
+    connections?: NasConnectionFixture[]
+    unreachableHost?: string
+    /** 這個檔名的上傳一律失敗（測多檔上傳中間有人失敗的情況）。 */
+    failUploadFor?: string
+  } = {},
 ): Promise<NasMockControl> {
   const tree = cloneNasTree(opts.tree ?? nasTreeFixture)
   const unreachableHost = opts.unreachableHost ?? "unreachable.test.invalid"
@@ -3758,6 +3764,9 @@ export async function mockNas(
     const dir = body.match(/name="path"\r?\n\r?\n([^\r\n]*)/)?.[1] ?? ""
     const filename = body.match(/filename="([^"]*)"/)?.[1] ?? "unnamed"
     control.requests.push({ method: "POST", path: "/api/nas/upload", body: { path: dir, filename } })
+    if (opts.failUploadFor && filename === opts.failUploadFor) {
+      return route.fulfill({ status: 403, json: { detail: "無權限上傳檔案" } })
+    }
     const node = findNasNode(tree, dir)
     if (!node || node.type !== "directory") return route.fulfill({ status: 404, json: { detail: "檔案不存在" } })
     node.children = node.children ?? []
