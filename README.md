@@ -162,6 +162,8 @@ npm run build
 - `nas.test.ts` — NAS API 單元測試（每支端點、連線失效攔截與重試、路徑工具、分享路徑對照）
 - `memory.ts` — Bot 記憶 API 客戶端（群組／個人記憶清單與新增、更新、刪除；`memoryKeys`）
 - `memory.test.ts` — 記憶 API 單元測試（六支端點各一條）
+- `share.ts` — 分享連結管理 API 客戶端（清單 `view=mine｜all`、撤銷、資源類型中文對照、標題與落點連結、`shareKeys`；建立仍在 `kb.ts` 與 `nas.ts`）
+- `share.test.ts` — 分享連結 API 單元測試（view 參數、204 撤銷、token encode、403 detail、類型對照與標題規則）
 
 ### `src/pages/`
 
@@ -224,6 +226,7 @@ npm run build
 - `purchase-orders/detail.tsx` — 採購單明細頁（表頭主檔與狀態 badge，「問 AI」「編輯」「收貨」「取消採購單」；行項表含已收與未收）
 - `purchase-orders/receive-dialog.tsx` — 收貨對話框（入庫倉下拉、每行一個本次收貨數量、「送出收貨」與「全部收貨」）
 - `files/index.tsx` — 檔案頁（麵包屑、共享資料夾與資料夾瀏覽、目前路徑搜尋、預覽面板、連線資訊與連線對話框、上傳與新資料夾工具列、每列的動作選單；`?path=` 與 `?q=` 寫進網址）
+- `shares/index.tsx` — 分享管理頁（清單、管理員的「只看我的／全部」切換、複製網址、撤銷確認；桌面表格、手機卡片）
 - `admin/users.tsx` — 使用者管理頁（使用者表格與「新增使用者」對話框；每列「權限」按鈕開 Sheet，逐一 app／知識庫開關即時 PATCH；每列「動作」選單含編輯、停用／啟用、重設密碼、清除密碼、刪除）
 
 ### `src/components/`
@@ -280,6 +283,7 @@ Playwright 端對端測試：
 - `purchasing.spec.ts` — 採購單清單篩選／新增行項／明細收貨與取消／首頁待收貨卡／權限擋下測試
 - `files.spec.ts` — 檔案頁測試（空狀態與連線、沿用既有連線、連線失敗訊息、瀏覽與麵包屑、搜尋、預覽、連線過期自動重連重試、中斷、權限擋下；上傳、新資料夾、重新命名含 409、刪除含遞迴、分享連結的權限與 `resource_id`）
 - `memory.spec.ts` — 記憶管理測試（群組分頁列記憶與折疊、空狀態、新增、編輯、停用與 500 錯誤、刪除確認、個人分頁與搜尋、對象不存在的 404 detail、權限擋下）
+- `shares.spec.ts` — 分享管理測試（一般使用者清單、空狀態、已過期淡化、管理員切換 `?view=all` 與建立者欄、複製網址、撤銷確認、撤銷被拒的 detail、權限擋下）
 - `helpers.ts` — 測試輔助函式
 
 ## 登入與 Session 管理
@@ -321,6 +325,10 @@ Playwright 端對端測試：
 
 - **記憶** — 路由 `/memory`（需 `memory-manager` 權限，後端預設開放；記憶端點本身只驗登入，前端仍用 `RequireApp` 擋入口）。兩個分頁「群組」「個人」寫進網址 `?tab=`，選到的對象寫進 `?target=`；左側清單沿用 Bot 頁的群組（`/api/bot/groups`）與使用者（`/api/bot/users-with-binding`）資料層，每頁 20 筆、附平台 badge，搜尋是就地過濾當頁（這兩支端點沒有關鍵字參數），手機寬度收進抽屜。右側列該對象的記憶：標題、內容（純文字，超出三行折起來）、啟用開關（`PUT` 只送 `is_active`）、編輯與刪除，上方「新增記憶」。記憶和 bot 用的是同一份：`services/linebot_ai.py` 組系統提示詞時只讀 `is_active = true` 的那些，所以停用等於 bot 讀不到。刪除的確認對話框照 PR #29 的做法（只掛一個、關掉直接卸載、等請求落地才關）。後端 404 的 detail（`Group not found`／`User not found`／`Memory not found`）原樣顯示
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細、依使用者篩選）
+
+- **分享** — 路由 `/shares`（需 `share-manager` 權限，**後端預設關閉**，由管理員逐人開放；沒開的人側邊欄沒有這一項）。列出分享連結：資源類型 badge、標題（知識庫連 `/kb/:id`、專案連 `/projects/:id`；`nas_file` 顯示 `resource_id` 的路徑，因為後端的 `get_resource_title` 只回檔名）、完整網址與一鍵複製、到期（null 是永久，後端算好的 `is_expired` 為 true 時整列淡化並標「已過期」）、存取次數、建立時間。管理員多一個「只看我的／全部」切換，寫進網址 `?view=all`，切到全部時多一欄建立者，每一列都可以撤銷（包含別人的）。撤銷有確認對話框，後端 403「您沒有權限撤銷此連結」原樣顯示。建立連結不在這一頁，知識庫條目與檔案管理各自有建立對話框。
+
+  兩件與後端有關的事：一是 `share-manager` 這道閘門**只有前端有**——`POST /api/share` 掛了 `require_app_permission("share-manager")`，但 `GET /api/share` 與 `DELETE /api/share/{token}` 只掛 `get_current_session`（`api/share.py` 142、176），登入就打得到；撤銷本身另有「建立者或管理員」檢查。二是 `project` 與 `project_attachment` 兩種資源後端沒有實作標題，一律回「未知資源」（`services/share.py` 430–431），原始資源被刪掉則是「（已刪除）」，前端照後端顯示，不自己編
 - **使用者管理** — 路由 `/admin/users`（僅管理員）。清單有帳號、顯示名稱、角色、狀態、密碼（已設定／NAS）、最後登入，停用的使用者整列淡化。每列「權限」按鈕開 Sheet 調 app／知識庫權限（PATCH 只送變動的鍵，即時生效）；每列「動作」選單有編輯（顯示名稱、Email、角色）、停用／啟用、重設密碼、清除密碼與刪除，清除密碼與刪除各有確認對話框。清單上方的「新增使用者」對話框收帳號、密碼、顯示名稱與角色，後端一律把新帳號設成 `must_change_password=true`，成功後提示首次登入需改密碼。後端擋自己的四條（降級、停用、清除密碼、刪除）在自己那一列直接停用選項並寫出原因，不等 400。其餘 400 的 `detail` 原樣顯示。編輯表單的 Email 留空代表不變更：清單端點 `AdminUserInfo` 沒有回 email，後端 `update_user_info` 也只有收到 `None` 才跳過該欄
 - **Bot 管理** — 路由 `/bot`，六個分頁（綁定、群組含明細與最近訊息、使用者、黑名單、訊息、檔案），照舊桌面範圍；訊息／檔案分頁已補回舊桌面的群組篩選、檔案 NAS／已過期狀態；群組明細的「綁定專案」下拉照舊桌面補回：選項為專案清單（已完成／已取消排在後段並標狀態），第一項「未綁定」，改選送 `POST /bind-project`、選「未綁定」送 `DELETE /bind-project`，成功後顯示目前綁定的專案名並連到 `/projects/:id`；專案清單載入失敗（如無 `project-management` 權限）時下拉停用並提示；群組清單分頁的「專案」欄同步顯示綁定的專案名；圖片預覽已補；其他類型只下載
 - **專案** — 路由 `/projects`（需 `project-management` 權限）。清單有狀態篩選、搜尋與分頁，欄位含進度條與逾期里程碑數（大於 0 標紅），手機寬度改卡片；`/projects/new`、`/projects/:id/edit` 是主檔表單（新增限管理員）；`/projects/:id` 明細分五個分頁（總覽的里程碑與描述、任務三欄、成員、知識庫、綁定群組），分頁寫進網址 `?tab=`。編輯類控制只在管理員或該專案成員時顯示，後端回 403 時照既有樣式顯示提示。首頁 dashboard 不在本階段
