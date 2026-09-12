@@ -163,63 +163,56 @@ function ProactivePushSwitch({ platform, enabled }: { platform: Platform; enable
   )
 }
 
-function TestConnectionAction({ platform }: { platform: Platform }) {
-  const mutation = useMutation({ mutationFn: () => testBotConnection(platform) })
-
-  return (
-    <div className="space-y-2">
-      <Button variant="outline" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
-        測試連線
-      </Button>
-      {/* 後端連線失敗也是 200 加 success:false（api/bot_settings.py 165–184），訊息原樣顯示。 */}
-      {mutation.data && (
-        <Alert
-          variant={mutation.data.success ? "default" : "destructive"}
-          role={mutation.data.success ? "status" : "alert"}
-        >
-          <AlertDescription>{mutation.data.message}</AlertDescription>
-        </Alert>
-      )}
-      {mutation.isError && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{errorText(mutation.error, "測試失敗，請稍後再試")}</AlertDescription>
-        </Alert>
-      )}
-    </div>
-  )
-}
-
-function ClearAction({ platform }: { platform: Platform }) {
+/** 卡片下方的兩個動作：測試連線與清除資料庫設定。訊息放在按鈕列下方，佔整張卡的寬度。 */
+function PlatformActions({ platform }: { platform: Platform }) {
   const queryClient = useQueryClient()
-  const mutation = useMutation({
+  const test = useMutation({ mutationFn: () => testBotConnection(platform) })
+  const clear = useMutation({
     mutationFn: () => deleteBotSettings(platform),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: botSettingsKeys.platform(platform) }),
   })
 
   return (
-    <div className="space-y-2">
-      {mutation.isError && (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{errorText(mutation.error, "清除失敗，請稍後再試")}</AlertDescription>
+    <div className="space-y-2 border-t pt-3">
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={test.isPending} onClick={() => test.mutate()}>
+          測試連線
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline">清除資料庫設定</Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>確定清除 {PLATFORM_LABEL[platform]} 的資料庫設定？</AlertDialogTitle>
+              <AlertDialogDescription>
+                清除後改用 .env 的值；若 .env 也沒有設定，這個 Bot 會停止運作。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={() => clear.mutate()}>確定</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+
+      {/* 後端連線失敗也是 200 加 success:false（api/bot_settings.py 165–184），訊息原樣顯示。 */}
+      {test.data && (
+        <Alert variant={test.data.success ? "default" : "destructive"} role={test.data.success ? "status" : "alert"}>
+          <AlertDescription>{test.data.message}</AlertDescription>
         </Alert>
       )}
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button variant="outline">清除資料庫設定</Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>確定清除 {PLATFORM_LABEL[platform]} 的資料庫設定？</AlertDialogTitle>
-            <AlertDialogDescription>
-              清除後改用 .env 的值；若 .env 也沒有設定，這個 Bot 會停止運作。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => mutation.mutate()}>確定</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {test.isError && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{errorText(test.error, "測試失敗，請稍後再試")}</AlertDescription>
+        </Alert>
+      )}
+      {clear.isError && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{errorText(clear.error, "清除失敗，請稍後再試")}</AlertDescription>
+        </Alert>
+      )}
     </div>
   )
 }
@@ -252,10 +245,7 @@ function PlatformCard({ platform }: { platform: Platform }) {
                 <FieldRow key={field} platform={platform} field={field} status={query.data?.fields[field]} />
               ))}
               <ProactivePushSwitch platform={platform} enabled={query.data?.proactive_push_enabled ?? false} />
-              <div className="flex flex-wrap gap-3 border-t pt-3">
-                <TestConnectionAction platform={platform} />
-                <ClearAction platform={platform} />
-              </div>
+              <PlatformActions platform={platform} />
             </>
           )}
         </CardContent>
