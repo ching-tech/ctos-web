@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { login, logout, bindNas } from "./auth"
+import { changePassword, login, logout, bindNas } from "./auth"
 import { getToken, setToken } from "./token"
 
 beforeEach(() => {
@@ -52,5 +52,35 @@ it("bindNas 401（NAS 密碼錯誤）不清掉平台 token", async () => {
   setToken("abc")
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ detail: "NAS 帳號或密碼錯誤" }), { status: 401 })))
   await expect(bindNas("n", "wrong")).rejects.toMatchObject({ status: 401 })
+  expect(getToken()).toBe("abc")
+})
+
+it("changePassword 把兩個欄位原樣 POST 到 /api/auth/change-password", async () => {
+  setToken("abc")
+  const fn = vi.fn(async () => new Response(JSON.stringify({ success: true, error: null }), { status: 200 }))
+  vi.stubGlobal("fetch", fn)
+  const res = await changePassword({ current_password: "old12345", new_password: "new12345" })
+  expect(res.success).toBe(true)
+  const call = fn.mock.calls[0] as unknown as [string, RequestInit]
+  expect(call[0]).toMatch(/\/api\/auth\/change-password$/)
+  expect(call[1].method).toBe("POST")
+  expect(JSON.parse(call[1].body as string)).toEqual({ current_password: "old12345", new_password: "new12345" })
+})
+
+it("changePassword 首次設定密碼可以不帶 current_password", async () => {
+  setToken("abc")
+  const fn = vi.fn(async () => new Response(JSON.stringify({ success: true, error: null }), { status: 200 }))
+  vi.stubGlobal("fetch", fn)
+  await changePassword({ new_password: "new12345" })
+  const call = fn.mock.calls[0] as unknown as [string, RequestInit]
+  expect(JSON.parse(call[1].body as string)).toEqual({ new_password: "new12345" })
+})
+
+it("changePassword 失敗是 200 加 success:false，不會 throw", async () => {
+  setToken("abc")
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ success: false, error: "目前密碼錯誤" }), { status: 200 })))
+  const res = await changePassword({ current_password: "wrong", new_password: "new12345" })
+  expect(res.success).toBe(false)
+  expect(res.error).toBe("目前密碼錯誤")
   expect(getToken()).toBe("abc")
 })

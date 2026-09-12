@@ -114,7 +114,7 @@ npm run build
 
 - `api.ts` — API 客戶端（請求封裝與錯誤處理）
 - `api.test.ts` — API 單元測試
-- `auth.ts` — 認證函式（登入、登出、NAS 綁定）
+- `auth.ts` — 認證函式（登入、登出、NAS 綁定、變更密碼）
 - `auth.test.ts` — 認證單元測試
 - `auth-context.tsx` — React Context（使用者與驗證狀態）
 - `token.ts` — localStorage token 管理（取得、存儲、清除）
@@ -152,6 +152,7 @@ npm run build
 - `home/pending-receipts-card.tsx` — 首頁「採購待收貨」卡片（`ordered` 與 `partial` 的單數，列預計到貨最近的五張，逾期標紅）
 - `settings.tsx` — 設定頁（帳號資訊、NAS 綁定／解綁，掛上各區塊元件）
 - `settings/api-tokens.tsx` — 設定頁「API 權杖」區塊（清單、建立對話框、一次性權杖畫面、撤銷確認）
+- `settings/password.tsx` — 設定頁「密碼」區塊（變更或首次設定平台密碼）
 - `kb/list.tsx` — 知識庫清單頁（搜尋、scope／type／category 篩選、URL 同步）
 - `kb/detail.tsx` — 知識庫閱讀頁（Markdown 渲染、附件、metadata、刪除）
 - `kb/editor.tsx` — 知識庫新增／編輯頁（共用表單、預覽、只送變動欄位）
@@ -225,6 +226,7 @@ Playwright 端對端測試：
 - `login.spec.ts` — 登入流程測試
 - `settings.spec.ts` — 設定頁測試
 - `settings-tokens.spec.ts` — 設定頁「API 權杖」測試（清單、建立與一次性權杖、撤銷確認、PAT session 的 403）
+- `settings-password.spec.ts` — 設定頁「密碼」測試（成功、目前密碼錯、兩次不一致前端擋、NAS 使用者沒有目前密碼欄）
 - `shell.spec.ts` — 應用殼層測試（含首頁知識庫最近更新）
 - `home.spec.ts` — 首頁 dashboard 測試（今日 AI 用量／Bot 概況卡片依權限顯示、統計數字、stats 請求帶 `start_date`）
 - `kb-list.spec.ts` — 知識庫清單測試
@@ -277,7 +279,7 @@ Playwright 端對端測試：
 - **登入** — 支援 NAS 帳號與平台帳號兩種方式
 - **側邊欄與版面** — 響應式設計，支援深色／淺色主題（於側邊欄使用者選單切換）
 - **首頁** — 個人化問候訊息；「今日 AI 用量」（依 `ai-log` 權限）、「Bot 概況」（依 `linebot` 權限）、「進行中專案」與「逾期里程碑」（依 `project-management` 權限）、「採購待收貨」（依 `inventory-management` 權限）與知識庫「最近更新」卡片，各卡各自 loading／錯誤狀態，一張失敗不影響其他卡片
-- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示
+- **設定頁** — 帳號資訊、NAS 帳號綁定／解綁；「密碼」區塊變更或首次設定平台密碼（`POST /api/auth/change-password`）。已有平台密碼的人要填目前密碼，NAS 認證、還沒設密碼的人（`has_password` 為 false）沒有這一欄，改成提示設定後兩種都能登。這支端點**失敗也回 200**，只有 body 的 `success` 與 `error` 會變，前端照 body 判斷而不是看狀態碼；強度規則留在後端，前端只擋「兩次一致」與最少 8 碼。改完密碼**不會**讓其他裝置的 session 或 API 權杖失效。「API 權杖」區塊管理 `ctos` CLI 與自動化工具用的 PAT（`/api/auth/tokens`）：清單列名稱、範圍、唯讀／可寫、到期、最後使用與建立時間，建立對話框可挑範圍（不勾＝不限縮，拿使用者當下全部 app 權限）、有效天數（預設 180 天，可選永不過期）與唯讀開關，建立成功後一次性顯示原始權杖與 `export CTOS_TOKEN=` 用法，勾了「已保存」才關得掉，關掉就再也拿不到；撤銷有確認對話框。以 PAT 換來的 session 不能建立或撤銷權杖，後端 403 的 detail 原樣顯示
 - **知識庫** — 路由 `/kb`，清單搜尋、閱讀附件、新增編輯、刪除、分享連結、版本歷史；首頁多「最近更新」
 - **AI 助手** — 路由 `/assistant`（需 `ai-assistant` 權限，頁面走 `lazy()` 分開載入，socket.io-client 不進主 bundle）。左欄對話清單（新對話、重新命名、刪除確認，手機收成抽屜），主區訊息串（助手回覆用 Markdown 渲染，工具呼叫用 AI Log 同一支時間軸元件摺疊顯示），底部輸入區（Enter 送出、Shift+Enter 換行、Agent 選單、壓縮鈕）。對話走 REST（`/api/ai/chats`），送訊息與收回覆走 Socket.IO（`ai_chat_event`／`ai_typing`／`ai_response`／`ai_error`），握手帶 `auth.token`，token 失效時照既有流程清掉 session。右上角有連線狀態，斷線時輸入停用。網址帶 `?chat=` 指定對話、`?q=` 預填輸入框
 - **AI Log** — 路由 `/ai-log`，已完成（統計、篩選、分頁、明細、依使用者篩選）

@@ -35,9 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
   }, [])
 
+  // 讓 refresh() 讀得到當下的 user，又不必把 user 放進它的 deps。
+  const userRef = React.useRef<UserInfo | null>(user)
+  React.useEffect(() => { userRef.current = user }, [user])
+
   const refresh = React.useCallback(async () => {
     if (!getToken()) { setUser(null); setLoading(false); return }
-    setLoading(true)
+    // 已經有使用者時不要把 loading 翻起來：RequireAuth 在 loading 時會把整頁換成
+    // 「載入中…」，底下的頁面整個卸載，正在填的表單與剛跳出來的提示都會一起沒掉。
+    // 第一次載入（user 還是 null）照舊要翻，不然會先閃一下沒有資料的畫面。
+    if (!userRef.current) setLoading(true)
     await load()
   }, [load])
 
