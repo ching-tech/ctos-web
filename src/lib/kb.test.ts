@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { API_BASE } from "./api"
-import { attachmentUrl, getVersion, label, listKnowledge, rewriteImageSrc, SCOPE_LABEL, updateKnowledge } from "./kb"
+import { attachmentUrl, getVersion, label, listKnowledge, rebuildIndex, rewriteImageSrc, SCOPE_LABEL, updateKnowledge } from "./kb"
 import { setToken } from "./token"
 
 beforeEach(() => {
@@ -73,5 +73,17 @@ describe("getVersion", () => {
     await getVersion("kb-001", "abc1234")
     const url = (fn.mock.calls[0] as unknown as [string])[0]
     expect(url).toBe(`${API_BASE}/api/knowledge/kb-001/version/abc1234`)
+  })
+})
+
+describe("rebuildIndex", () => {
+  it("POSTs to /api/knowledge/rebuild-index and returns the stats dict", async () => {
+    const fn = vi.fn(async () => new Response(JSON.stringify({ total: 12, errors: ["kb-099.md: 缺少 id"], next_id: 13 }), { status: 200 }))
+    vi.stubGlobal("fetch", fn)
+    const result = await rebuildIndex()
+    const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe(`${API_BASE}/api/knowledge/rebuild-index`)
+    expect(init.method).toBe("POST")
+    expect(result).toEqual({ total: 12, errors: ["kb-099.md: 缺少 id"], next_id: 13 })
   })
 })
