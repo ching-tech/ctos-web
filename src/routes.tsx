@@ -22,6 +22,7 @@ import LoginPage from "@/pages/login"
 import MemoryPage from "@/pages/memory"
 import MessageDetailPage from "@/pages/messages/detail"
 import MessageListPage from "@/pages/messages/list"
+import PresentationPage from "@/pages/presentation"
 import PromptDetailPage from "@/pages/prompts/detail"
 import PromptEditorPage from "@/pages/prompts/editor"
 import PromptListPage from "@/pages/prompts/list"
@@ -93,6 +94,8 @@ export const router = createBrowserRouter([
           { path: "agents/new", element: <RequireApp app="agent-settings"><AgentEditorPage /></RequireApp> },
           { path: "agents/:id", element: <RequireApp app="agent-settings"><AgentDetailPage /></RequireApp> },
           { path: "agents/:id/edit", element: <RequireApp app="agent-settings"><AgentEditorPage /></RequireApp> },
+          // 後端 api/presentation.py 46–50 只掛 get_current_session，沒有 app 閘；md2ppt 只擋在前端。
+          { path: "presentation", element: <RequireApp app="md2ppt"><PresentationPage /></RequireApp> },
           { path: "ai-log", element: <RequireApp app="ai-log"><AiLogListPage /></RequireApp> },
           { path: "ai-log/:id", element: <RequireApp app="ai-log"><AiLogDetailPage /></RequireApp> },
           { path: "shares", element: <RequireApp app="share-manager"><SharesPage /></RequireApp> },
