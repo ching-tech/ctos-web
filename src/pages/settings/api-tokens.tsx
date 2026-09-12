@@ -3,14 +3,12 @@ import * as React from "react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -261,20 +259,15 @@ function CreateTokenDialog() {
   )
 }
 
-function TokenRow({ token, onNotice }: { token: ApiTokenInfo; onNotice: (message: string | null) => void }) {
-  const queryClient = useQueryClient()
-  const mutation = useMutation({
-    mutationFn: () => revokeApiToken(token.id),
-    // 每次重試都先把上一次的錯誤訊息清掉，成功之後也要清，
-    // 否則撤銷失敗的訊息會一直掛在那裡，看起來像剛剛那次也失敗了。
-    onMutate: () => onNotice(null),
-    onSuccess: () => {
-      onNotice(null)
-      void queryClient.invalidateQueries({ queryKey: apiTokenKeys.list })
-    },
-    onError: (e) => onNotice(errorText(e, "撤銷失敗，請稍後再試")),
-  })
-
+function TokenRow({
+  token,
+  busy,
+  onRevoke,
+}: {
+  token: ApiTokenInfo
+  busy: boolean
+  onRevoke: () => void
+}) {
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-start justify-between gap-4">
@@ -286,25 +279,9 @@ function TokenRow({ token, onNotice }: { token: ApiTokenInfo; onNotice: (message
             {token.read_only ? "唯讀" : "可寫"}
           </div>
         </div>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm" disabled={mutation.isPending}>
-              撤銷
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>確定撤銷「{token.name}」？</AlertDialogTitle>
-              <AlertDialogDescription>
-                撤銷後用這組權杖的程式會立刻失效，無法復原。
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>返回</AlertDialogCancel>
-              <AlertDialogAction onClick={() => mutation.mutate()}>確定撤銷</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <Button variant="outline" size="sm" disabled={busy} onClick={onRevoke}>
+          撤銷
+        </Button>
       </div>
       <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
         <div className="flex gap-2">
@@ -325,8 +302,26 @@ function TokenRow({ token, onNotice }: { token: ApiTokenInfo; onNotice: (message
 }
 
 export function ApiTokensCard() {
+  const queryClient = useQueryClient()
   const [notice, setNotice] = React.useState<string | null>(null)
+  // 確認對話框只有一個，狀態放在卡片這一層。放在每一列裡的話，那一列因為清單
+  // refetch 或被撤掉而重新渲染時，對話框會連同它的開關狀態一起被拆掉。
+  const [confirming, setConfirming] = React.useState<ApiTokenInfo | null>(null)
   const query = useQuery({ queryKey: apiTokenKeys.list, queryFn: listApiTokens })
+
+  const revoke = useMutation({
+    mutationFn: (id: number) => revokeApiToken(id),
+    // 每次重試都先把上一次的錯誤訊息清掉，成功之後也要清，
+    // 否則撤銷失敗的訊息會一直掛在那裡，看起來像剛剛那次也失敗了。
+    onMutate: () => setNotice(null),
+    onSuccess: () => {
+      setNotice(null)
+      void queryClient.invalidateQueries({ queryKey: apiTokenKeys.list })
+    },
+    onError: (e) => setNotice(errorText(e, "撤銷失敗，請稍後再試")),
+    // 要等這一趟請求落地才關對話框，「確定撤銷」在送出到收到回應之間必須留在畫面上。
+    onSettled: () => setConfirming(null),
+  })
 
   return (
     <Card>
@@ -360,10 +355,50 @@ export function ApiTokensCard() {
         {query.data && query.data.tokens.length > 0 && (
           <div className="space-y-3">
             {query.data.tokens.map((t) => (
-              <TokenRow key={t.id} token={t} onNotice={setNotice} />
+              <TokenRow
+                key={t.id}
+                token={t}
+                busy={revoke.isPending && confirming?.id === t.id}
+                onRevoke={() => setConfirming(t)}
+              />
             ))}
           </div>
         )}
+
+        {/*
+          只有這一個確認對話框，`open` 由 React state 控制。
+          內容整塊用 `confirming &&` 包住，是刻意的：關掉時直接從樹上拿掉，Radix 的離場
+          動畫就不會留下一個「已經關了但還在 DOM 裡」的對話框與整頁的遮罩——那 100ms
+          的空窗期會吃掉緊接著的下一次點擊，也會讓自動化測試抓到一顆馬上就要消失的按鈕。
+        */}
+        <AlertDialog
+          open={confirming !== null}
+          onOpenChange={(open) => {
+            // 送出中不讓 Esc／點外面關掉，免得按鈕在請求還沒回來時就消失。
+            if (!open && !revoke.isPending) setConfirming(null)
+          }}
+        >
+          {confirming && (
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>確定撤銷「{confirming.name}」？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  撤銷後用這組權杖的程式會立刻失效，無法復原。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={revoke.isPending}>返回</AlertDialogCancel>
+                {/*
+                  用一般的 Button 而不是 AlertDialogAction：Action 按下去的同一刻就把對話框
+                  關掉，按鈕會在請求還在路上時就從 DOM 消失。這裡等 `onSettled` 才關。
+                */}
+                <Button disabled={revoke.isPending} onClick={() => revoke.mutate(confirming.id)}>
+                  確定撤銷
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          )}
+        </AlertDialog>
       </CardContent>
     </Card>
   )
