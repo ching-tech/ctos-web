@@ -56,3 +56,43 @@ test("不存在的群組顯示找不到提示", async ({ page }) => {
   await expect(page.getByText("找不到這個群組")).toBeVisible()
   await expect(page.getByRole("link", { name: "回群組清單" })).toBeVisible()
 })
+
+test("檔案分頁：打專用端點列出這個群組的檔案，分頁寫進網址", async ({ page }) => {
+  await page.goto("/bot/groups/grp-1")
+
+  const req = page.waitForRequest((r) => /\/api\/bot\/groups\/grp-1\/files\?/.test(r.url()))
+  await page.getByRole("tab", { name: "檔案" }).click()
+  const params = new URL((await req).url()).searchParams
+  expect(params.get("page")).toBe("1")
+  expect(params.get("page_size")).toBe("30")
+
+  await expect(page).toHaveURL(/\/bot\/groups\/grp-1\?tab=files$/)
+  await expect(page.getByText("共 2 個檔案")).toBeVisible()
+  await expect(page.getByText("現場照片.jpg")).toBeVisible()
+  await expect(page.getByText("保養手冊.pdf")).toBeVisible()
+  // 別的群組的檔案不該出現。
+  await expect(page.getByText("驗收錄影.mp4")).toHaveCount(0)
+})
+
+test("檔案分頁：直接開 ?tab=files 就停在檔案分頁，類型篩選送 file_type", async ({ page }) => {
+  await page.goto("/bot/groups/grp-1?tab=files")
+  await expect(page.getByRole("tab", { name: "檔案" })).toHaveAttribute("aria-selected", "true")
+  await expect(page.getByText("共 2 個檔案")).toBeVisible()
+
+  const req = page.waitForRequest(
+    (r) => /\/api\/bot\/groups\/grp-1\/files\?/.test(r.url()) && r.url().includes("file_type=image"),
+  )
+  await page.getByLabel("檔案類型").click()
+  await page.getByRole("option", { name: "圖片" }).click()
+  await req
+  await expect(page).toHaveURL(/fileType=image/)
+  await expect(page.getByText("共 1 個檔案")).toBeVisible()
+})
+
+test("檔案分頁：沒有檔案的群組顯示空狀態", async ({ page }) => {
+  await page.goto("/bot/groups/grp-2?tab=files")
+  await expect(page.getByText("共 1 個檔案")).toBeVisible()
+  await expect(page.getByText("驗收錄影.mp4")).toBeVisible()
+  // grp-2 那一筆沒有 nas_path，照檔案分頁的規則標「已過期」。
+  await expect(page.getByText("已過期")).toBeVisible()
+})
