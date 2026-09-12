@@ -5578,3 +5578,213 @@ export async function mockBotSettings(
 
   return { state }
 }
+
+/** `LoginRecordResponse`（ching-tech-os models/login_record.py 51–70）。清單項目由這裡取子集。 */
+export interface LoginRecordFixture {
+  id: number
+  created_at: string
+  user_id: number | null
+  username: string
+  success: boolean
+  failure_reason: string | null
+  ip_address: string
+  user_agent: string | null
+  geo_country: string | null
+  geo_city: string | null
+  /** Decimal：pydantic v2 的 JSON 模式送字串。 */
+  geo_latitude: string | null
+  geo_longitude: string | null
+  device_fingerprint: string | null
+  device_type: string | null
+  browser: string | null
+  os: string | null
+  session_id: string | null
+}
+
+/**
+ * 全部杜撰。IP 用文件保留位址（RFC 5737 的 192.0.2.0/24 與 198.51.100.0/24），
+ * 地點與裝置指紋都是編的，沒有任何真實的登入資料。
+ * `user_id` 2 是 `userFixture`（一般使用者），1 是 `adminFixture`。
+ */
+export const loginRecordFixtures: LoginRecordFixture[] = [
+  {
+    id: 501, created_at: "2026-09-12T01:20:00Z", user_id: 2, username: "yazelin", success: true,
+    failure_reason: null, ip_address: "192.0.2.10",
+    user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36",
+    geo_country: "臺灣", geo_city: "桃園", geo_latitude: "24.993600", geo_longitude: "121.301000",
+    device_fingerprint: "fp-desktop-aaa", device_type: "desktop", browser: "Chrome", os: "Linux",
+    session_id: "sess-501",
+  },
+  {
+    id: 502, created_at: "2026-09-12T01:10:00Z", user_id: 2, username: "yazelin", success: false,
+    failure_reason: "密碼錯誤", ip_address: "192.0.2.10",
+    user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36",
+    geo_country: "臺灣", geo_city: "桃園", geo_latitude: null, geo_longitude: null,
+    device_fingerprint: "fp-desktop-aaa", device_type: "desktop", browser: "Chrome", os: "Linux",
+    session_id: null,
+  },
+  {
+    id: 503, created_at: "2026-09-11T23:45:00Z", user_id: 2, username: "yazelin", success: true,
+    failure_reason: null, ip_address: "198.51.100.7",
+    user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+    geo_country: "臺灣", geo_city: "新竹", geo_latitude: null, geo_longitude: null,
+    device_fingerprint: "fp-mobile-bbb", device_type: "mobile", browser: "Safari", os: "iOS",
+    session_id: "sess-503",
+  },
+  {
+    id: 504, created_at: "2026-09-11T22:00:00Z", user_id: 1, username: "admin", success: true,
+    failure_reason: null, ip_address: "192.0.2.55",
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edge/141.0",
+    geo_country: "臺灣", geo_city: "臺北", geo_latitude: null, geo_longitude: null,
+    device_fingerprint: "fp-desktop-ccc", device_type: "desktop", browser: "Edge", os: "Windows",
+    session_id: "sess-504",
+  },
+  {
+    id: 505, created_at: "2026-09-11T21:30:00Z", user_id: null, username: "no-such-user", success: false,
+    failure_reason: "帳號不存在", ip_address: "198.51.100.200",
+    user_agent: null, geo_country: null, geo_city: null, geo_latitude: null, geo_longitude: null,
+    device_fingerprint: null, device_type: "unknown", browser: null, os: null, session_id: null,
+  },
+  {
+    id: 506, created_at: "2026-09-10T08:15:00Z", user_id: 1, username: "admin", success: false,
+    failure_reason: "密碼錯誤", ip_address: "192.0.2.55",
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edge/141.0",
+    geo_country: "臺灣", geo_city: "臺北", geo_latitude: null, geo_longitude: null,
+    device_fingerprint: "fp-desktop-ccc", device_type: "desktop", browser: "Edge", os: "Windows",
+    session_id: null,
+  },
+]
+
+/** 產 n 筆連號紀錄，用來驗分頁；每第三筆失敗。 */
+export function makeLoginRecords(n: number, userId = 2, username = "yazelin"): LoginRecordFixture[] {
+  return Array.from({ length: n }, (_, i) => {
+    const num = i + 1
+    const success = num % 3 !== 0
+    return {
+      id: 2000 + num,
+      created_at: new Date(Date.UTC(2026, 8, 12, 0, 0, 0) - num * 60_000).toISOString(),
+      user_id: userId,
+      username,
+      success,
+      failure_reason: success ? null : "密碼錯誤",
+      ip_address: `192.0.2.${(num % 250) + 1}`,
+      user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36",
+      geo_country: "臺灣",
+      geo_city: "桃園",
+      geo_latitude: null,
+      geo_longitude: null,
+      device_fingerprint: `fp-batch-${num % 4}`,
+      device_type: "desktop",
+      browser: "Chrome",
+      os: "Linux",
+      session_id: success ? `sess-${2000 + num}` : null,
+    }
+  })
+}
+
+function loginRecordListItem(r: LoginRecordFixture) {
+  const { id, created_at, username, success, failure_reason, ip_address, geo_country, geo_city, device_type, browser } = r
+  return { id, created_at, username, success, failure_reason, ip_address, geo_country, geo_city, device_type, browser }
+}
+
+/** 照 ching-tech-os services/login_record.py 137–176 的條件做同樣的篩選（都是等值比對）。 */
+function filterLoginRecords(all: LoginRecordFixture[], params: URLSearchParams, admin: boolean): LoginRecordFixture[] {
+  const username = admin ? params.get("username") : null
+  const success = params.get("success")
+  const ip = params.get("ip_address")
+  const startDate = params.get("start_date")
+  const endDate = params.get("end_date")
+  const fingerprint = params.get("device_fingerprint")
+  return all.filter((r) => {
+    if (username && r.username !== username) return false
+    if (success !== null && r.success !== (success === "true")) return false
+    if (ip && r.ip_address !== ip) return false
+    if (fingerprint && r.device_fingerprint !== fingerprint) return false
+    if (startDate && new Date(r.created_at) < new Date(startDate)) return false
+    if (endDate && new Date(r.created_at) > new Date(endDate)) return false
+    return true
+  })
+}
+
+/**
+ * 登入紀錄的四支端點（ching-tech-os api/login_records.py 32–132）。
+ * `admin` 為 false 時照後端的 `_scoped_user_id`（25–29）只回 `selfUserId` 的紀錄，
+ * 並且把 `username` 篩選丟掉；明細也照後端回 404 而不是 403（127–131）。
+ * 統計照 services/login_record.py 306–355 的欄位算，`SUM` 在空集合回 null。
+ */
+export async function mockLoginRecords(
+  page: Page,
+  opts: { records?: LoginRecordFixture[]; admin?: boolean; selfUserId?: number } = {},
+) {
+  const all: LoginRecordFixture[] = (opts.records ?? loginRecordFixtures).map((r) => ({ ...r }))
+  const admin = opts.admin ?? false
+  const selfUserId = opts.selfUserId ?? 2
+  const scoped = () => (admin ? all : all.filter((r) => r.user_id === selfUserId))
+  const base = new URL(API)
+  const prefix = base.pathname.replace(/\/$/, "")
+  const sameOrigin = (url: URL) => url.origin === base.origin
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/login-records/stats`,
+    async (route) => {
+      const days = Number(new URL(route.request().url()).searchParams.get("days") ?? "30")
+      const rows = scoped()
+      const empty = rows.length === 0
+      await route.fulfill({
+        json: {
+          total: rows.length,
+          success_count: empty ? null : rows.filter((r) => r.success).length,
+          failure_count: empty ? null : rows.filter((r) => !r.success).length,
+          unique_ips: new Set(rows.map((r) => r.ip_address)).size,
+          unique_devices: new Set(rows.map((r) => r.device_fingerprint).filter(Boolean)).size,
+          days,
+        },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/login-records/recent`,
+    async (route) => {
+      const limit = Number(new URL(route.request().url()).searchParams.get("limit") ?? "10")
+      await route.fulfill({ json: { items: scoped().slice(0, limit).map(loginRecordListItem) } })
+    },
+  )
+
+  await page.route(
+    (url) => sameOrigin(url) && url.pathname === `${prefix}/api/login-records`,
+    async (route) => {
+      const params = new URL(route.request().url()).searchParams
+      const filtered = filterLoginRecords(scoped(), params, admin)
+      const pageNum = Number(params.get("page") ?? "1")
+      const limit = Number(params.get("limit") ?? "20")
+      const start = (pageNum - 1) * limit
+      await route.fulfill({
+        json: {
+          items: filtered.slice(start, start + limit).map(loginRecordListItem),
+          total: filtered.length,
+          page: pageNum,
+          limit,
+          total_pages: filtered.length > 0 ? Math.ceil(filtered.length / limit) : 1,
+        },
+      })
+    },
+  )
+
+  await page.route(
+    (url) => {
+      if (!sameOrigin(url)) return false
+      const detailPrefix = `${prefix}/api/login-records/`
+      if (!url.pathname.startsWith(detailPrefix)) return false
+      return /^\d+$/.test(url.pathname.slice(detailPrefix.length))
+    },
+    async (route) => {
+      const id = Number(new URL(route.request().url()).pathname.split("/").pop())
+      const found = scoped().find((r) => r.id === id)
+      if (!found) return route.fulfill({ status: 404, json: { detail: `登入記錄 ${id} 不存在` } })
+      await route.fulfill({ json: { ...found } })
+    },
+  )
+
+  return { records: all }
+}

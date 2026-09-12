@@ -1,0 +1,356 @@
+import { useQuery } from "@tanstack/react-query"
+import * as React from "react"
+import { Link, useSearchParams } from "react-router"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Pagination } from "@/components/pagination"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ApiError } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
+import {
+  DEFAULT_STATS_DAYS,
+  deviceTypeLabel,
+  geoLabel,
+  getLoginStats,
+  listLoginRecords,
+  loginRecordKeys,
+  STATS_DAY_OPTIONS,
+  successRate,
+  type LoginRecordFilters,
+  type LoginRecordListItem,
+} from "@/lib/login-records"
+
+function filtersFromParams(params: URLSearchParams): LoginRecordFilters {
+  const rawSuccess = params.get("success")
+  const rawPage = params.get("page")
+  return {
+    username: params.get("username") || undefined,
+    success: rawSuccess === "true" ? true : rawSuccess === "false" ? false : undefined,
+    ip: params.get("ip") || undefined,
+    from: params.get("from") || undefined,
+    to: params.get("to") || undefined,
+    page: rawPage ? Math.max(1, Number(rawPage) || 1) : undefined,
+  }
+}
+
+function daysFromParams(params: URLSearchParams): number {
+  const raw = Number(params.get("days"))
+  return (STATS_DAY_OPTIONS as readonly number[]).includes(raw) ? raw : DEFAULT_STATS_DAYS
+}
+
+function fmtNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—"
+  return n.toLocaleString("zh-TW")
+}
+
+function ResultBadge({ success }: { success: boolean }) {
+  return <Badge variant={success ? "tint" : "destructive"}>{success ? "成功" : "失敗"}</Badge>
+}
+
+function RecordCard({ item }: { item: LoginRecordListItem }) {
+  return (
+    <li className={`rounded-lg border p-3 ${item.success ? "" : "border-destructive/40"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <Link to={`/login-records/${item.id}`} className="text-primary underline-offset-4 hover:underline">
+          {new Date(item.created_at).toLocaleString("zh-TW")}
+        </Link>
+        <ResultBadge success={item.success} />
+      </div>
+      <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 break-words">
+          <span>{item.username}</span>
+          <span>{item.ip_address}</span>
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 break-words">
+          <span>{geoLabel(item)}</span>
+          <span>{deviceTypeLabel(item.device_type)}</span>
+          <span>{item.browser || "—"}</span>
+        </div>
+        {!item.success && item.failure_reason && (
+          <p className="break-words text-destructive">{item.failure_reason}</p>
+        )}
+      </div>
+    </li>
+  )
+}
+
+export default function LoginRecordListPage() {
+  const { user } = useAuth()
+  const isAdmin = Boolean(user?.is_admin)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filters = filtersFromParams(searchParams)
+  const page = filters.page ?? 1
+  const days = daysFromParams(searchParams)
+
+  // 兩個文字篩選（使用者名稱、IP）都是後端的等值比對，按了「搜尋」才寫進網址。
+  const [usernameDraft, setUsernameDraft] = React.useState(filters.username ?? "")
+  const [ipDraft, setIpDraft] = React.useState(filters.ip ?? "")
+  // 網址被外面改掉（上一頁、清除篩選）時讓輸入框跟上。
+  const urlText = JSON.stringify([filters.username ?? "", filters.ip ?? ""])
+  const [lastUrlText, setLastUrlText] = React.useState(urlText)
+  if (urlText !== lastUrlText) {
+    setLastUrlText(urlText)
+    setUsernameDraft(filters.username ?? "")
+    setIpDraft(filters.ip ?? "")
+  }
+
+  const statsQuery = useQuery({ queryKey: loginRecordKeys.stats(days), queryFn: () => getLoginStats({ days }) })
+  const listQuery = useQuery({ queryKey: loginRecordKeys.list(filters), queryFn: () => listLoginRecords(filters) })
+
+  const stats = statsQuery.data
+  const rate = successRate(stats)
+  const items = listQuery.data?.items ?? []
+  const total = listQuery.data?.total ?? 0
+  const totalPages = Math.max(1, listQuery.data?.total_pages ?? 1)
+
+  function setParams(mutate: (next: URLSearchParams) => void, opts: { keepPage?: boolean } = {}) {
+    const next = new URLSearchParams(searchParams)
+    mutate(next)
+    if (!opts.keepPage) next.delete("page")
+    setSearchParams(next, { replace: !opts.keepPage })
+  }
+
+  function clearFilters() {
+    setUsernameDraft("")
+    setIpDraft("")
+    // 統計天數不是清單篩選，清除篩選時留著。
+    const next = new URLSearchParams()
+    if (days !== DEFAULT_STATS_DAYS) next.set("days", String(days))
+    setSearchParams(next, { replace: true })
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h1 className="text-2xl font-semibold">登入紀錄</h1>
+          {!isAdmin && <p className="text-sm text-muted-foreground">只顯示你自己的登入紀錄</p>}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {listQuery.isLoading ? "" : `共 ${total.toLocaleString("zh-TW")} 筆`}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={String(days)} onValueChange={(v) => setParams((next) => next.set("days", v))}>
+          <SelectTrigger className="w-32" aria-label="統計天數">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATS_DAY_OPTIONS.map((d) => (
+              <SelectItem key={d} value={String(d)}>
+                最近 {d} 天
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">統計只看天數，不套用下方的篩選</p>
+      </div>
+
+      {statsQuery.isError ? (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>
+            {statsQuery.error instanceof ApiError ? statsQuery.error.detail : "統計載入失敗，請稍後再試"}
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-normal text-muted-foreground">登入次數</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold" data-testid="stat-total">
+              {fmtNumber(stats?.total)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-normal text-muted-foreground">成功率</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" data-testid="stat-rate">
+                {rate === null ? "—" : `${Math.round(rate)}%`}
+              </div>
+              {stats && (
+                <p className="text-xs text-muted-foreground">
+                  {fmtNumber(stats.success_count ?? 0)} 成功／{fmtNumber(stats.failure_count ?? 0)} 失敗
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-normal text-muted-foreground">失敗次數</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold" data-testid="stat-failure">
+              {fmtNumber(stats ? (stats.failure_count ?? 0) : undefined)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-normal text-muted-foreground">不同 IP</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold" data-testid="stat-ips">
+              {fmtNumber(stats?.unique_ips)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-normal text-muted-foreground">不同裝置</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-bold" data-testid="stat-devices">
+              {fmtNumber(stats?.unique_devices)}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={filters.success === undefined ? "all" : String(filters.success)}
+          onValueChange={(v) => setParams((next) => (v === "all" ? next.delete("success") : next.set("success", v)))}
+        >
+          <SelectTrigger className="w-28" aria-label="結果">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部</SelectItem>
+            <SelectItem value="true">成功</SelectItem>
+            <SelectItem value="false">失敗</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setParams((next) => {
+              if (isAdmin) {
+                if (usernameDraft) next.set("username", usernameDraft)
+                else next.delete("username")
+              }
+              if (ipDraft) next.set("ip", ipDraft)
+              else next.delete("ip")
+            })
+          }}
+        >
+          {/* 使用者名稱只有管理員送得出去：後端對非管理員一律把這個條件丟掉（api/login_records.py 55）。 */}
+          {isAdmin && (
+            <Input
+              aria-label="使用者名稱"
+              placeholder="帳號（完全相符）"
+              className="w-40"
+              value={usernameDraft}
+              onChange={(e) => setUsernameDraft(e.target.value)}
+            />
+          )}
+          <Input
+            aria-label="IP 位址"
+            placeholder="IP（完全相符）"
+            className="w-40"
+            value={ipDraft}
+            onChange={(e) => setIpDraft(e.target.value)}
+          />
+          <Button type="submit" variant="outline">
+            搜尋
+          </Button>
+        </form>
+
+        <input
+          type="date"
+          aria-label="起日"
+          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          value={filters.from ?? ""}
+          onChange={(e) => setParams((next) => (e.target.value ? next.set("from", e.target.value) : next.delete("from")))}
+        />
+        <input
+          type="date"
+          aria-label="迄日"
+          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          value={filters.to ?? ""}
+          onChange={(e) => setParams((next) => (e.target.value ? next.set("to", e.target.value) : next.delete("to")))}
+        />
+        <Button variant="outline" onClick={clearFilters}>
+          清除篩選
+        </Button>
+      </div>
+
+      {listQuery.isError ? (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>
+            {listQuery.error instanceof ApiError ? listQuery.error.detail : "載入失敗，請稍後再試"}
+          </AlertDescription>
+        </Alert>
+      ) : listQuery.isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : items.length === 0 ? (
+        <p className="text-muted-foreground">沒有符合的登入紀錄</p>
+      ) : (
+        <>
+          <div className="hidden overflow-x-auto rounded-lg border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>時間</TableHead>
+                  <TableHead>使用者</TableHead>
+                  <TableHead>結果</TableHead>
+                  <TableHead>失敗原因</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>地點</TableHead>
+                  <TableHead>裝置</TableHead>
+                  <TableHead>瀏覽器</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item) => (
+                  <TableRow key={item.id} className={item.success ? undefined : "bg-destructive/5"}>
+                    <TableCell className="whitespace-nowrap">
+                      <Link
+                        to={`/login-records/${item.id}`}
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        {new Date(item.created_at).toLocaleString("zh-TW")}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="break-words">{item.username}</TableCell>
+                    <TableCell>
+                      <ResultBadge success={item.success} />
+                    </TableCell>
+                    <TableCell className="break-words">{item.failure_reason || "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{item.ip_address}</TableCell>
+                    <TableCell className="break-words">{geoLabel(item)}</TableCell>
+                    <TableCell>{deviceTypeLabel(item.device_type)}</TableCell>
+                    <TableCell className="break-words">{item.browser || "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <ul className="space-y-2 md:hidden">
+            {items.map((item) => (
+              <RecordCard key={item.id} item={item} />
+            ))}
+          </ul>
+
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={(p) =>
+              setParams((next) => (p <= 1 ? next.delete("page") : next.set("page", String(p))), { keepPage: true })
+            }
+          />
+        </>
+      )}
+    </div>
+  )
+}
